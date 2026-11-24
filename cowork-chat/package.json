@@ -44,7 +44,7 @@
     "ioredis": "^5.11.1",
     "kafkajs": "^2.2.4",
     "mime-types": "^3.0.2",
-    "mongoose": "^9.10.1",
+    "mongoose": "^9.11.4",
     "nestjs-pino": "^5.3.1",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",

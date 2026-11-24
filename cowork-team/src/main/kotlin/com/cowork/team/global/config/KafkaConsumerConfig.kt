@@ -162,5 +162,13 @@ class KafkaConsumerConfig(
         projectionListenerContainerFactory(projectionStreams.teamSetting)
 
     @Bean
+    fun projectCalendarEventListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.projectCalendarEvent)
+
+    @Bean
+    fun projectReadableUserListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.projectReadableUser)
+
+    @Bean
     fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }

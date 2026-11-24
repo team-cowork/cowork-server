@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/errorutils"
 	"firebase.google.com/go/v4/messaging"
 	"google.golang.org/api/option"
 )
@@ -102,11 +103,18 @@ func (s *Sender) checkUnregistered(err error) bool {
 // Admin SDK error taxonomy (firebase.google.com/go/v4/messaging's Is* predicates) and
 // is verified by code review against that contract rather than by unit test: the
 // SDK's own error classification is not this repository's business logic to freeze.
-func (s *Sender) classify(err error) Outcome {
+func (s *Sender) classify(ctx context.Context, err error) Outcome {
 	switch {
 	case s.checkUnregistered(err), messaging.IsSenderIDMismatch(err):
 		return OutcomeInvalid
 	case messaging.IsInternal(err), messaging.IsUnavailable(err), messaging.IsQuotaExceeded(err):
+		return OutcomeRetryable
+	// The SDK returns ctx.Err() as is when the context ends during its retry wait. During
+	// an HTTP call it replaces the error with a FirebaseError that drops the cause: a
+	// timeout becomes DEADLINE_EXCEEDED and a cancellation becomes UNKNOWN, so only
+	// ctx.Err() identifies the cancellation.
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
+		errorutils.IsDeadlineExceeded(err), errorutils.IsCancelled(err), ctx.Err() != nil:
 		return OutcomeRetryable
 	default:
 		// Deliberately excludes messaging.IsInvalidArgument: that code also covers
@@ -220,7 +228,7 @@ func (s *Sender) Send(ctx context.Context, messages []Message, title, body strin
 			// The whole batch failed before FCM assigned per-message responses; classify the
 			// batch-level error once and apply it to every installation in the batch so none
 			// of them are silently dropped from the durable retry ledger.
-			outcome := s.classify(err)
+			outcome := s.classify(ctx, err)
 			slog.Warn("fcm multicast call failed", "err", err, "batch_size", len(batch), "outcome", outcome)
 			for _, m := range batch {
 				results = append(results, Result{FID: m.FID, Outcome: outcome})
@@ -232,7 +240,7 @@ func (s *Sender) Send(ctx context.Context, messages []Message, title, body strin
 				results = append(results, Result{FID: batch[j].FID, Outcome: OutcomeSuccess})
 				continue
 			}
-			outcome := s.classify(r.Error)
+			outcome := s.classify(ctx, r.Error)
 			if outcome != OutcomeInvalid {
 				slog.Warn("fcm send failed", "err", r.Error, "batch_index", j, "outcome", outcome)
 			}

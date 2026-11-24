@@ -24,6 +24,7 @@ export class WebhookMessageRepository implements OnModuleInit {
 		await this.model.collection.createIndex(
 			{'webhook.id': 1, webhookDeliveryKey: 1},
 			{name: 'webhook_idempotency', unique: true, partialFilterExpression: {webhookDeliveryKey: {$type: 'string'}}},
+			undefined,
 		);
 	}
 

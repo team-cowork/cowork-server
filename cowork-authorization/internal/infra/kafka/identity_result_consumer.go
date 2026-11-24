@@ -26,7 +26,6 @@ type identityResultDeadLetterPublisher interface {
 }
 
 type IdentityResultConsumer struct {
-	version   int
 	reader    *kafka.Reader
 	processor identityResultProcessor
 	dltTopic  string
@@ -39,12 +38,10 @@ func NewIdentityResultConsumer(
 	topic string,
 	groupID string,
 	dltTopic string,
-	version int,
 	processor identityResultProcessor,
 	publisher identityResultDeadLetterPublisher,
 ) *IdentityResultConsumer {
 	return &IdentityResultConsumer{
-		version: version,
 		reader: kafka.NewReader(kafka.ReaderConfig{
 			Dialer:         security.Dialer(),
 			Brokers:        strings.Split(bootstrapServers, ","),
@@ -74,7 +71,7 @@ func (c *IdentityResultConsumer) Run(ctx context.Context) {
 
 		for ctx.Err() == nil {
 			result, processErr := decodeIdentityResult(message.Value)
-			if processErr == nil && result.SchemaVersion != c.version {
+			if processErr == nil && result.SchemaVersion != domain.UserIdentityResultSchemaVersion {
 				processErr = errors.New("incorrect result version for topic")
 			}
 			permanent := processErr != nil

@@ -19,7 +19,7 @@
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "min by (service) (up{job=\"cowork-services\",service!~\".*-sidecar-proxy\"}) or on (service) (0 * max by (service) (up{job=\"blackbox\",service!~\".*-sidecar-proxy\",service!~\"livekit|storage\"}))",
+          "expr": "min by (service) (up{job=\"cowork-services\",service!~\".*-sidecar-proxy\"}) or on (service) (0 * group by (service) (up{job=~\"gateway-api|public-gateway\"}))",
           "instant": true,
           "range": false,
           "legendFormat": "{{service}}",
@@ -38,7 +38,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "Envoy를 통한 애플리케이션별 메트릭 수집 결과입니다. 하나라도 수집에 실패하면 DOWN이며, 원본 앱 준비 상태는 Service Health에서 별도로 확인합니다."
+      "description": "메트릭 수집에 실패하거나 수집 대상에서 사라진 서비스는 DOWN으로 표시합니다."
     },
     {
       "id": 200,

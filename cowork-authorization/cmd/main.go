@@ -104,22 +104,23 @@ func main() {
 		log.Fatalf("failed to configure DataGSM login: %v", err)
 	}
 	defer login.Close()
-	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login)
+	githubLogin, err := service.NewGitHubLogin(cfg, loginAttempts, nil)
+	if err != nil {
+		log.Fatalf("failed to configure GitHub login: %v", err)
+	}
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login, githubLogin)
 	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
 	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
 		sqlDB,
 		cfg.KafkaTopicUserPresence,
 		kafkaProducer,
 	)
-	providerResults := kafkainfra.NewIdentityResultConsumer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers,
-		config.ProviderResultTopic, config.ProviderResultGroup, config.ProviderResultTopic+"-dlt", 2, identityOperationRepo, kafkaProducer)
 	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
 		cfg.KafkaSecurity,
 		cfg.KafkaBootstrapServers,
-		cfg.KafkaTopicUserIdentityCommandResult,
-		cfg.KafkaGroupIDUserIdentityResult,
-		cfg.KafkaTopicUserIdentityResultDLT,
-		1,
+		config.ProviderResultTopic,
+		config.ProviderResultGroup,
+		config.ProviderResultDLT,
 		identityOperationRepo,
 		kafkaProducer,
 	)
@@ -134,8 +135,6 @@ func main() {
 		defer close(snapshotBarrierDone)
 		snapshotBarrierPublisher.Run(outboxCtx)
 	}()
-	providerResultDone := make(chan struct{})
-	go func() { defer close(providerResultDone); providerResults.Run(outboxCtx) }()
 	identityResultDone := make(chan struct{})
 	go func() {
 		defer close(identityResultDone)
@@ -178,6 +177,8 @@ func main() {
 		auth.POST("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
+		auth.POST("/link/authorize", handler.RequireUserID(), authHandler.LinkAuthorize)
+		auth.POST("/link/callback", handler.RequireUserID(), authHandler.LinkCallback)
 	}
 
 	events := router.Group("/events")
@@ -258,10 +259,6 @@ func main() {
 	case <-time.After(5 * time.Second):
 		log.Println("authorization identity result consumer did not stop within 5 seconds")
 	}
-	if err := providerResults.Close(); err != nil {
-		log.Printf("failed to close provider result reader: %v", err)
-	}
-	<-providerResultDone
 	if err := kafkaProducer.Close(); err != nil {
 		log.Printf("failed to close Kafka producer: %v", err)
 	}

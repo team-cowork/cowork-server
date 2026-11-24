@@ -10,12 +10,16 @@ namespace CoworkUser.Kafka.Commands;
 /// <summary>Applies authorization's identity commands with an idempotent inbox and a result outbox.</summary>
 public static class IdentityCommand
 {
+    const int ResultSchemaVersion = 2;
     const string ResultErrorCode = "USER_IDENTITY_REJECTED";
     const string ResultErrorMessage = "cowork-user could not commit the requested identity";
+    internal const string NotLinkedCode = "IDENTITY_NOT_LINKED";
+    internal const string AlreadyLinkedCode = "IDENTITY_ALREADY_LINKED";
+    internal const string DataGsmLoginRequiredCode = "DATAGSM_LOGIN_REQUIRED";
 
     sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
-    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger, bool providerCommand = false)
+    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger)
     {
         var payload = Json.ParseObject(record.Value, out var decodeError);
         if (payload is null)
@@ -24,8 +28,7 @@ public static class IdentityCommand
             return;
         }
 
-        var command = providerCommand ? IdentityCommandContract.ParseProvider(payload.Value, record.KeyText)
-            : IdentityCommandContract.Parse(payload.Value, record.KeyText);
+        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText);
         if (command is null)
         {
             await Quarantine(IdentityCommandContract.CorrelationOperationId(payload.Value), ":invalid_user_identity_command");
@@ -51,7 +54,7 @@ public static class IdentityCommand
 
         async Task Quarantine(string? operationId, string reason)
         {
-            await ActionQuarantine.QuarantineAsync(consumerGroup, record, reason, operationId, resultTopic, providerCommand ? 2 : 1);
+            await ActionQuarantine.QuarantineAsync(consumerGroup, record, reason, operationId, resultTopic);
             logger.LogWarning("Quarantined invalid user identity command topic={Topic} partition={Partition} offset={Offset} operation_id={OperationId} reason={Reason}",
                 record.Topic, record.Partition, record.Offset, operationId, reason);
         }
@@ -60,10 +63,10 @@ public static class IdentityCommand
     static Task ProcessAsync(IdentityCommandContract.Command command, string resultTopic) =>
         App.TransactionAsync(async (connection, transaction) =>
         {
-            var hashVersion = command.IsProviderCommand ? 3 : IdentityCommandContract.HashVersion;
+            const int hashVersion = IdentityCommandContract.HashVersion;
             var commandHash = HashFor(hashVersion, command)!;
-            var inbox = (await connection.QueryAsync<(string OperationId, string IdempotencyKey, long? UserId, string CommandHash, long HashVersion, string ResultPayload)>("""
-                SELECT operation_id, idempotency_key, user_id, command_hash, CAST(hash_version AS SIGNED), CAST(result_payload AS CHAR)
+            var inbox = (await connection.QueryAsync<(string OperationId, string IdempotencyKey, string CommandHash, long HashVersion, string ResultPayload)>("""
+                SELECT operation_id, idempotency_key, command_hash, CAST(hash_version AS SIGNED), CAST(result_payload AS CHAR)
                 FROM tb_user_identity_command_inbox
                 WHERE operation_id = @OperationId OR idempotency_key = @IdempotencyKey
                 ORDER BY operation_id
@@ -77,18 +80,17 @@ public static class IdentityCommand
                 // Every stored row is verified with the rule it was written under; an unknown version is refused.
                 if (HashFor(stored.HashVersion, command) is not { } expectedHash) throw new ConflictingReuse(":unsupported_identity_command_hash_version");
                 if (stored.OperationId != command.OperationId || stored.IdempotencyKey != command.IdempotencyKey
-                    || (!command.IsProviderCommand && stored.UserId != command.UserId) || stored.CommandHash != expectedHash)
+                    || stored.CommandHash != expectedHash)
                     throw new ConflictingReuse();
                 await EnqueueResultAsync(connection, transaction, resultTopic, stored.OperationId, stored.ResultPayload);
                 return 0;
             }
 
-            var identity = await Accounts.ApplyIdentityCommandAsync(connection, transaction, command);
+            var (identity, failureCode) = await Accounts.ApplyIdentityCommandAsync(connection, transaction, command);
             var status = identity is null ? "FAILED" : "SUCCEEDED";
-            var resultVersion = command.IsProviderCommand ? 2 : 1;
             var payload = identity is not null
-                ? ResultPayload(command.OperationId, status, identity.UserId, null, null, resultVersion, identity)
-                : ResultPayload(command.OperationId, status, null, ResultErrorCode, ResultErrorMessage, resultVersion);
+                ? ResultPayload(command.OperationId, status, null, null, identity)
+                : ResultPayload(command.OperationId, status, failureCode ?? ResultErrorCode, FailureMessage(failureCode));
 
             await connection.ExecuteAsync("""
                 INSERT INTO tb_user_identity_command_inbox
@@ -96,7 +98,7 @@ public static class IdentityCommand
                 VALUES (@OperationId, @IdempotencyKey, @UserId, @commandHash, @hashVersion, @status, @payload, @resultHash, @processedAt)
                 """, new
             {
-                command.OperationId, command.IdempotencyKey, UserId = command.IsProviderCommand ? identity?.UserId : command.UserId, commandHash, hashVersion,
+                command.OperationId, command.IdempotencyKey, UserId = identity?.UserId, commandHash, hashVersion,
                 status, payload, resultHash = Hash(payload), processedAt = Iso8601.UtcNow(),
             }, transaction);
             await EnqueueResultAsync(connection, transaction, resultTopic, command.OperationId, payload);
@@ -107,18 +109,26 @@ public static class IdentityCommand
         connection.ExecuteAsync("INSERT INTO tb_kafka_outbox (topic, event_key, payload) VALUES (@topic, @operationId, @payload)",
             new { topic, operationId, payload }, transaction);
 
-    internal static string ResultPayload(string operationId, string status, long? userId, string? errorCode, string? errorMessage, int version = 1, Accounts.SessionIdentity? identity = null)
+    static string FailureMessage(string? code) => code switch
+    {
+        NotLinkedCode => "an existing account uses this email or GitHub ID, but this login method is not linked to it",
+        AlreadyLinkedCode => "the login method is already linked to another account, or the account already has one",
+        DataGsmLoginRequiredCode => "a GSM school email must sign in with DataGSM first and then link GitHub",
+        _ => ResultErrorMessage,
+    };
+
+    internal static string ResultPayload(string operationId, string status, string? errorCode, string? errorMessage, Accounts.SessionIdentity? identity = null)
     {
         var result = new SortedDictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["schemaVersion"] = version,
+            ["schemaVersion"] = ResultSchemaVersion,
             ["operationId"] = operationId,
             ["status"] = status,
             ["occurredAt"] = Iso8601.Format(Iso8601.UtcNow()),
         };
-        if (userId is not null) result["userId"] = userId;
-        if (version == 2 && identity is not null)
+        if (identity is not null)
         {
+            result["userId"] = identity.UserId;
             result["email"] = identity.Email;
             result["gsmRole"] = identity.GsmRole;
         }
@@ -129,13 +139,20 @@ public static class IdentityCommand
     /// <summary>The hash of a command under the given version's rule, or null when the version is not supported.</summary>
     internal static string? HashFor(long hashVersion, IdentityCommandContract.Command command) => hashVersion switch
     {
-        3 when command.IsProviderCommand => Hash(Json.Encode(new
+        // TODO(2026-11-23T07:19:58Z): Remove rule 3 and its test after Kafka retention has expired every identity command
+        // processed before hash rule 4. Until then, a redelivered command must still match its stored rule 3 hash.
+        3 => Hash(Json.Encode(new
         {
             command.OperationId, command.IdempotencyKey, command.Provider, command.ProviderSubject, command.Name, command.Email,
             command.Sex, command.Grade, command.ClassNumber, command.StudentNumberInClass, command.Major, command.Role,
             command.GithubId, command.DatagsmStudentId, OccurredAt = Iso8601.Format(command.OccurredAt)
         })),
-        IdentityCommandContract.HashVersion when !command.IsProviderCommand => Hash(IdentityCommandContract.CanonicalPayload(command)),
+        4 => Hash(Json.Encode(new
+        {
+            command.OperationId, command.IdempotencyKey, command.CommandType, command.AccountId, command.Provider, command.ProviderSubject,
+            command.Name, command.Email, command.GsmEmailVerified, command.Sex, command.Grade, command.ClassNumber,
+            command.StudentNumberInClass, command.Major, command.Role, command.GithubId, command.DatagsmStudentId, OccurredAt = Iso8601.Format(command.OccurredAt)
+        })),
         _ => null,
     };
 

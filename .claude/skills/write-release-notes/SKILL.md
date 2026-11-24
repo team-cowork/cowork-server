@@ -34,6 +34,13 @@ Match the heading, blank line, bare source references, concise Korean sentence, 
 
 Do not add bold feature labels, category headings, introductions, migration or caution sections, comparison links, Full Changelog footers, or expanded Markdown PR links. If an essential change requires end users to act differently, describe it briefly within the relevant bullet. Keep detailed analysis and operational guidance in the review conversation. Follow a different format only when the user requests it.
 
+Punctuation: these rules apply to the Korean release body this skill writes, not to the English in these instructions.
+
+- Avoid the dash `—`. Use a comma or split the sentence instead.
+- Avoid the middle dot `·`. Use a slash `/` where possible: write `읽기/쓰기`, not `읽기·쓰기`.
+- Parentheses follow a looser rule. Do not put a long aside that breaks the flow of a sentence in parentheses; split the sentence instead. A short aside, the original term at its first use, and the expansion of an abbreviation may use parentheses.
+- Exception: `—` and `·` inside a code name in backticks or inside a fixed format stay as written.
+
 ## Establish the release boundary
 
 1. Resolve the repository with `gh repo view --json nameWithOwner`, inspect `gh release list`, and read the target body with `gh release view TAG --json body,tagName,url`. Use the historical notes selected above as the formatting reference.

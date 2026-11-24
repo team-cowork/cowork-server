@@ -266,12 +266,16 @@ class MainVerticle : AbstractVerticle() {
             webhookReadiness = channelProjectionReadiness,
             accountRoles = accountRoles,
         )
-        scheduleProjectionSnapshots(snapshotPublisher::publishAccountRolesIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishTeamStateIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishChannelRolePoliciesIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishProjectAccessIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishSettingStatesIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishWebhooksIfLeader)
+        scheduleProjectionSnapshots(
+            listOf(
+                snapshotPublisher::publishAccountRolesIfLeader,
+                snapshotPublisher::publishTeamStateIfLeader,
+                snapshotPublisher::publishChannelRolePoliciesIfLeader,
+                snapshotPublisher::publishProjectAccessIfLeader,
+                snapshotPublisher::publishSettingStatesIfLeader,
+                snapshotPublisher::publishWebhooksIfLeader,
+            ),
+        )
 
         preferenceOutboxDispatcher = PreferenceOutboxDispatcher(
             vertx = vertx,
@@ -419,7 +423,24 @@ class MainVerticle : AbstractVerticle() {
         }
     }
 
-    private fun scheduleProjectionSnapshots(publishIfLeader: suspend () -> Boolean) {
+    private fun scheduleProjectionSnapshots(publishers: List<suspend () -> Boolean>) {
+        publishers.forEach(::scheduleStartupProjectionSnapshot)
+        // 모든 aggregate가 같은 advisory lock을 쓰므로 주기 snapshot은 하나의 타이머에서 순서대로 실행한다.
+        val periodicRunInProgress = AtomicBoolean(false)
+        vertx.setPeriodic(PROJECTION_SNAPSHOT_INTERVAL_MS) {
+            if (!periodicRunInProgress.compareAndSet(false, true)) return@setPeriodic
+            scope.launch(vertx.dispatcher()) {
+                try {
+                    // publishIfLeader는 실패를 기록하고 false를 반환하므로 다음 aggregate도 실행된다.
+                    publishers.forEach { it() }
+                } finally {
+                    periodicRunInProgress.set(false)
+                }
+            }
+        }
+    }
+
+    private fun scheduleStartupProjectionSnapshot(publishIfLeader: suspend () -> Boolean) {
         val startupAttemptInProgress = AtomicBoolean(false)
         vertx.setPeriodic(INITIAL_PROJECTION_SNAPSHOT_RETRY_INTERVAL_MS) { timerId ->
             if (!startupAttemptInProgress.compareAndSet(false, true)) return@setPeriodic
@@ -429,11 +450,6 @@ class MainVerticle : AbstractVerticle() {
                 } finally {
                     startupAttemptInProgress.set(false)
                 }
-            }
-        }
-        vertx.setPeriodic(PROJECTION_SNAPSHOT_INTERVAL_MS) {
-            scope.launch(vertx.dispatcher()) {
-                publishIfLeader()
             }
         }
     }

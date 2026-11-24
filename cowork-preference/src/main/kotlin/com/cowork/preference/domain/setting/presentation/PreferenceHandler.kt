@@ -165,7 +165,10 @@ class PreferenceHandler(
         if (authorizationStatus != null) {
             auditAuthorizationFailure(logger(), authorizationStatus, requester.userId, resourceType.name, resourceId)
         }
-        ctx.response().setStatusCode(authorizationStatus ?: fallbackStatus).end(errorBody(e.message))
+        val status = authorizationStatus ?: fallbackStatus
+        if (status == 500) logger().error("Failed {} setting operation", resourceType, e)
+        val message = if (status == 500) "설정을 처리할 수 없습니다." else e.message
+        ctx.response().setStatusCode(status).end(errorBody(message))
     }
 
     private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()

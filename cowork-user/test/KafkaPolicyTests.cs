@@ -133,10 +133,11 @@ public class ContractTests
     static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
     const string IdentityCommand = """
-        {"schemaVersion":2,"operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","idempotencyKey":"login:7",
-         "commandType":"UPSERT","userId":7,"name":"김코워크","email":"kim@gsm.hs.kr","sex":"MAN","grade":2,
-         "classNumber":1,"studentNumberInClass":5,"major":"SW_DEVELOPMENT","role":"GENERAL_STUDENT",
-         "githubId":null,"dataGSMStudentId":42,"requestedBy":7,"occurredAt":"2026-10-18T10:00:00.120+09:00"}
+        {"schemaVersion":3,"commandType":"UPSERT","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","idempotencyKey":"login:7",
+         "provider":"DATAGSM","providerSubject":"7","name":"김코워크","email":"kim@gsm.hs.kr",
+         "student":{"sex":"MAN","role":"GENERAL_STUDENT","grade":2,"classNumber":1,"studentNumberInClass":5,
+                    "major":"SW_DEVELOPMENT","githubId":null,"dataGSMStudentId":42},
+         "occurredAt":"2026-10-18T10:00:00.120+09:00"}
         """;
 
     [Fact]
@@ -156,46 +157,50 @@ public class ContractTests
     }
 
     [Fact]
-    public void Identity_command_hash_input_identifies_the_command_regardless_of_timestamp_form()
+    public void Identity_command_hash_identifies_the_command_regardless_of_timestamp_form()
     {
-        var original = IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(IdentityCommand), "7")!);
-        var sameInstant = IdentityCommand.Replace("2026-10-18T10:00:00.120+09:00", "2026-10-18T01:00:00.12Z");
-        Assert.Equal(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(sameInstant), "7")!));
-        Assert.Contains("\"occurredAt\":\"2026-10-18T01:00:00.120000Z\"", original);
-
-        var renamed = IdentityCommand.Replace("김코워크", "박코워크");
-        Assert.NotEqual(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(renamed), "7")!));
-    }
-
-    [Fact]
-    public void Stored_identity_command_hashes_are_checked_with_the_rule_they_were_written_under()
-    {
-        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
-        Assert.Equal(7L, command.UserId);
-        Assert.Equal(7L, command.RequestedBy);
+        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "DATAGSM:7")!;
+        var sameInstant = IdentityCommandContract.Parse(Json(IdentityCommand.Replace("2026-10-18T10:00:00.120+09:00", "2026-10-18T01:00:00.12Z")), "DATAGSM:7")!;
+        var renamed = IdentityCommandContract.Parse(Json(IdentityCommand.Replace("김코워크", "박코워크")), "DATAGSM:7")!;
         Assert.Equal("7", command.ProviderSubject);
-        var again = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
-        var renamed = IdentityCommandContract.Parse(Json(IdentityCommand.Replace("김코워크", "박코워크")), "7")!;
+        Assert.Equal(42L, command.DatagsmStudentId);
         Assert.Equal(IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, command),
-            IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, again));
+            IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, sameInstant));
         Assert.NotEqual(IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, command),
             IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, renamed));
-        Assert.Null(IdentityCommandHandler.HashFor(0, command));
-        Assert.Null(IdentityCommandHandler.HashFor(1, command));
-        Assert.Null(IdentityCommandHandler.HashFor(3, command));
     }
 
     [Theory]
-    [InlineData("8", IdentityCommand)]
-    [InlineData("7", """{"schemaVersion":2}""")]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Stored_identity_command_hashes_from_unsupported_rules_are_refused(long hashVersion) =>
+        Assert.Null(IdentityCommandHandler.HashFor(hashVersion, IdentityCommandContract.Parse(Json(IdentityCommand), "DATAGSM:7")!));
+
+    [Theory]
+    [InlineData("DATAGSM:8", IdentityCommand)]
+    [InlineData("DATAGSM:7", """{"schemaVersion":3}""")]
     public void Identity_command_rejects_mismatched_keys_and_shapes(string key, string payload) =>
         Assert.Null(IdentityCommandContract.Parse(Json(payload), key));
+
+    [Fact]
+    public void Identity_command_rejects_the_retired_v2_schema()
+    {
+        const string v2 = """
+            {"schemaVersion":2,"operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","idempotencyKey":"login:7",
+             "commandType":"UPSERT","userId":7,"name":"김코워크","email":"kim@gsm.hs.kr","sex":"MAN","grade":2,
+             "classNumber":1,"studentNumberInClass":5,"major":"SW_DEVELOPMENT","role":"GENERAL_STUDENT",
+             "githubId":null,"dataGSMStudentId":42,"requestedBy":7,"occurredAt":"2026-10-18T10:00:00.120+09:00"}
+            """;
+        Assert.Null(IdentityCommandContract.Parse(Json(v2), "7"));
+        Assert.Null(IdentityCommandContract.Parse(Json(IdentityCommand.Replace("\"schemaVersion\":3", "\"schemaVersion\":2")), "DATAGSM:7"));
+    }
 
     [Fact]
     public void Identity_command_rejects_non_canonical_operation_ids()
     {
         var upper = IdentityCommand.Replace("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", "0B0F4C8E-6F0E-4A8E-9D3B-1F0C2A9B7C11");
-        Assert.Null(IdentityCommandContract.Parse(Json(upper), "7"));
+        Assert.Null(IdentityCommandContract.Parse(Json(upper), "DATAGSM:7"));
         Assert.Null(IdentityCommandContract.CorrelationOperationId(Json(upper)));
         Assert.Equal("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", IdentityCommandContract.CorrelationOperationId(Json(IdentityCommand)));
     }
@@ -208,12 +213,89 @@ public class ContractTests
              "idempotencyKey":"operation","provider":"DEV","providerSubject":"dev-2","name":"Developer","email":"dev-2@dev.cowork.invalid",
              "student":null,"occurredAt":"2026-10-18T01:00:00.12Z"}
             """;
-        var command = IdentityCommandContract.ParseProvider(Json(dev), "DEV:dev-2")!;
-        Assert.Null(command.UserId);
-        Assert.Null(command.RequestedBy);
+        var command = IdentityCommandContract.Parse(Json(dev), "DEV:dev-2")!;
         Assert.Equal("dev-2", command.ProviderSubject);
-        Assert.Null(IdentityCommandContract.ParseProvider(Json(dev.Replace("dev-2", "dev-5")), "DEV:dev-5"));
-        Assert.Null(IdentityCommandContract.ParseProvider(Json(dev.Replace("null", "{}")), "DEV:dev-2"));
+        Assert.Null(IdentityCommandContract.Parse(Json(dev.Replace("dev-2", "dev-5")), "DEV:dev-5"));
+        Assert.Null(IdentityCommandContract.Parse(Json(dev.Replace("null", "{}")), "DEV:dev-2"));
+    }
+
+    const string GitHubCommand = """
+        {"schemaVersion":3,"commandType":"UPSERT","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11",
+         "idempotencyKey":"operation","provider":"GITHUB","providerSubject":"583231","name":"Octo Cat","email":"octo@example.com",
+         "student":null,"githubLogin":"octocat","gsmEmailVerified":false,"occurredAt":"2026-10-18T01:00:00.12Z"}
+        """;
+
+    const string GitHubLink = """
+        {"schemaVersion":3,"commandType":"LINK","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11",
+         "idempotencyKey":"operation","provider":"GITHUB","providerSubject":"583231","name":"Octo Cat","email":"octo@example.com",
+         "student":null,"githubLogin":"octocat","gsmEmailVerified":false,"accountId":7,"occurredAt":"2026-10-18T01:00:00.12Z"}
+        """;
+
+    [Fact]
+    public void GitHub_identity_uses_the_numeric_account_id_and_stores_the_login_as_the_github_id()
+    {
+        var command = IdentityCommandContract.Parse(Json(GitHubCommand), "GITHUB:583231")!;
+        Assert.Equal(("UPSERT", "583231", "octocat", (long?)null), (command.CommandType, command.ProviderSubject, command.GithubId, command.AccountId));
+        Assert.Null(command.DatagsmStudentId);
+        Assert.False(command.GsmEmailVerified);
+        Assert.True(IdentityCommandContract.Parse(Json(GitHubCommand.Replace("\"gsmEmailVerified\":false", "\"gsmEmailVerified\":true")), "GITHUB:583231")!.GsmEmailVerified);
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubCommand.Replace("\"gsmEmailVerified\":false", "\"gsmEmailVerified\":\"false\"")), "GITHUB:583231"));
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubCommand.Replace(",\"gsmEmailVerified\":false", "")), "GITHUB:583231"));
+    }
+
+    [Theory]
+    [InlineData("\"583231\"", "\"octocat\"")]
+    [InlineData("\"0583231\"", "\"octocat\"")]
+    [InlineData("\"583231\"", "\"-octocat\"")]
+    [InlineData("\"583231\"", "\"octo cat\"")]
+    [InlineData("\"583231\"", "\"octocat\\n\"")]
+    [InlineData("\"583231\"", "null")]
+    public void GitHub_identity_rejects_invalid_subjects_and_logins(string subject, string login)
+    {
+        var payload = GitHubCommand.Replace("\"583231\"", subject).Replace("\"octocat\"", login);
+        var key = "GITHUB:" + JsonDocument.Parse(subject).RootElement.GetString();
+        var valid = subject == "\"583231\"" && login == "\"octocat\"";
+        Assert.Equal(valid, IdentityCommandContract.Parse(Json(payload), key) is not null);
+    }
+
+    [Fact]
+    public void GitHub_identity_rejects_student_information_and_foreign_fields()
+    {
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubCommand.Replace("\"student\":null", "\"student\":{}")), "GITHUB:583231"));
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubCommand.Replace(",\"githubLogin\":\"octocat\"", "")), "GITHUB:583231"));
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubCommand.Replace("\"student\":null", "\"student\":null,\"accountId\":7")), "GITHUB:583231"));
+        // githubLogin belongs only to GitHub commands.
+        Assert.Null(IdentityCommandContract.Parse(Json(IdentityCommand.Replace("\"name\"", "\"githubLogin\":\"octocat\",\"name\"")), "DATAGSM:7"));
+    }
+
+    [Fact]
+    public void Link_command_requires_github_and_a_positive_account()
+    {
+        var link = IdentityCommandContract.Parse(Json(GitHubLink), "GITHUB:583231")!;
+        Assert.Equal(("LINK", 7L), (link.CommandType, link.AccountId));
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubLink.Replace("\"accountId\":7", "\"accountId\":0")), "GITHUB:583231"));
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubLink.Replace("\"accountId\":7", "\"accountId\":\"7\"")), "GITHUB:583231"));
+        Assert.Null(IdentityCommandContract.Parse(Json(GitHubLink.Replace(",\"accountId\":7", "")), "GITHUB:583231"));
+        const string devLink = """
+            {"schemaVersion":3,"commandType":"LINK","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11",
+             "idempotencyKey":"operation","provider":"DEV","providerSubject":"dev-2","name":"Developer","email":"dev-2@dev.cowork.invalid",
+             "student":null,"accountId":7,"occurredAt":"2026-10-18T01:00:00.12Z"}
+            """;
+        Assert.Null(IdentityCommandContract.Parse(Json(devLink), "DEV:dev-2"));
+    }
+
+    [Fact]
+    public void Identity_command_hash_distinguishes_login_from_link_and_keeps_the_previous_rule()
+    {
+        var login = IdentityCommandContract.Parse(Json(GitHubCommand), "GITHUB:583231")!;
+        var link = IdentityCommandContract.Parse(Json(GitHubLink), "GITHUB:583231")!;
+        var otherAccount = IdentityCommandContract.Parse(Json(GitHubLink.Replace("\"accountId\":7", "\"accountId\":8")), "GITHUB:583231")!;
+        Assert.NotEqual(IdentityCommandHandler.HashFor(4, login), IdentityCommandHandler.HashFor(4, link));
+        Assert.NotEqual(IdentityCommandHandler.HashFor(4, link), IdentityCommandHandler.HashFor(4, otherAccount));
+        // Inbox rows written under rule 3 remain verifiable after the upgrade.
+        var student = IdentityCommandContract.Parse(Json(IdentityCommand), "DATAGSM:7")!;
+        Assert.NotNull(IdentityCommandHandler.HashFor(3, student));
+        Assert.NotEqual(IdentityCommandHandler.HashFor(3, student), IdentityCommandHandler.HashFor(4, student));
     }
 
     const string StudentUpdated = """

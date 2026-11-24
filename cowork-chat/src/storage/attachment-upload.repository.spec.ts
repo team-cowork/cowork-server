@@ -31,7 +31,7 @@ describe('AttachmentUploadRepository TTL 인덱스 동기화', () => {
 		await repository().onModuleInit();
 
 		expect(collection.dropIndex).toHaveBeenCalledWith('createdAt_1');
-		expect(collection.createIndex).toHaveBeenCalledWith({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS});
+		expect(collection.createIndex).toHaveBeenCalledWith({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS}, undefined);
 	});
 
 	it('다른 인스턴스가 먼저 인덱스를 지웠어도 새 인덱스를 만든다', async () => {
@@ -40,7 +40,7 @@ describe('AttachmentUploadRepository TTL 인덱스 동기화', () => {
 
 		await repository().onModuleInit();
 
-		expect(collection.createIndex).toHaveBeenCalledWith({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS});
+		expect(collection.createIndex).toHaveBeenCalledWith({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS}, undefined);
 	});
 
 	it('collection이 없으면 새 만료 시간으로 인덱스를 만든다', async () => {
@@ -49,6 +49,6 @@ describe('AttachmentUploadRepository TTL 인덱스 동기화', () => {
 		await repository().onModuleInit();
 
 		expect(collection.dropIndex).not.toHaveBeenCalled();
-		expect(collection.createIndex).toHaveBeenCalledWith({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS});
+		expect(collection.createIndex).toHaveBeenCalledWith({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS}, undefined);
 	});
 });
