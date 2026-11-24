@@ -41,6 +41,8 @@ class HttpFetchTest extends munit.FunSuite:
       Json.obj("url" -> url, "method" -> "CONNECT"),
       Json.obj("url" -> url, "body" -> "x"),
       Json.obj("url" -> url, "headers" -> Json.obj("Host" -> "evil.com")),
+      Json.obj("url" -> url, "headers" -> Json.obj("Accept-Encoding" -> "gzip")),
+      Json.obj("url" -> url, "headers" -> Json.obj("Range" -> "bytes=0-3")),
       Json.obj("url" -> url, "headers" -> Json.obj("X-A" -> "a\nb")),
       Json.obj("url" -> url, "method" -> "POST", "body" -> "a" * (HttpFetch.MaxBodyBytes + 1))
     )
@@ -143,4 +145,17 @@ class HttpFetchTest extends munit.FunSuite:
     // Then
     assertEquals((result \ "body").as[String], """{"url":"https://api.example.com/v1?key=[REDACTED]"}""")
     assertEquals((result \ "headers" \ "location").as[String], "https://api.example.com/v1?key=[REDACTED]")
+  }
+
+  test("result / OkHttp가 풀지 않은 압축 응답 / 가림을 할 수 없어 Bad Gateway로 거부한다") {
+    // Given
+    val compressed = OutboundResponse(200, Seq("Content-Encoding" -> "br"), Some("application/json"), Array[Byte](1, 2))
+    val identity = OutboundResponse(200, Seq("Content-Encoding" -> "identity"), Some("text/plain"), "ok".getBytes(UTF_8))
+
+    // When
+    val error = intercept[ExpectedException](HttpFetch.result(compressed, Nil))
+
+    // Then
+    assertEquals(error.status, 502)
+    assertEquals((HttpFetch.result(identity, Nil) \ "body").as[String], "ok")
   }

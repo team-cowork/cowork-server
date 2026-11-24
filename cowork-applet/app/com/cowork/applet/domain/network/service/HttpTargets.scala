@@ -15,9 +15,11 @@ object HttpTargets:
   private val HeaderNamePattern = """[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}""".r
 
   // OkHttp manages these headers, and proxy headers could be used against intermediaries.
+  // Accept-Encoding would make OkHttp return compressed bytes, and Range could split a secret across responses.
+  // Both would hide an echoed secret from the response redaction.
   val ForbiddenHeaders: Set[String] = Set(
     "host", "content-length", "transfer-encoding", "connection", "upgrade", "te", "trailer", "keep-alive",
-    "expect", "proxy-authorization", "proxy-connection"
+    "expect", "proxy-authorization", "proxy-connection", "accept-encoding", "range"
   )
 
   def host(value: String): String =

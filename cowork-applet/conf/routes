@@ -1008,7 +1008,7 @@ DELETE  /applets/:appletId/http-targets/:host           com.cowork.applet.domain
 #          schema:
 #            $ref: '#/components/schemas/ApiError'
 #    502:
-#      description: 외부 서비스 연결 실패 또는 응답이 1MB를 넘음
+#      description: 외부 서비스 연결 실패, 응답이 1MB를 넘거나 처리할 수 없는 압축 응답임
 #      content:
 #        application/json:
 #          schema:

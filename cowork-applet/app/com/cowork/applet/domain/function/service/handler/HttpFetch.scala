@@ -9,7 +9,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Base64
 import okhttp3.HttpUrl
-import play.api.http.Status.BAD_REQUEST
+import play.api.http.Status.{BAD_GATEWAY, BAD_REQUEST}
 import play.api.libs.json.{JsObject, Json}
 
 final case class HttpFetchCall(url: HttpUrl, method: String, headers: Map[String, String], body: Option[Array[Byte]]):
@@ -72,6 +72,9 @@ object HttpFetch:
   // It runs on the raw bytes, so binary responses are covered before base64 encoding, and it also matches
   // the percent-encoded form that query parameters carry.
   def result(response: OutboundResponse, secretValues: Iterable[String]): JsObject =
+    // OkHttp removes Content-Encoding after it decompresses gzip. Any other encoding would hide secrets from redaction.
+    if response.headers.exists((name, value) => name.equalsIgnoreCase("content-encoding") && !value.trim.equalsIgnoreCase("identity")) then
+      throw ExpectedException(BAD_GATEWAY, "압축된 외부 응답은 처리할 수 없습니다.")
     val targets = redactionTargets(secretValues)
     def redact(text: String): String = targets.foldLeft(text)((current, secret) => current.replace(secret, Redacted))
     val headers = response.headers.collect {
