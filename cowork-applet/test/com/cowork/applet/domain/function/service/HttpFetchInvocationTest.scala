@@ -105,10 +105,10 @@ class HttpFetchInvocationTest extends munit.FunSuite:
       assertEquals(slowCode, 504)
   }
 
-  test("http.fetch / 분당 한도를 넘음 / 429로 거부한다") {
+  test("http.fetch / 앱의 분당 한도를 넘음 / 429로 거부한다") {
     // Given
     val context = Context()
-    (1 to HttpFetchRateLimiter.Limit).foreach(_ => context.rateLimiter.tryAcquire("applet-1"))
+    (1 to HttpFetchRateLimiter.AppletLimit).foreach(i => context.rateLimiter.tryAcquire("applet-1", s"user-$i"))
 
     // When
     status(context.fetch("https://api.example.com/")).map { code =>
@@ -116,4 +116,19 @@ class HttpFetchInvocationTest extends munit.FunSuite:
       assertEquals(code, 429)
       assertEquals(context.client.requests.size, 0)
     }
+  }
+
+  test("http.fetch / 한 사용자가 자기 한도를 모두 씀 / 그 사용자만 거부하고 다른 사용자는 허용한다") {
+    // Given
+    val context = Context()
+    (1 to HttpFetchRateLimiter.UserLimit).foreach(_ => context.rateLimiter.tryAcquire("applet-1", Fixtures.Other))
+
+    // When
+    for
+      blocked <- status(context.fetch("https://api.example.com/"))
+      allowed <- context.service.execute(Fixtures.Owner, "applet-1", "http.fetch", Json.obj("url" -> "https://api.example.com/"))
+    yield
+      // Then
+      assertEquals(blocked, 429)
+      assertEquals((allowed \ "status").as[Int], 200)
   }
