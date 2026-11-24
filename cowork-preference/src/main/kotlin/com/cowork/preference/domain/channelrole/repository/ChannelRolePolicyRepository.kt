@@ -197,6 +197,26 @@ class ChannelRolePolicyRepository {
         return rows.map { it.toPolicyState() }
     }
 
+    /** 채널의 역할별 덮어쓰기를 잠금 없이 읽는다. 권한 조회 API 전용이다. */
+    internal suspend fun findOverwritesForRead(
+        client: SqlClient,
+        teamId: Long,
+        channelId: Long,
+    ): Map<Long, Map<String, Boolean>> {
+        val rows = client.preparedQuery(
+            """
+            SELECT role_id, permissions
+            FROM tb_channel_role_policies
+            WHERE team_id = $1 AND channel_id = $2
+            """.trimIndent(),
+        ).execute(Tuple.of(teamId, channelId)).coAwait()
+        return rows.associate { row ->
+            row.getLong("role_id") to row.getJsonObject("permissions").map
+                .filterValues { it is Boolean }
+                .mapValues { it.value as Boolean }
+        }
+    }
+
     internal suspend fun findPolicyPage(
         client: SqlClient,
         afterTeamId: Long,

@@ -1,5 +1,6 @@
 package com.cowork.preference.domain.accountrole
 
+import com.cowork.preference.domain.access.permission.PolicyRole
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.messaging.event.PreferenceEventPayload.basePayload
 import com.cowork.preference.global.messaging.event.PreferenceTopics
@@ -25,6 +26,21 @@ class AccountRoleRepository(private val outbox: PreferenceOutboxRepository) {
             "SELECT 1 FROM tb_account_role_assignments a WHERE a.role_id = r.id AND a.account_id = $1 AND NOT a.deleted))",
     ).execute(Tuple.of(accountId)).coAwait().map { row ->
         row.getJsonObject("permissions").map.mapValues { it.value == true }
+    }
+
+    /** [policies]와 같은 역할을 판정 근거 표시용 ID와 이름과 함께 읽는다. */
+    suspend fun policyRoles(client: SqlClient, accountId: Long): List<PolicyRole> = client.preparedQuery(
+        "SELECT r.id, r.name, r.is_default, r.permissions FROM tb_account_role_definitions r " +
+            "WHERE NOT r.deleted AND (r.is_default OR EXISTS (" +
+            "SELECT 1 FROM tb_account_role_assignments a " +
+            "WHERE a.role_id = r.id AND a.account_id = $1 AND NOT a.deleted)) ORDER BY r.id",
+    ).execute(Tuple.of(accountId)).coAwait().map { row ->
+        PolicyRole(
+            roleId = row.getLong("id"),
+            roleName = row.getString("name"),
+            permissions = row.getJsonObject("permissions").map.mapValues { it.value == true },
+            isDefault = row.getBoolean("is_default"),
+        )
     }
 
     suspend fun create(client: SqlClient, name: String, permissions: JsonObject): JsonObject {

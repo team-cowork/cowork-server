@@ -3,6 +3,7 @@ package com.cowork.preference.domain.access.service
 import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
 import com.cowork.preference.domain.access.permission.RolePolicy
+import com.cowork.preference.domain.access.projection.project.model.ProjectLifecycleProjection
 import com.cowork.preference.domain.access.projection.project.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
@@ -28,6 +29,13 @@ class ProjectAccessGuard(
         val allowed = roles.canRead(projectId, requester.userId)
         if (!allowed) throw ResourceAccessDeniedException("프로젝트 읽기 권한이 없습니다.")
     }
+
+    /**
+     * 유효 권한 조회 조건이다. 프로젝트가 속한 팀의 활성 멤버만 통과한다.
+     * 읽기 권한이 없는 멤버도 거부 사유를 확인할 수 있도록 프로젝트 읽기 권한은 요구하지 않는다.
+     */
+    suspend fun requireTeamMember(projectId: Long, requester: RequesterContext): ProjectLifecycleProjection =
+        activeProject(projectId, requester.userId)
 
     /** 프로젝트 설정 수정: manage 권한 보유자 또는 관리자 정책. */
     suspend fun requireManager(projectId: Long, requester: RequesterContext) {
@@ -151,7 +159,14 @@ class ProjectAccessGuard(
         }
     }
 
-    private suspend fun activeTeamId(projectId: Long, accountId: Long, client: SqlClient = pool): Long {
+    private suspend fun activeTeamId(projectId: Long, accountId: Long, client: SqlClient = pool): Long =
+        activeProject(projectId, accountId, client).teamId
+
+    private suspend fun activeProject(
+        projectId: Long,
+        accountId: Long,
+        client: SqlClient = pool,
+    ): ProjectLifecycleProjection {
         if (!readiness.isReady) {
             throw ProjectionNotReadyException("project lifecycle or team member projection is not ready")
         }
@@ -161,7 +176,7 @@ class ProjectAccessGuard(
         if (member == null || member.deleted) {
             throw ResourceAccessDeniedException("프로젝트 팀 멤버만 접근할 수 있습니다.")
         }
-        return project.teamId
+        return project
     }
 
     private data class RoleActor(val teamId: Long, val administrator: Boolean, val maxPriority: Int)

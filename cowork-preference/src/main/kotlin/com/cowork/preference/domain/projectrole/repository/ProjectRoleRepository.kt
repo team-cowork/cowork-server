@@ -1,5 +1,6 @@
 package com.cowork.preference.domain.projectrole.repository
 
+import com.cowork.preference.domain.access.permission.PolicyRole
 import com.cowork.preference.domain.projectrole.model.AccountProjectRole
 import com.cowork.preference.domain.projectrole.model.ProjectPermissions
 import com.cowork.preference.domain.projectrole.model.ProjectRoleDefinition
@@ -95,6 +96,24 @@ class ProjectRoleRepository(private val pool: Pool) {
                 accountId = it.getLong("account_id"),
                 projectId = it.getLong("project_id"),
                 roleName = it.getString("role_name"),
+            )
+        }
+    }
+
+    /** 계정에 부여된 프로젝트 역할을 판정 근거 표시용 이름과 함께 읽는다. */
+    suspend fun findAccountRoles(projectId: Long, accountId: Long, client: SqlClient = pool): List<PolicyRole> {
+        val rows = client.preparedQuery(
+            "SELECT d.role_name, d.permissions FROM account_project_role a " +
+                "JOIN project_role_definition d USING (project_id, role_name) " +
+                "WHERE a.project_id = $1 AND a.account_id = $2 ORDER BY d.priority DESC, d.role_name",
+        ).execute(Tuple.of(projectId, accountId)).coAwait()
+        return rows.map { row ->
+            PolicyRole(
+                roleId = null,
+                roleName = row.getString("role_name"),
+                permissions = row.getJsonObject("permissions").map
+                    .filterValues { it is Boolean }
+                    .mapValues { it.value as Boolean },
             )
         }
     }

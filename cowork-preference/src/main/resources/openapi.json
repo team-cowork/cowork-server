@@ -666,6 +666,44 @@
         }
       }
     },
+    "/preferences/permissions/me": {
+      "get": {
+        "tags": ["preference"],
+        "summary": "내 유효 권한 조회",
+        "description": "요청자 본인의 권한을 Preference 정책 원본으로 평가합니다. 각 서비스는 동기화된 정책으로 판정하므로 정책 변경 직후에는 실제 판정과 잠시 다를 수 있습니다. 범위 ID를 지정하지 않으면 계정 권한을 반환합니다. 팀, 채널, 프로젝트는 리소스가 속한 팀의 멤버만 조회할 수 있으며, 채널 접근이나 프로젝트 읽기 권한이 없어도 거부 사유를 확인할 수 있습니다. 판정 근거에는 요청자가 가진 역할만 포함됩니다. DM 채널은 참여자만 요청할 수 있으며 역할 권한이 없어 지원하지 않습니다.",
+        "parameters": [
+          {"name": "teamId", "in": "query", "required": false, "description": "팀 권한 조회 대상 팀 ID. channelId, projectId와 함께 지정할 수 없음", "schema": {"type": "integer", "format": "int64", "minimum": 1}},
+          {"name": "channelId", "in": "query", "required": false, "description": "채널 권한 조회 대상 팀 채널 ID. DM 채널은 지원하지 않음", "schema": {"type": "integer", "format": "int64", "minimum": 1}},
+          {"name": "projectId", "in": "query", "required": false, "description": "프로젝트 권한 조회 대상 프로젝트 ID", "schema": {"type": "integer", "format": "int64", "minimum": 1}},
+          {"name": "permissions", "in": "query", "required": false, "description": "쉼표로 구분한 권한 키. 지정하면 해당 권한만 반환", "schema": {"type": "string"}, "example": "message_read,message_send"},
+          {"name": "explain", "in": "query", "required": false, "description": "true이면 권한별 판정 근거 포함", "schema": {"type": "boolean", "default": false}}
+        ],
+        "responses": {
+          "200": {
+            "description": "유효 권한",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {"$ref": "#/components/schemas/Success"},
+                    {
+                      "type": "object",
+                      "required": ["data"],
+                      "properties": {"data": {"$ref": "#/components/schemas/EffectivePermissions"}}
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {"description": "잘못된 범위, 권한 키 또는 DM 채널", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error400"}}}},
+          "401": {"description": "액세스 토큰이 없거나 유효하지 않음", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error401"}}}},
+          "403": {"description": "리소스가 속한 팀의 멤버 또는 DM 참여자가 아님", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error403"}}}},
+          "500": {"description": "서버 오류", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error500"}}}},
+          "503": {"description": "권한 정보 동기화 중", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error503"}}}}
+        }
+      }
+    },
     "/preferences/definitions": {
       "get": {
         "tags": ["preference"],
@@ -1372,6 +1410,47 @@
           "status": {"type": "string", "description": "HTTP 상태 코드와 이름", "example": "400 BAD_REQUEST"},
           "code": {"type": "integer", "description": "HTTP 상태 코드"},
           "message": {"type": "string"}
+        }
+      },
+      "EffectivePermissions": {
+        "type": "object",
+        "required": ["accountId", "scope", "evaluatedAt", "permissions"],
+        "properties": {
+          "accountId": {"type": "integer", "format": "int64", "description": "요청자 ID"},
+          "scope": {"$ref": "#/components/schemas/PermissionScope"},
+          "evaluatedAt": {"type": "string", "format": "date-time", "description": "평가 시각"},
+          "permissions": {"type": "object", "additionalProperties": {"type": "boolean"}, "description": "권한 키별 허용 여부", "example": {"message_read": true, "message_send": false}},
+          "explanations": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/PermissionExplanation"}, "description": "권한 키별 판정 근거. explain이 true일 때만 포함"}
+        }
+      },
+      "PermissionScope": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {"type": "string", "enum": ["ACCOUNT", "TEAM", "CHANNEL", "PROJECT"]},
+          "teamId": {"type": "integer", "format": "int64", "description": "팀 ID. 채널과 프로젝트 범위에서는 리소스가 속한 팀"},
+          "channelId": {"type": "integer", "format": "int64"},
+          "projectId": {"type": "integer", "format": "int64"}
+        }
+      },
+      "PermissionExplanation": {
+        "type": "object",
+        "required": ["allowed", "decidedBy", "sources"],
+        "properties": {
+          "allowed": {"type": "boolean"},
+          "decidedBy": {"type": "string", "enum": ["ADMINISTRATOR", "ROLE_GRANT", "NO_GRANT", "PRIVATE_CHANNEL", "DEFAULT_OVERWRITE", "ROLE_OVERWRITE_DENY", "ROLE_OVERWRITE_ALLOW", "REQUIRES_CHANNEL_ACCESS", "PROJECT_OVERRIDE_ALLOW", "PROJECT_OVERRIDE_DENY", "PRIVATE_PROJECT", "REQUIRES_PROJECT_READ", "REQUIRES_BOARD_READ", "ACCESS_STATE_PENDING"], "description": "최종 판정을 정한 규칙. ACCESS_STATE_PENDING은 저장된 프로젝트 접근 상태가 아직 최신 정책을 반영하지 않았다는 뜻이며 allowed는 저장된 상태를 따름"},
+          "sources": {"type": "array", "items": {"$ref": "#/components/schemas/PermissionSource"}, "description": "판정에 쓰인 정책 값"}
+        }
+      },
+      "PermissionSource": {
+        "type": "object",
+        "required": ["kind", "permission"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["ACCOUNT_ROLE", "TEAM_ROLE", "CHANNEL_DEFAULT_OVERWRITE", "CHANNEL_ROLE_OVERWRITE", "PROJECT_ROLE"]},
+          "roleId": {"type": "integer", "format": "int64", "nullable": true, "description": "프로젝트 역할은 null"},
+          "roleName": {"type": "string", "nullable": true},
+          "permission": {"type": "string", "description": "정책에 저장된 권한 키. 프로젝트 역할은 project_ 접두사가 없음", "example": "message_send"},
+          "value": {"type": "boolean", "nullable": true, "description": "정책 값. null이면 값 없음"}
         }
       },
       "RolePermissionGroup": {
