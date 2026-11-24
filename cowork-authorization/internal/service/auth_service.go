@@ -135,7 +135,7 @@ func (s *AuthService) CompleteLogin(ctx context.Context, session string, callbac
 	if err != nil {
 		return nil, err
 	}
-	command, err := s.dataGSMCommand(userInfo)
+	command, err := s.dataGSMCommand(domain.UserIdentityCommandUpsert, userInfo, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -166,12 +166,8 @@ func (s *AuthService) CompleteLink(ctx context.Context, userID int64, session st
 		if err != nil {
 			return err
 		}
-		if command, err = s.dataGSMCommand(userInfo); err != nil {
+		if command, err = s.dataGSMCommand(domain.UserIdentityCommandLink, userInfo, &userID); err != nil {
 			return err
-		}
-		command.CommandType, command.AccountID = domain.UserIdentityCommandLink, &userID
-		if domain.ValidateUserIdentityCommand(command) != nil {
-			return ErrAuthenticationRejected
 		}
 	}
 	committed, err := s.identity.EnsureUser(ctx, command)
@@ -205,8 +201,8 @@ func (s *AuthService) githubCommand(commandType string, identity *GitHubIdentity
 	return command, nil
 }
 
-// dataGSMCommand builds the UPSERT command for a verified DataGSM student.
-func (s *AuthService) dataGSMCommand(userInfo *oauth.UserInfo) (domain.UserIdentityCommand, error) {
+// dataGSMCommand builds the command for a verified DataGSM student.
+func (s *AuthService) dataGSMCommand(commandType string, userInfo *oauth.UserInfo, accountID *int64) (domain.UserIdentityCommand, error) {
 	var command domain.UserIdentityCommand
 	if userInfo.ObjectType == nil || *userInfo.ObjectType != "STUDENT" || userInfo.Student == nil {
 		return command, fmt.Errorf("non-student users are not supported")
@@ -238,7 +234,14 @@ func (s *AuthService) dataGSMCommand(userInfo *oauth.UserInfo) (domain.UserIdent
 		Sex: string(st.Sex), Grade: grade, ClassNumber: classNumber, StudentNumberInClass: studentNumberInClass,
 		Major: major, Role: string(st.Role), GithubID: st.GitHubID, DataGSMStudentID: &studentID,
 	}
-	return s.validatedCommand(ProviderDataGSM, strconv.FormatInt(userInfo.ID, 10), st.Name, userInfo.Email, student)
+	if command, err = s.identityCommand(ProviderDataGSM, strconv.FormatInt(userInfo.ID, 10), st.Name, userInfo.Email, student); err != nil {
+		return command, err
+	}
+	command.CommandType, command.AccountID = commandType, accountID
+	if domain.ValidateUserIdentityCommand(command) != nil {
+		return command, ErrAuthenticationRejected
+	}
+	return command, nil
 }
 
 func (s *AuthService) validatedCommand(provider, subject, name, email string, student *domain.StudentIdentity) (domain.UserIdentityCommand, error) {

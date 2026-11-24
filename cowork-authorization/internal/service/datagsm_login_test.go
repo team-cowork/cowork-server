@@ -378,7 +378,7 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			store := &fakeRefreshTokenStore{}
 			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil, nil)
 			var pair *TokenPair
-			command, err := svc.dataGSMCommand(info)
+			command, err := svc.dataGSMCommand(domain.UserIdentityCommandUpsert, info, nil)
 			if err == nil {
 				pair, err = svc.commitIdentityAndIssueSession(context.Background(), command)
 			}
