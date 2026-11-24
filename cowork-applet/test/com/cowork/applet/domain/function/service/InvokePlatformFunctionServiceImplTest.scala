@@ -110,17 +110,37 @@ class InvokePlatformFunctionServiceImplTest extends munit.FunSuite:
     val context = Context()
     val now = Instant.now()
     (1 to StorageLimits.MaxEntriesPerApplet).foreach { i =>
-      context.storage.entries += StorageEntry("applet-1", StorageScope.USER, Fixtures.Owner, s"k$i", JsNull, now)
+      context.storage.entries += StorageEntry("applet-1", StorageScope.USER, s"user-${i % 20}", s"k$i", JsNull, now)
     }
 
     // When
     for
       rejected <- status(context.call(Fixtures.Owner, "storage.set", Json.obj("key" -> "new", "value" -> 1)))
-      _ <- context.call(Fixtures.Owner, "storage.set", Json.obj("key" -> "k1", "value" -> 2))
+      _ <- context.service.execute("user-1", "applet-1", "storage.set", Json.obj("key" -> "k1", "value" -> 2))
     yield
       // Then
       assertEquals(rejected, 400)
       assertEquals(context.storage.entries.size, StorageLimits.MaxEntriesPerApplet)
+  }
+
+  test("storage.set / 한 사용자가 USER 범위 상한을 채움 / 그 사용자의 새 키만 거부한다") {
+    // Given
+    val context = Context(published = true)
+    val now = Instant.now()
+    (1 to StorageLimits.MaxEntriesPerUser).foreach { i =>
+      context.storage.entries += StorageEntry("applet-1", StorageScope.USER, Fixtures.Other, s"k$i", JsNull, now)
+    }
+
+    // When
+    for
+      rejected <- status(context.call(Fixtures.Other, "storage.set", Json.obj("key" -> "new", "value" -> 1)))
+      _ <- context.call(Fixtures.Other, "storage.set", Json.obj("key" -> "k1", "value" -> 2))
+      _ <- context.call(Fixtures.Other, "storage.set", Json.obj("key" -> "shared", "value" -> 3, "scope" -> "APPLET"))
+      _ <- context.call(Fixtures.Owner, "storage.set", Json.obj("key" -> "new", "value" -> 1))
+    yield
+      // Then
+      assertEquals(rejected, 400)
+      assertEquals(context.storage.entries.size, StorageLimits.MaxEntriesPerUser + 2)
   }
 
   test("storage.set / 16KB를 넘는 값, 잘못된 키, 잘못된 범위 / 400으로 거부한다") {

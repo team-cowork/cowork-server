@@ -38,6 +38,14 @@ class SurrealAppletStorageRepository @Inject() (surrealClient: SurrealClient)(us
       .query("SELECT count() AS total FROM applet_storage WHERE appletId = $appletId GROUP ALL;", Json.obj("appletId" -> appletId))
       .map(results => results.head.as[Seq[JsObject]].headOption.flatMap(row => (row \ "total").asOpt[Int]).getOrElse(0))
 
+  override def countOwned(appletId: String, scope: StorageScope, ownerId: String): Future[Int] =
+    surrealClient
+      .query(
+        "SELECT count() AS total FROM applet_storage WHERE appletId = $appletId AND scope = $scope AND ownerId = $ownerId GROUP ALL;",
+        Json.obj("appletId" -> appletId, "scope" -> scope, "ownerId" -> ownerId)
+      )
+      .map(results => results.head.as[Seq[JsObject]].headOption.flatMap(row => (row \ "total").asOpt[Int]).getOrElse(0))
+
   override def upsert(entry: StorageEntry): Future[Unit] =
     val statements =
       """LET $updated = (UPDATE applet_storage SET `value` = $entry.`value`, updatedAt = $entry.updatedAt

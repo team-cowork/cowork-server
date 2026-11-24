@@ -36,7 +36,7 @@ class StorageFunctions @Inject() (appletStorageRepository: AppletStorageReposito
     val definition: PlatformFunction = PlatformFunction(
       name = "storage.set",
       category = "storage",
-      description = "키에 JSON 값을 저장합니다. 같은 키가 있으면 값을 바꿉니다.",
+      description = "키에 JSON 값을 저장합니다. 같은 키가 있으면 값을 바꿉니다. 앱 전체 1000개, USER 범위는 사용자 한 명당 100개까지 저장할 수 있습니다.",
       parameters = Seq(
         StorageFunctions.KeyParameter,
         FunctionParameter("value", "json", required = true, "저장할 JSON 값입니다. 16KB 이하여야 합니다."),
@@ -55,6 +55,10 @@ class StorageFunctions @Inject() (appletStorageRepository: AppletStorageReposito
         existing <- appletStorageRepository.find(context.appletId, scope, ownerId, key)
         count <- if existing.isDefined then Future.successful(0) else appletStorageRepository.count(context.appletId)
         _ = StorageLimits.requireCapacity(existing.isDefined, count)
+        owned <-
+          if existing.isDefined || scope != StorageScope.USER then Future.successful(0)
+          else appletStorageRepository.countOwned(context.appletId, scope, ownerId)
+        _ = StorageLimits.requireUserCapacity(existing.isDefined, owned)
         entry = StorageEntry(context.appletId, scope, ownerId, key, value, Instant.now())
         _ <- appletStorageRepository.upsert(entry)
       yield Json.obj("updatedAt" -> entry.updatedAt)

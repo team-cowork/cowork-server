@@ -70,6 +70,8 @@ final class InMemoryAppletStorageRepository extends AppletStorageRepository:
   override def list(appletId: String, scope: StorageScope, ownerId: String, prefix: String, limit: Int): Future[Seq[StorageEntry]] =
     Future.successful(entries.filter(e => matches(e, appletId, scope, ownerId) && e.key.startsWith(prefix)).sortBy(_.key).take(limit).toSeq)
   override def count(appletId: String): Future[Int] = Future.successful(entries.count(_.appletId == appletId))
+  override def countOwned(appletId: String, scope: StorageScope, ownerId: String): Future[Int] =
+    Future.successful(entries.count(e => matches(e, appletId, scope, ownerId)))
   override def upsert(entry: StorageEntry): Future[Unit] =
     entries.filterInPlace(e => !(matches(e, entry.appletId, entry.scope, entry.ownerId) && e.key == entry.key))
     entries += entry
