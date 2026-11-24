@@ -5,6 +5,7 @@ import com.cowork.applet.domain.network.model.AppletHttpTarget
 import com.cowork.applet.global.error.ExpectedException
 import com.cowork.applet.global.outbound.OutboundResponse
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.Base64
 import java.time.Instant
 import play.api.libs.json.{JsObject, Json}
 
@@ -114,4 +115,32 @@ class HttpFetchTest extends munit.FunSuite:
     // Then
     assertEquals((result \ "body").as[String], "AQID")
     assertEquals((result \ "bodyEncoding").as[String], "base64")
+  }
+
+  test("result / 텍스트가 아닌 응답에 시크릿이 있음 / base64로 바꾸기 전에 가린다") {
+    // Given
+    val response = OutboundResponse(200, Nil, None, "echo tok-123 end".getBytes(UTF_8))
+
+    // When
+    val result = HttpFetch.result(response, Seq("tok-123"))
+
+    // Then
+    val decoded = String(Base64.getDecoder.decode((result \ "body").as[String]), UTF_8)
+    assertEquals((result \ "bodyEncoding").as[String], "base64")
+    assertEquals(decoded, "echo [REDACTED] end")
+  }
+
+  test("result / 쿼리 인코딩된 형태로 되돌아온 시크릿 / 인코딩된 형태도 가린다") {
+    // Given
+    val call = parse(Json.obj("url" -> "https://api.example.com/v1"))
+    val request = HttpFetch.build(call, target(query = Map("key" -> "{{secrets.KEY}}")), Map("KEY" -> "tok+a/b="))
+    val echoed = s"""{"url":"${request.url}"}"""
+    val response = OutboundResponse(200, Seq("Location" -> request.url), Some("application/json"), echoed.getBytes(UTF_8))
+
+    // When
+    val result = HttpFetch.result(response, Seq("tok+a/b="))
+
+    // Then
+    assertEquals((result \ "body").as[String], """{"url":"https://api.example.com/v1?key=[REDACTED]"}""")
+    assertEquals((result \ "headers" \ "location").as[String], "https://api.example.com/v1?key=[REDACTED]")
   }

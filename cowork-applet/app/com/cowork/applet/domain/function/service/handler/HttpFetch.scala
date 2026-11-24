@@ -5,6 +5,7 @@ import com.cowork.applet.domain.network.model.AppletHttpTarget
 import com.cowork.applet.domain.network.service.{HttpTargets, SecretTemplates}
 import com.cowork.applet.global.error.ExpectedException
 import com.cowork.applet.global.outbound.{OutboundRequest, OutboundResponse}
+import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Base64
 import okhttp3.HttpUrl
@@ -23,6 +24,7 @@ object HttpFetch:
   private val DroppedResponseHeaders = Set("set-cookie", "set-cookie2")
   private val TextualTypes = Seq("json", "xml", "javascript", "x-www-form-urlencoded")
   private val Redacted = "[REDACTED]"
+  private val RedactedBytes = Redacted.getBytes(UTF_8)
   // Shorter values would also replace ordinary text in responses.
   private val MinRedactedLength = 4
 
@@ -66,22 +68,51 @@ object HttpFetch:
     val body = call.body.orElse(Option.when(Set("POST", "PUT", "PATCH").contains(call.method))(Array.emptyByteArray))
     OutboundRequest(call.method, url.build().toString, call.headers.toSeq.sortBy(_._1) ++ injected, body)
 
-  // Redaction keeps an external service that echoes request headers from returning a secret to the client.
+  // Redaction keeps an external service that echoes the request from returning a secret to the client.
+  // It runs on the raw bytes, so binary responses are covered before base64 encoding, and it also matches
+  // the percent-encoded form that query parameters carry.
   def result(response: OutboundResponse, secretValues: Iterable[String]): JsObject =
-    val secrets = secretValues.filter(_.length >= MinRedactedLength).toSeq.sortBy(-_.length)
-    def redact(text: String): String = secrets.foldLeft(text)((current, secret) => current.replace(secret, Redacted))
+    val targets = redactionTargets(secretValues)
+    def redact(text: String): String = targets.foldLeft(text)((current, secret) => current.replace(secret, Redacted))
     val headers = response.headers.collect {
       case (name, value) if !DroppedResponseHeaders.contains(name.toLowerCase) => name.toLowerCase -> redact(value)
     }
+    val bytes = targets.foldLeft(response.body)((current, secret) => replaceAll(current, secret.getBytes(UTF_8), RedactedBytes))
     val (body, encoding) =
-      if isTextual(response.contentType) then redact(String(response.body, UTF_8)) -> "utf8"
-      else Base64.getEncoder.encodeToString(response.body) -> "base64"
+      if isTextual(response.contentType) then String(bytes, UTF_8) -> "utf8"
+      else Base64.getEncoder.encodeToString(bytes) -> "base64"
     Json.obj(
       "status" -> response.status,
       "headers" -> JsObject(headers.map((name, value) => name -> Json.toJson(value))),
       "body" -> body,
       "bodyEncoding" -> encoding
     )
+
+  private def redactionTargets(secretValues: Iterable[String]): Seq[String] =
+    secretValues
+      .filter(_.length >= MinRedactedLength)
+      .flatMap(secret => Seq(secret, queryEncoded(secret)))
+      .toSeq
+      .distinct
+      .sortBy(-_.length)
+
+  // The same encoding that build uses for query parameters.
+  private def queryEncoded(value: String): String =
+    HttpUrl.parse("https://redaction.invalid/").newBuilder().addQueryParameter("v", value).build().encodedQuery().stripPrefix("v=")
+
+  private def replaceAll(bytes: Array[Byte], target: Array[Byte], replacement: Array[Byte]): Array[Byte] =
+    var index = bytes.indexOfSlice(target)
+    if index < 0 then bytes
+    else
+      val out = ByteArrayOutputStream(bytes.length)
+      var from = 0
+      while index >= 0 do
+        out.write(bytes, from, index - from)
+        out.write(replacement)
+        from = index + target.length
+        index = bytes.indexOfSlice(target, from)
+      out.write(bytes, from, bytes.length - from)
+      out.toByteArray
 
   private def isTextual(contentType: Option[String]): Boolean =
     contentType.map(_.toLowerCase).exists(value => value.startsWith("text/") || TextualTypes.exists(value.contains))
