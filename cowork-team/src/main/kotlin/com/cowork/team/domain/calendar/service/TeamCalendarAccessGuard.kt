@@ -2,9 +2,10 @@ package com.cowork.team.domain.calendar.service
 
 import com.cowork.team.domain.calendar.model.CalendarAction
 import com.cowork.team.domain.calendar.model.CalendarPermissionPolicy
-import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
+import com.cowork.team.domain.teamAccess.MembershipDirectory
+import com.cowork.team.domain.teamAccess.TeamDirectory
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
+import com.cowork.team.domain.teamRole.TeamRoleQueries
 import com.cowork.team.global.policy.PermissionKeys
 import com.cowork.team.global.policy.RolePolicy
 import org.springframework.http.HttpStatus
@@ -14,13 +15,14 @@ import team.themoment.sdk.exception.ExpectedException
 /** 팀 캘린더 권한 검사. 조회는 팀 멤버, 생성은 일정 만들기 권한, 다른 사람 일정의 수정과 삭제는 그 권한을 요구한다. */
 @Component
 class TeamCalendarAccessGuard(
-    private val teamAccessGuard: TeamAccessGuard,
-    private val teamMemberRepository: TeamMemberRepository,
-    private val teamRoleProjectionReader: TeamRoleProjectionReader,
+    private val teamDirectory: TeamDirectory,
+    private val teamPermissionGuard: TeamPermissionGuard,
+    private val membershipDirectory: MembershipDirectory,
+    private val teamRoleQueries: TeamRoleQueries,
 ) {
     fun requireMember(teamId: Long, userId: Long) {
-        teamAccessGuard.findTeamOrThrow(teamId)
-        teamAccessGuard.requireMemberExists(teamId, userId)
+        teamDirectory.requireExists(teamId)
+        teamPermissionGuard.requireMemberExists(teamId, userId)
     }
 
     fun requireCreator(teamId: Long, userId: Long) {
@@ -43,9 +45,7 @@ class TeamCalendarAccessGuard(
         )
     }
 
-    fun memberIds(teamId: Long): Set<Long> = teamMemberRepository.findAllByTeamId(teamId).mapTo(mutableSetOf()) {
-        it.userId
-    }
+    fun memberIds(teamId: Long): Set<Long> = membershipDirectory.memberIds(teamId)
 
     /** 참석자는 팀 멤버만 고를 수 있다. */
     fun requireAttendees(teamId: Long, attendeeUserIds: Collection<Long>) {
@@ -56,5 +56,5 @@ class TeamCalendarAccessGuard(
     }
 
     private fun hasPermission(teamId: Long, userId: Long, key: String): Boolean =
-        teamRoleProjectionReader.getMemberRoles(teamId, userId).any { RolePolicy.allows(it.permissions, key) }
+        teamRoleQueries.getMemberRoles(teamId, userId).any { RolePolicy.allows(it.permissions, key) }
 }

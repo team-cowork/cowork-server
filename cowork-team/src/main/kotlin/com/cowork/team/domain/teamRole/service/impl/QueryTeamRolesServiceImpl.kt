@@ -15,7 +15,7 @@ class QueryTeamRolesServiceImpl(
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): List<TeamRoleResponse> {
-        teamRoleAccessGuard.findMemberOrThrow(teamId, userId)
+        teamRoleAccessGuard.requireActorMembership(teamId, userId)
         return teamRoleProjectionReader.getRoles(teamId)
     }
 }

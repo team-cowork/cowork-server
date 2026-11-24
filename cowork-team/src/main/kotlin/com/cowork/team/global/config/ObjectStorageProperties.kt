@@ -1,8 +1,10 @@
 package com.cowork.team.global.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.modulith.NamedInterface
 
 @ConfigurationProperties(prefix = "object-storage")
+@NamedInterface("config", propagate = false)
 data class ObjectStorageProperties(
     val bucket: String,
     val publicApiBaseUrl: String,

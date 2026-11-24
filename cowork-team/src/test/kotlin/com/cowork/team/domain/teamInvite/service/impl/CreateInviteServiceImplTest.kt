@@ -1,16 +1,13 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamPermissionGuard
+import com.cowork.team.domain.team.service.JpaTeamDirectory
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteDuration
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.support.policyReader
 import io.mockk.every
 import io.mockk.mockk
@@ -20,24 +17,17 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.LocalDateTime
-import java.util.Optional
 
 class CreateInviteServiceImplTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamAccessGuard =
-        TeamAccessGuard(
-            teamRepository,
-            teamMemberRepository,
-            TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(42L to mapOf("manage_invites" to true)))),
-        )
+    private val teamPermissionGuard =
+        TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(42L to mapOf("manage_invites" to true))))
 
-    private val service = CreateInviteServiceImpl(teamInviteRepository, teamAccessGuard)
-
-    private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-    private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.ADMIN)
+    private val service =
+        CreateInviteServiceImpl(teamInviteRepository, JpaTeamDirectory(teamRepository), teamPermissionGuard)
 
     private fun makeInvite(
         inviteCode: String = "aB3xK9mZ",
@@ -45,7 +35,7 @@ class CreateInviteServiceImplTest {
         duration: String = "7d",
         expiresAt: LocalDateTime? = LocalDateTime.now().plusDays(7),
     ) = TeamInvite(
-        team = team,
+        teamId = 1L,
         inviteCode = inviteCode,
         createdBy = createdBy,
         duration = duration,
@@ -57,8 +47,8 @@ class CreateInviteServiceImplTest {
 
     @Test
     fun `createInvite는 멤버가 7d 초대 링크를 생성하면 InviteResponse를 반환`() {
-        every { teamMemberRepository.findByTeamIdAndUserId(1L, 42L) } returns normalMember
-        every { teamRepository.findById(1L) } returns Optional.of(team)
+        every { teamMemberRepository.existsByTeamIdAndUserId(1L, 42L) } returns true
+        every { teamRepository.existsById(1L) } returns true
         every { teamInviteRepository.existsByInviteCode(any()) } returns false
         val saved = makeInvite()
         every { teamInviteRepository.save(any()) } returns saved
@@ -72,7 +62,7 @@ class CreateInviteServiceImplTest {
 
     @Test
     fun `createInvite는 팀 멤버가 아니면 403`() {
-        every { teamMemberRepository.findByTeamIdAndUserId(1L, 99L) } returns null
+        every { teamMemberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(99L, 1L, CreateInviteRequest(InviteDuration.SEVEN_DAYS))

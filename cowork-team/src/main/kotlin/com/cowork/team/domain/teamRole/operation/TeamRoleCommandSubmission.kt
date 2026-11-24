@@ -1,8 +1,9 @@
 package com.cowork.team.domain.teamRole.operation
 
-import com.cowork.team.domain.teamMember.repository.TeamMemberEventStateRepository
+import com.cowork.team.domain.teamAccess.MembershipDirectory
 import com.cowork.team.domain.teamRole.operation.TeamRoleOperationSubmissionRepository.InsertResult
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperationResponse
+import com.cowork.team.global.consumer.TeamRoleContractTopics
 import com.cowork.team.global.outbox.OutboxWriter
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -15,7 +16,7 @@ import java.util.UUID
 @Component
 class TeamRoleCommandSubmission(
     private val teamRoleOperationSubmissionRepository: TeamRoleOperationSubmissionRepository,
-    private val teamMemberEventStateRepository: TeamMemberEventStateRepository,
+    private val membershipDirectory: MembershipDirectory,
     private val outboxWriter: OutboxWriter,
     private val teamRoleOperationMapper: TeamRoleOperationMapper,
     private val objectMapper: ObjectMapper,
@@ -57,8 +58,8 @@ class TeamRoleCommandSubmission(
         }
 
         validateNewRequest()
-        val actorVersion = activeMemberVersion(teamId, actorId)
-        val targetVersion = targetAccountId?.let { activeMemberVersion(teamId, it) }
+        val actorVersion = membershipDirectory.activeVersionForUpdate(teamId, actorId)
+        val targetVersion = targetAccountId?.let { membershipDirectory.activeVersionForUpdate(teamId, it) }
         outboxWriter.enqueue(
             topic = TeamRoleContractTopics.COMMAND,
             eventKey = teamId.toString(),
@@ -109,15 +110,6 @@ class TeamRoleCommandSubmission(
         return MessageDigest.getInstance("SHA-256")
             .digest(canonical)
             .joinToString("") { "%02x".format(it) }
-    }
-
-    private fun activeMemberVersion(teamId: Long, accountId: Long): Instant {
-        val state = teamMemberEventStateRepository.findByKeyForUpdate(teamId, accountId)
-            ?: throw ExpectedException("해당 멤버 상태를 찾을 수 없습니다.", HttpStatus.CONFLICT)
-        if (state.deleted) {
-            throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        }
-        return state.stateOccurredAt
     }
 
     private fun normalizeIdempotencyKey(idempotencyKey: String): String {

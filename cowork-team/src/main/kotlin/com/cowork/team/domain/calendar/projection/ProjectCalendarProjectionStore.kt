@@ -5,7 +5,7 @@ import com.cowork.team.domain.calendar.model.CalendarEntry
 import com.cowork.team.domain.calendar.model.CalendarRecurrenceExpander
 import com.cowork.team.domain.calendar.model.CalendarSeries
 import com.cowork.team.domain.calendar.model.CalendarSource
-import com.cowork.team.global.projection.toProjectionPrecision
+import com.cowork.team.global.toProjectionPrecision
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.readValue

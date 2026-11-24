@@ -1,6 +1,7 @@
 package com.cowork.team.global.projection
 
 import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.springframework.modulith.NamedInterface
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -8,6 +9,7 @@ import java.time.Instant
 import java.util.UUID
 
 @Component
+@NamedInterface("projection", propagate = false)
 class ProjectionRecordProcessor(
     private val projectionCheckpointStore: ProjectionCheckpointStore,
     private val objectMapper: ObjectMapper,

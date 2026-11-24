@@ -23,7 +23,7 @@ data class InviteResponse(
     companion object {
         fun of(invite: TeamInvite): InviteResponse = InviteResponse(
             inviteCode = invite.inviteCode,
-            teamId = invite.team.id,
+            teamId = invite.teamId,
             createdBy = invite.createdBy,
             duration = invite.duration,
             expiresAt = invite.expiresAt,

@@ -1,7 +1,5 @@
 package com.cowork.team.domain.teamRole.service.impl
 
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
 import com.cowork.team.support.policyRole
@@ -18,10 +16,9 @@ class QueryMemberRolesServiceImplTest :
                     // Given
                     val reader = mockk<TeamRoleProjectionReader>()
                     val guard = mockk<TeamRoleAccessGuard>()
-                    val team = Team(id = 1, name = "팀", description = null, iconUrl = null, ownerId = 7)
                     val everyone = policyRole(emptyMap()).copy(id = 1, name = "@everyone", isDefault = true)
                     val assigned = policyRole(mapOf("create_team" to true))
-                    every { guard.findMemberOrThrow(1, 7) } returns TeamMember(team = team, userId = 7)
+                    every { guard.requireActorMembership(1, 7) } returns Unit
                     every { guard.requireMemberExists(1, 8) } returns Unit
                     every { reader.getMemberRoles(1, 8) } returns listOf(everyone, assigned)
 

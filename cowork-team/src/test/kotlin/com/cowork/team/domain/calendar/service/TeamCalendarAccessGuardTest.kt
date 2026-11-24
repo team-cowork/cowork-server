@@ -1,10 +1,9 @@
 package com.cowork.team.domain.calendar.service
 
 import com.cowork.team.domain.calendar.model.CalendarAction
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
+import com.cowork.team.domain.teamAccess.MembershipDirectory
+import com.cowork.team.domain.teamAccess.TeamDirectory
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -19,8 +18,9 @@ import team.themoment.sdk.exception.ExpectedException
 
 class TeamCalendarAccessGuardTest :
     DescribeSpec({
-        val teamAccessGuard = mockk<TeamAccessGuard>()
-        val members = mockk<TeamMemberRepository>()
+        val teamDirectory = mockk<TeamDirectory>()
+        val permissionGuard = mockk<TeamPermissionGuard>()
+        val members = mockk<MembershipDirectory>()
         val roles = policyReader(
             3L,
             mapOf(
@@ -28,8 +28,7 @@ class TeamCalendarAccessGuardTest :
                 9L to mapOf("administrator" to true),
             ),
         )
-        val guard = TeamCalendarAccessGuard(teamAccessGuard, members, roles)
-        val team = Team(id = 3L, name = "team", description = null, iconUrl = null, ownerId = 1L)
+        val guard = TeamCalendarAccessGuard(teamDirectory, permissionGuard, members, roles)
 
         describe("다른 사람의 일정 수정과 삭제") {
             it("작성자는 팀 권한을 확인하지 않는다") {
@@ -52,16 +51,16 @@ class TeamCalendarAccessGuardTest :
 
         describe("일정 만들기") {
             it("팀 멤버이고 calendar_event_create가 있어야 한다") {
-                every { teamAccessGuard.findTeamOrThrow(3L) } returns team
-                every { teamAccessGuard.requireMemberExists(3L, any()) } just runs
+                every { teamDirectory.requireExists(3L) } just runs
+                every { permissionGuard.requireMemberExists(3L, any()) } just runs
 
                 shouldThrow<ExpectedException> { guard.requireCreator(3L, 8L) }.statusCode shouldBe HttpStatus.FORBIDDEN
                 guard.requireCreator(3L, 9L)
             }
 
             it("팀 멤버가 아니면 권한을 확인하기 전에 거부한다") {
-                every { teamAccessGuard.findTeamOrThrow(3L) } returns team
-                every { teamAccessGuard.requireMemberExists(3L, 10L) } throws
+                every { teamDirectory.requireExists(3L) } just runs
+                every { permissionGuard.requireMemberExists(3L, 10L) } throws
                     ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
 
                 shouldThrow<ExpectedException> { guard.requireCreator(3L, 10L) }
@@ -71,8 +70,7 @@ class TeamCalendarAccessGuardTest :
 
         describe("참석자") {
             it("팀 멤버가 아닌 사용자는 참석자로 고를 수 없다") {
-                every { members.findAllByTeamId(3L) } returns
-                    listOf(TeamMember(team = team, userId = 7L), TeamMember(team = team, userId = 8L))
+                every { members.memberIds(3L) } returns setOf(7L, 8L)
 
                 guard.requireAttendees(3L, setOf(7L))
                 guard.requireAttendees(3L, emptySet())

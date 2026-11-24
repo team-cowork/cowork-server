@@ -1,6 +1,6 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.entity.Team
+import com.cowork.team.domain.teamAccess.TeamDirectory
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
@@ -22,12 +22,13 @@ class JoinTeamServiceImplTest :
         lateinit var createMember: CreateTeamMemberService
         lateinit var service: JoinTeamServiceImpl
 
-        val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
+        lateinit var teamDirectory: TeamDirectory
 
         beforeEach {
             inviteRepository = mockk()
             createMember = mockk()
-            service = JoinTeamServiceImpl(inviteRepository, createMember)
+            teamDirectory = mockk { every { exists(1L) } returns true }
+            service = JoinTeamServiceImpl(inviteRepository, teamDirectory, createMember)
         }
 
         describe("JoinTeamServiceImpl 클래스의 execute 메서드는") {
@@ -35,7 +36,7 @@ class JoinTeamServiceImplTest :
                 it("초대 대상 팀에 멤버를 등록하고 가입 결과를 반환한다") {
                     val joinedAt = LocalDateTime.now()
                     val member = RegisteredTeamMember(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
-                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
+                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite()
                     every { createMember.execute(1L, 99L) } returns member
 
                     service.execute(99L, "valid") shouldBe
@@ -46,11 +47,23 @@ class JoinTeamServiceImplTest :
             context("초대 코드가 만료됐으면") {
                 it("GONE으로 거부한다") {
                     every { inviteRepository.findActiveByInviteCode("expired") } returns
-                        invite(team, expiresAt = LocalDateTime.now().minusHours(1))
+                        invite(expiresAt = LocalDateTime.now().minusHours(1))
 
                     val error = shouldThrow<ExpectedException> { service.execute(99L, "expired") }
 
                     error.statusCode shouldBe HttpStatus.GONE
+                    verify(exactly = 0) { createMember.execute(any(), any()) }
+                }
+            }
+
+            context("초대 코드를 만든 팀이 삭제됐으면") {
+                it("멤버를 등록하지 않고 NOT_FOUND로 거부한다") {
+                    every { inviteRepository.findActiveByInviteCode("orphan") } returns invite()
+                    every { teamDirectory.exists(1L) } returns false
+
+                    val error = shouldThrow<ExpectedException> { service.execute(99L, "orphan") }
+
+                    error.statusCode shouldBe HttpStatus.NOT_FOUND
                     verify(exactly = 0) { createMember.execute(any(), any()) }
                 }
             }
@@ -68,8 +81,8 @@ class JoinTeamServiceImplTest :
         }
     }) {
     companion object {
-        private fun invite(team: Team, expiresAt: LocalDateTime = LocalDateTime.now().plusDays(7)) = TeamInvite(
-            team = team,
+        private fun invite(expiresAt: LocalDateTime = LocalDateTime.now().plusDays(7)) = TeamInvite(
+            teamId = 1L,
             inviteCode = "valid",
             createdBy = 10L,
             duration = "7d",

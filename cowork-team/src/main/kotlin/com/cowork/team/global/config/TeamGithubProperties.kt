@@ -3,6 +3,7 @@ package com.cowork.team.global.config
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
+import org.springframework.modulith.NamedInterface
 
 @Configuration
 class TeamGithubPropertiesConfig {
@@ -13,4 +14,5 @@ class TeamGithubPropertiesConfig {
     )
 }
 
+@NamedInterface("config", propagate = false)
 data class TeamGithubProperties(val stateSecret: String, val appSlug: String)

@@ -1,8 +1,5 @@
 package com.cowork.team.domain.teamRole.service.impl
 
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.operation.TeamRoleCommandSubmission
 import com.cowork.team.domain.teamRole.operation.TeamRoleOperationStatus
 import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleRequest
@@ -29,7 +26,6 @@ class CreateTeamRoleServiceImplTest :
         lateinit var commandSubmission: TeamRoleCommandSubmission
         lateinit var service: CreateTeamRoleServiceImpl
 
-        val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
         val accepted = TeamRoleOperationResponse("operation-1", TeamRoleOperationStatus.PENDING)
 
         beforeEach {
@@ -51,7 +47,6 @@ class CreateTeamRoleServiceImplTest :
             context("사용자 정의 역할 관리자가 자신의 최상위 역할과 같은 우선순위의 역할을 만들면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { accessGuard.requireManageRoles(1L, 20L) } returns ManageRoleContext(
-                        TeamMember(team = team, userId = 20L),
                         listOf(customRole(priority = 10)),
                     )
 
@@ -66,7 +61,6 @@ class CreateTeamRoleServiceImplTest :
             context("OWNER가 높은 우선순위의 역할을 만들면") {
                 it("우선순위 제한 없이 접수한다") {
                     every { accessGuard.requireManageRoles(1L, 10L) } returns ManageRoleContext(
-                        TeamMember(team = team, userId = 10L, role = TeamRole.OWNER),
                         listOf(
                             policyRole(
                                 mapOf("administrator" to true, "transfer_team_ownership" to true),

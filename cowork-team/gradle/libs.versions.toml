@@ -16,6 +16,7 @@ kotest = "6.2.7"
 jetbrains-annotations = "26.1.0"
 
 [libraries]
+spring-modulith-api = { module = "org.springframework.modulith:spring-modulith-api", version.ref = "spring-modulith" }
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
 spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }

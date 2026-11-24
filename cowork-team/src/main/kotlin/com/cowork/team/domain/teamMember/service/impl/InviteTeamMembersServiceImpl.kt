@@ -1,14 +1,15 @@
 package com.cowork.team.domain.teamMember.service.impl
 
-import com.cowork.team.domain.team.event.NotificationTriggerEvent
-import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
-import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.teamAccess.TeamDirectory
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
+import com.cowork.team.domain.teamMember.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
-import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.global.outbox.NotificationPublisher
+import com.cowork.team.global.outbox.NotificationTriggerEvent
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,9 +18,10 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class InviteTeamMembersServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
-    private val teamEventPublisher: TeamEventPublisher,
+    private val notificationPublisher: NotificationPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val teamAccessGuard: TeamAccessGuard,
+    private val teamPermissionGuard: TeamPermissionGuard,
+    private val teamDirectory: TeamDirectory,
 ) : InviteTeamMembersService {
 
     @Transactional
@@ -32,19 +34,19 @@ class InviteTeamMembersServiceImpl(
             throw ExpectedException("사용자 ID는 양수여야 합니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val team = teamAccessGuard.findTeamForUpdateOrThrow(teamId)
-        teamAccessGuard.requirePermission(teamId, actorId, "manage_invites")
+        val team = teamDirectory.lockOrThrow(teamId)
+        teamPermissionGuard.requirePermission(teamId, actorId, "manage_invites")
 
         val existingUserIds = teamMemberRepository.findAllByTeamIdForUpdate(teamId).map { it.userId }.toSet()
         val newMembers = userIds
             .distinct()
             .filter { it !in existingUserIds }
-            .map { userId -> TeamMember(team = team, userId = userId, role = TeamRole.MEMBER) }
+            .map { userId -> TeamMember(teamId = team.id, userId = userId, role = TeamRole.MEMBER) }
 
         val savedMembers = teamMemberRepository.saveAll(newMembers)
 
         if (savedMembers.isNotEmpty()) {
-            teamEventPublisher.publishNotification(
+            notificationPublisher.publish(
                 teamId,
                 NotificationTriggerEvent(
                     type = "MEMBER_INVITED",

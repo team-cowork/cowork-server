@@ -1,7 +1,6 @@
 package com.cowork.team.domain.team.presentation.data.response
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.swagger.v3.oas.annotations.media.Schema
 
 data class TeamSummaryResponse(
@@ -16,11 +15,11 @@ data class TeamSummaryResponse(
     val myRole: String,
 ) {
     companion object {
-        fun of(team: Team, myRole: TeamRole): TeamSummaryResponse = TeamSummaryResponse(
+        fun of(team: Team, myRole: String): TeamSummaryResponse = TeamSummaryResponse(
             id = team.id,
             name = team.name,
             iconUrl = team.iconUrl,
-            myRole = myRole.name,
+            myRole = myRole,
         )
     }
 }

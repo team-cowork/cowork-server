@@ -1,6 +1,6 @@
 package com.cowork.team.domain.teamRole.operation
 
-import com.cowork.team.domain.teamMember.repository.TeamMemberEventStateRepository
+import com.cowork.team.domain.teamAccess.MembershipDirectory
 import com.cowork.team.domain.teamRole.operation.TeamRoleOperationSubmissionRepository.InsertResult
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperationResponse
 import com.cowork.team.global.outbox.OutboxWriter
@@ -18,20 +18,20 @@ import tools.jackson.module.kotlin.jacksonObjectMapper
 class TeamRoleCommandSubmissionTest :
     DescribeSpec({
         lateinit var repository: TeamRoleOperationSubmissionRepository
-        lateinit var memberStateRepository: TeamMemberEventStateRepository
+        lateinit var membershipDirectory: MembershipDirectory
         lateinit var outboxWriter: OutboxWriter
         lateinit var submission: TeamRoleCommandSubmission
         lateinit var validateNewRequest: () -> Unit
 
         beforeEach {
             repository = mockk()
-            memberStateRepository = mockk()
+            membershipDirectory = mockk()
             outboxWriter = mockk()
             validateNewRequest = mockk()
             val objectMapper = jacksonObjectMapper()
             submission = TeamRoleCommandSubmission(
                 repository,
-                memberStateRepository,
+                membershipDirectory,
                 outboxWriter,
                 TeamRoleOperationMapper(objectMapper),
                 objectMapper,
@@ -77,7 +77,7 @@ class TeamRoleCommandSubmissionTest :
                         errorMessage = "역할을 찾을 수 없습니다.",
                     )
                     verify { validateNewRequest wasNot Called }
-                    verify { memberStateRepository wasNot Called }
+                    verify { membershipDirectory wasNot Called }
                     verify { outboxWriter wasNot Called }
                 }
             }
@@ -140,7 +140,7 @@ class TeamRoleCommandSubmissionTest :
 
                     // Then
                     error.statusCode shouldBe HttpStatus.FORBIDDEN
-                    verify { memberStateRepository wasNot Called }
+                    verify { membershipDirectory wasNot Called }
                     verify { outboxWriter wasNot Called }
                 }
             }

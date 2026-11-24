@@ -2,13 +2,14 @@ package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamPermissionGuard
+import com.cowork.team.domain.teamMember.TeamMemberships
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
+import com.cowork.team.domain.teamMember.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -36,11 +37,11 @@ class TransferTeamOwnershipServiceImplTest :
                 createdAt = LocalDateTime.of(2026, 11, 17, 0, 0)
                 updatedAt = createdAt
             }
-            actor = TeamMember(team = team, userId = 7L, role = TeamRole.OWNER)
-            target = TeamMember(team = team, userId = 8L)
+            actor = TeamMember(teamId = team.id, userId = 7L, role = TeamRole.OWNER)
+            target = TeamMember(teamId = team.id, userId = 8L)
             teams = mockk { every { findByIdForUpdate(1L) } returns team }
             members = mockk {
-                every { findByTeamIdAndUserId(1L, 7L) } returns actor
+                every { existsByTeamIdAndUserId(1L, 7L) } returns true
                 every { findByTeamIdAndUserIdForUpdate(1L, 7L) } returns actor
                 every { findByTeamIdAndUserIdForUpdate(1L, 8L) } returns target
             }
@@ -48,10 +49,9 @@ class TransferTeamOwnershipServiceImplTest :
             memberEvents = mockk(relaxed = true)
             val roles = policyReader(1L, mapOf(7L to mapOf("transfer_team_ownership" to true)))
             service = TransferTeamOwnershipServiceImpl(
-                TeamAccessGuard(teams, members, TeamPermissionGuard(members, roles)),
-                members,
+                TeamAccessGuard(teams, TeamPermissionGuard(members, roles)),
+                TeamMemberships(members, memberEvents),
                 teamEvents,
-                memberEvents,
             )
         }
 
