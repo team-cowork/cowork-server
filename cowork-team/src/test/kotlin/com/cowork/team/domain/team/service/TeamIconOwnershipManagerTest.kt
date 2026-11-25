@@ -8,6 +8,7 @@ import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -27,13 +28,25 @@ class TeamIconOwnershipManagerTest :
         beforeEach {
             uploads = mockk()
             storage = mockk(relaxed = true)
-            upload = TeamIconUpload(key, uploadKey, 7L, "image/png")
+            upload = TeamIconUpload(key, uploadKey, 7L, "image/png", teamId = 10L)
             every { storage.extractObjectKey(iconUrl) } returns key
             every { storage.managedObjectKeyOrNull(iconUrl) } returns key
             every { storage.buildPublicUrl(key) } returns iconUrl
             every { uploads.findByObjectKeyForUpdate(key) } returns upload
             every { uploads.findByUploadKeyForUpdate(uploadKey) } returns upload
             service = TeamIconOwnershipManager(uploads, storage)
+        }
+
+        describe("아이콘 업로드 발급은") {
+            it("발급 대상 팀을 업로드 기록에 저장한다") {
+                val saved = slot<TeamIconUpload>()
+                every { storage.buildObjectKey("image/png") } returns key
+                every { uploads.save(capture(saved)) } answers { firstArg() }
+                service.issue(7L, 10L, "image/png")
+                saved.captured.teamId shouldBe 10L
+                saved.captured.uploadedBy shouldBe 7L
+                saved.captured.uploadKey shouldBe uploadKey
+            }
         }
 
         describe("아이콘 업로드 확인은") {
@@ -62,13 +75,14 @@ class TeamIconOwnershipManagerTest :
                     HttpStatus.BAD_REQUEST
                 target.iconUrl shouldBe null
             }
-            it("다른 사용자의 미사용 아이콘 연결을 거부한다") {
+            it("같은 팀이어도 다른 사용자의 업로드 연결을 거부한다") {
                 upload.confirmed = true
-                shouldThrow<ExpectedException> { service.replace(8L, team(), iconUrl) }.statusCode shouldBe
+                val target = team()
+                shouldThrow<ExpectedException> { service.replace(8L, target, iconUrl) }.statusCode shouldBe
                     HttpStatus.FORBIDDEN
-                upload.teamId shouldBe null
+                target.iconUrl shouldBe null
             }
-            it("원래 업로더도 다른 팀에 연결한 아이콘을 가져올 수 없다") {
+            it("다른 팀으로 발급한 아이콘은 업로더도 연결할 수 없다") {
                 upload.confirmed = true
                 upload.teamId = 20L
                 shouldThrow<ExpectedException> { service.replace(7L, team(), iconUrl) }.statusCode shouldBe
@@ -81,12 +95,11 @@ class TeamIconOwnershipManagerTest :
                 shouldThrow<ExpectedException> { service.replace(7L, team(), iconUrl) }.statusCode shouldBe
                     HttpStatus.BAD_REQUEST
             }
-            it("확인된 본인 업로드를 한 팀에 귀속한다") {
+            it("발급 대상 팀에 확인된 본인 업로드를 연결한다") {
                 upload.confirmed = true
                 val target = team()
                 service.replace(7L, target, iconUrl)
                 target.iconUrl shouldBe iconUrl
-                upload.teamId shouldBe 10L
             }
             it("같은 URL의 기존 아이콘은 다시 연결하지 않는다") {
                 service.replace(7L, team(icon = iconUrl), iconUrl)

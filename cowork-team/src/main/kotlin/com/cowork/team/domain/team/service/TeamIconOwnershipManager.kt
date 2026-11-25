@@ -15,13 +15,14 @@ class TeamIconOwnershipManager(
     private val teamIconUploadRepository: TeamIconUploadRepository,
     private val teamIconStorage: TeamIconStorage,
 ) {
+    /** 호출 서비스가 팀 변경 권한을 검사한 뒤 호출한다. 발급한 업로드는 그 팀에만 연결할 수 있다. */
     @Transactional
-    fun issue(userId: Long, contentType: String): IconPresignedUrlResponse {
+    fun issue(userId: Long, teamId: Long, contentType: String): IconPresignedUrlResponse {
         teamIconStorage.validateContentType(contentType)
         val objectKey = teamIconStorage.buildObjectKey(contentType)
         val uploadKey = "team-icon-uploads/$userId/${objectKey.substringAfterLast('/')}"
         val uploadUrl = teamIconStorage.generatePutPresignedUrl(uploadKey, contentType)
-        teamIconUploadRepository.save(TeamIconUpload(objectKey, uploadKey, userId, contentType))
+        teamIconUploadRepository.save(TeamIconUpload(objectKey, uploadKey, userId, contentType, teamId = teamId))
         return IconPresignedUrlResponse(uploadUrl = uploadUrl, objectKey = uploadKey)
     }
 
@@ -49,13 +50,12 @@ class TeamIconOwnershipManager(
         if (!upload.confirmed || upload.retired) {
             throw ExpectedException("사용할 수 없는 아이콘입니다.", HttpStatus.BAD_REQUEST)
         }
-        if (upload.teamId != null && upload.teamId != team.id) {
+        if (upload.teamId != team.id) {
             throw ExpectedException("다른 팀의 아이콘을 사용할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
-        if (upload.teamId == null && upload.uploadedBy != userId) {
+        if (upload.uploadedBy != userId) {
             throw ExpectedException("직접 업로드한 아이콘만 연결할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
-        upload.teamId = team.id
         val previous = team.iconUrl
         team.iconUrl = iconUrl
         previous?.let { retireOwnedObject(team.id, it) }
