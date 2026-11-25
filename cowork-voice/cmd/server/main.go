@@ -73,6 +73,11 @@ func main() {
 		slog.Error("channel permission projection index creation failed", "err", err)
 		os.Exit(1)
 	}
+	if err := channel.RemoveRetiredStates(indexCtx, db); err != nil {
+		indexCancel()
+		slog.Error("retired channel permission state removal failed", "err", err)
+		os.Exit(1)
+	}
 	if err := channel.CreateCheckpointIndexes(indexCtx, db); err != nil {
 		indexCancel()
 		slog.Error("channel permission projection checkpoint index creation failed", "err", err)

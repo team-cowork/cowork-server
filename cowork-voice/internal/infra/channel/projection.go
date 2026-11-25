@@ -19,7 +19,7 @@ import (
 const permissionCollection = "channel_permission_sources"
 
 var ErrInvalidEvent = errors.New("invalid permission state event")
-var permissionTopics = []string{"channel.event.v2", "team.member.event", "preference.team-role.state.v2", "preference.channel-role-policy.state.v2", "preference.voice-channel-setting.state.v1"}
+var permissionTopics = []string{"channel.event.v2", "team.member.event", "preference.channel-access.state.v1", "preference.voice-channel-setting.state.v1"}
 
 func expectedSource(topic string) string {
 	switch topic {
@@ -27,29 +27,31 @@ func expectedSource(topic string) string {
 		return "cowork-channel"
 	case "team.member.event":
 		return "cowork-team"
-	case "preference.team-role.state.v2", "preference.channel-role-policy.state.v2", "preference.voice-channel-setting.state.v1":
+	case "preference.channel-access.state.v1", "preference.voice-channel-setting.state.v1":
 		return "cowork-preference"
 	default:
 		return ""
 	}
 }
 
-// State copies source facts. No channel/user membership or computed access row is stored.
+// retiredKinds were copied from team role and channel policy topics before Preference published decisions.
+var retiredKinds = bson.A{"role", "assignment", "member-fence", "policy"}
+
+// State copies source facts and Preference's channel access decisions.
 type State struct {
 	Key         string          `bson:"_id"`
 	Kind        string          `bson:"kind"`
 	TeamID      int64           `bson:"team_id"`
 	ChannelID   int64           `bson:"channel_id"`
 	UserID      int64           `bson:"user_id"`
-	RoleID      int64           `bson:"role_id"`
-	Role        string          `bson:"role"`
 	ChannelType string          `bson:"channel_type"`
 	IsPrivate   *bool           `bson:"is_private"`
-	Priority    int             `bson:"priority"`
-	IsDefault   bool            `bson:"is_default"`
 	Permissions map[string]bool `bson:"permissions"`
 	Deleted     bool            `bson:"deleted"`
 	Version     int64           `bson:"source_version"`
+	// AuthorizationVersion은 member에서는 현재 인가 version이고, access에서는 판정에 쓴 인가 version이다.
+	// 두 값을 microsecond로 맞춰 저장한다. 0은 인가 version이 없다는 뜻이다.
+	AuthorizationVersion int64 `bson:"authorization_version"`
 	// MaxParticipants 0은 제한 없음, Bitrate nil은 클라이언트 기본값이다(voice-setting 전용).
 	MaxParticipants int  `bson:"max_participants"`
 	Bitrate         *int `bson:"bitrate"`
@@ -62,14 +64,12 @@ type CurrentHighChecker interface {
 type StateStore interface {
 	Apply(context.Context, State) error
 }
-type accessLookup interface {
-	Channel(context.Context, int64) (State, bool, error)
-	TeamStates(context.Context, int64) ([]State, error)
-	VoiceSetting(context.Context, int64) (State, bool, error)
+type stateLookup interface {
+	State(context.Context, string) (State, bool, error)
 }
 type Projection struct {
 	col           *mongo.Collection
-	lookup        accessLookup
+	lookup        stateLookup
 	currentHighMu sync.RWMutex
 	currentHigh   CurrentHighChecker
 }
@@ -88,30 +88,19 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	_, err := db.Collection(permissionCollection).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{{Key: "team_id", Value: 1}, {Key: "kind", Value: 1}}})
 	return err
 }
-func (p *Projection) Channel(ctx context.Context, id int64) (State, bool, error) {
+
+// RemoveRetiredStates deletes rows that no current topic updates. Running it again does nothing.
+func RemoveRetiredStates(ctx context.Context, db *mongo.Database) error {
+	_, err := db.Collection(permissionCollection).DeleteMany(ctx, bson.M{"kind": bson.M{"$in": retiredKinds}})
+	return err
+}
+func (p *Projection) State(ctx context.Context, key string) (State, bool, error) {
 	var state State
-	err := p.col.FindOne(ctx, bson.M{"_id": fmt.Sprintf("channel:%d", id)}).Decode(&state)
+	err := p.col.FindOne(ctx, bson.M{"_id": key}).Decode(&state)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return state, false, nil
 	}
 	return state, err == nil, err
-}
-func (p *Projection) VoiceSetting(ctx context.Context, id int64) (State, bool, error) {
-	var state State
-	err := p.col.FindOne(ctx, bson.M{"_id": fmt.Sprintf("voice-setting:%d", id)}).Decode(&state)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return state, false, nil
-	}
-	return state, err == nil, err
-}
-func (p *Projection) TeamStates(ctx context.Context, id int64) ([]State, error) {
-	cursor, err := p.col.Find(ctx, bson.M{"team_id": id, "kind": bson.M{"$ne": "channel"}})
-	if err != nil {
-		return nil, err
-	}
-	var states []State
-	err = cursor.All(ctx, &states)
-	return states, err
 }
 func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
 	check, err := p.CurrentConnectCheck(ctx)
@@ -145,121 +134,72 @@ func (p *Projection) CurrentConnectCheck(ctx context.Context) (permission.Connec
 	}, nil
 }
 
-func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
-	ch, found, err := p.lookup.Channel(ctx, channelID)
+func (p *Projection) lookupState(ctx context.Context, key string) (*State, error) {
+	state, found, err := p.lookup.State(ctx, key)
 	if err != nil {
-		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return nil, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
-	if !found || ch.Deleted || ch.ChannelType != "VOICE" || ch.TeamID <= 0 {
+	if !found {
+		return nil, nil
+	}
+	return &state, nil
+}
+
+func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
+	ch, err := p.lookupState(ctx, fmt.Sprintf("channel:%d", channelID))
+	if err != nil {
+		return permission.Access{}, err
+	}
+	if ch == nil || ch.Deleted || ch.ChannelType != "VOICE" || ch.TeamID <= 0 {
 		return permission.Access{}, apperr.PermissionDenied()
 	}
-	states, err := p.lookup.TeamStates(ctx, ch.TeamID)
+	member, err := p.lookupState(ctx, fmt.Sprintf("member:%d:%d", ch.TeamID, userID))
 	if err != nil {
-		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, err
 	}
-	access := permissionsFor(ch, userID, states)
+	decision, err := p.lookupState(ctx, fmt.Sprintf("access:%d:%d", channelID, userID))
+	if err != nil {
+		return permission.Access{}, err
+	}
+	access := permissionsFor(*ch, member, decision)
 	if !access["voice_connect"] {
 		return permission.Access{}, apperr.PermissionDenied()
 	}
-	setting, _, err := p.lookup.VoiceSetting(ctx, channelID)
+	setting, err := p.lookupState(ctx, fmt.Sprintf("voice-setting:%d", channelID))
 	if err != nil {
-		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, err
+	}
+	if setting == nil {
+		setting = &State{}
 	}
 	return permission.Access{
 		TeamID: ch.TeamID, Speak: access["voice_speak"], ScreenShare: access["screen_share"], Broadcast: access["live_broadcast"],
 		MaxParticipants: setting.MaxParticipants, Bitrate: setting.Bitrate,
 	}, nil
 }
-func permissionsFor(ch State, userID int64, states []State) map[string]bool {
-	var member *State
-	var fence int64
-	roles := map[int64]State{}
-	policies := map[int64]State{}
-	var assignments []State
-	for _, s := range states {
-		if s.TeamID != ch.TeamID {
-			continue
-		}
-		switch s.Kind {
-		case "member":
-			if s.UserID == userID {
-				v := s
-				member = &v
-			}
-		case "member-fence":
-			if s.UserID == userID && s.Version > fence {
-				fence = s.Version
-			}
-		case "role":
-			if !s.Deleted {
-				roles[s.RoleID] = s
-			}
-		case "assignment":
-			if s.UserID == userID && !s.Deleted {
-				assignments = append(assignments, s)
-			}
-		case "policy":
-			if s.ChannelID == ch.ChannelID && !s.Deleted {
-				policies[s.RoleID] = s
-			}
-		}
-	}
-	if member == nil || member.Deleted || ch.Deleted || ch.ChannelType != "VOICE" {
+
+// permissionsFor returns Preference's decision only when it was computed from the member's current authorization.
+// A member event can arrive before Preference republishes the decision, so a mismatched version denies until it catches up.
+func permissionsFor(ch State, member, decision *State) map[string]bool {
+	if member == nil || member.Deleted || member.TeamID != ch.TeamID || member.AuthorizationVersion <= 0 ||
+		decision == nil || decision.TeamID != ch.TeamID || decision.ChannelID != ch.ChannelID ||
+		decision.AuthorizationVersion != member.AuthorizationVersion || !decision.Permissions["voice_connect"] {
 		return nil
 	}
-	keys := []string{"voice_connect", "voice_speak", "screen_share", "live_broadcast"}
-	allowed := make(map[string]bool, len(keys))
-	applicable := map[int64]State{}
-	for id, role := range roles {
-		if role.IsDefault {
-			applicable[id] = role
-		}
-	}
-	for _, assignment := range assignments {
-		if role, ok := roles[assignment.RoleID]; ok && assignment.Version > fence {
-			applicable[assignment.RoleID] = role
-		}
-	}
-	for _, role := range applicable {
-		if role.Permissions["administrator"] {
-			for _, key := range keys {
-				allowed[key] = true
-			}
-			return allowed
-		}
-	}
-	for _, key := range keys {
-		for _, role := range applicable {
-			allowed[key] = allowed[key] || role.Permissions[key]
-		}
-		if key == "voice_connect" && (ch.IsPrivate == nil || *ch.IsPrivate) {
-			allowed[key] = false
-		}
-		for id, role := range applicable {
-			if value, exists := policies[id].Permissions[key]; role.IsDefault && exists {
-				allowed[key] = value
-			}
-		}
-		deny, allow := false, false
-		for id, role := range applicable {
-			if value, exists := policies[id].Permissions[key]; !role.IsDefault && exists {
-				deny = deny || !value
-				allow = allow || value
-			}
-		}
-		allowed[key] = (allowed[key] && !deny) || allow
-	}
-	if !allowed["voice_connect"] {
-		return nil
-	}
-	return allowed
+	return decision.Permissions
 }
 func (p *Projection) Apply(ctx context.Context, s State) error {
 	op := "$lt"
 	if s.Deleted {
 		op = "$lte"
 	}
-	filter := bson.M{"_id": s.Key, "$or": bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}}
+	// An equal version is a replay of the same record and is ignored. Preference gives each changed decision a new version.
+	accepted := bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}
+	if s.Kind == "member" {
+		// Members stored before authorization versions were kept take the field from the replayed record.
+		accepted = append(accepted, bson.M{"source_version": s.Version, "authorization_version": bson.M{"$exists": false}})
+	}
+	filter := bson.M{"_id": s.Key, "$or": accepted}
 	_, err := p.col.UpdateOne(ctx, filter, bson.M{"$set": s}, options.UpdateOne().SetUpsert(true))
 	if mongo.IsDuplicateKeyError(err) {
 		return nil
@@ -275,32 +215,27 @@ func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidEvent, err)
 	}
-	if s.Kind == "member" && s.Deleted {
-		fence := State{Key: fmt.Sprintf("role-source:member:%d:%d", s.TeamID, s.UserID), Kind: "member-fence", TeamID: s.TeamID, UserID: s.UserID, Deleted: true, Version: s.Version}
-		if err := h.store.Apply(ctx, fence); err != nil {
-			return err
-		}
-	}
 	return h.store.Apply(ctx, s)
 }
 func parseState(topic, key string, payload []byte) (State, error) {
 	var e struct {
-		EventType       string           `json:"eventType"`
-		TeamID          int64            `json:"teamId"`
-		ChannelID       int64            `json:"channelId"`
-		UserID          int64            `json:"userId"`
-		AccountID       int64            `json:"accountId"`
-		RoleID          int64            `json:"roleId"`
-		Role            string           `json:"role"`
-		Type            string           `json:"type"`
-		IsPrivate       *bool            `json:"isPrivate"`
-		Priority        *int             `json:"priority"`
-		IsDefault       *bool            `json:"isDefault"`
-		Permissions     map[string]*bool `json:"permissions"`
-		SchemaVersion   int              `json:"schemaVersion"`
-		OccurredAt      string           `json:"occurredAt"`
-		MaxParticipants *int             `json:"maxParticipants"`
-		Bitrate         *int             `json:"bitrate"`
+		EventType                  string           `json:"eventType"`
+		TeamID                     int64            `json:"teamId"`
+		ChannelID                  int64            `json:"channelId"`
+		UserID                     int64            `json:"userId"`
+		AccountID                  int64            `json:"accountId"`
+		Role                       string           `json:"role"`
+		Type                       string           `json:"type"`
+		IsPrivate                  *bool            `json:"isPrivate"`
+		Permissions                map[string]*bool `json:"permissions"`
+		ReadPrivate                *bool            `json:"readPrivate"`
+		SchemaVersion              int              `json:"schemaVersion"`
+		OccurredAt                 string           `json:"occurredAt"`
+		AuthorizationVersion       *string          `json:"authorizationVersion"`
+		SourceMembershipVersion    string           `json:"sourceMembershipVersion"`
+		SourceAuthorizationVersion *string          `json:"sourceAuthorizationVersion"`
+		MaxParticipants            *int             `json:"maxParticipants"`
+		Bitrate                    *int             `json:"bitrate"`
 	}
 	if err := json.Unmarshal(payload, &e); err != nil {
 		return State{}, err
@@ -316,7 +251,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		}
 		permissions[name] = *value
 	}
-	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, Permissions: permissions, Version: version.UnixNano()}
+	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, ChannelType: e.Type, IsPrivate: e.IsPrivate, Permissions: permissions, Version: version.UnixNano()}
 	expected := ""
 	switch topic {
 	case "channel.event.v2":
@@ -334,60 +269,44 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		if e.TeamID <= 0 || e.UserID <= 0 || (e.Role != "OWNER" && e.Role != "ADMIN" && e.Role != "MEMBER") || (e.EventType != "UPSERT" && e.EventType != "DELETE") {
 			return s, errors.New("invalid team member")
 		}
+		if e.AuthorizationVersion == nil {
+			return s, errors.New("missing authorization version")
+		}
+		authorization, err := parseOccurredAt(*e.AuthorizationVersion)
+		if err != nil || authorization.After(version) {
+			return s, errors.New("invalid authorization version")
+		}
 		expected = fmt.Sprintf("%d:%d", e.TeamID, e.UserID)
 		s.Kind = "member"
 		s.Key = "member:" + expected
 		s.Deleted = e.EventType == "DELETE"
-	case "preference.team-role.state.v2":
-		if e.TeamID <= 0 {
-			return s, errors.New("invalid team")
+		s.AuthorizationVersion = toMicros(authorization)
+	case "preference.channel-access.state.v1":
+		if e.EventType != "UPSERT" || e.TeamID <= 0 || e.ChannelID <= 0 || e.AccountID <= 0 || e.ReadPrivate == nil || len(permissions) == 0 {
+			return s, errors.New("invalid channel access")
 		}
-		switch e.EventType {
-		case "ROLE_UPSERTED", "ROLE_DELETED":
-			if e.RoleID <= 0 {
-				return s, errors.New("invalid role")
+		// Preference sends the Unix epoch as the membership version of a member who is not active.
+		membership, err := time.Parse(time.RFC3339Nano, e.SourceMembershipVersion)
+		if err != nil || membership.Before(time.Unix(0, 0)) {
+			return s, errors.New("invalid membership version")
+		}
+		if e.SourceAuthorizationVersion != nil {
+			authorization, err := parseOccurredAt(*e.SourceAuthorizationVersion)
+			if err != nil || authorization.After(membership) {
+				return s, errors.New("invalid authorization version")
 			}
-			expected = fmt.Sprintf("role:%d:%d", e.TeamID, e.RoleID)
-			s.Kind = "role"
-			s.Deleted = e.EventType == "ROLE_DELETED"
-			if !s.Deleted {
-				if e.Priority == nil || e.Permissions == nil || e.IsDefault == nil {
-					return s, errors.New("missing role permissions")
+			s.AuthorizationVersion = toMicros(authorization)
+		} else {
+			for _, allowed := range permissions {
+				if allowed {
+					return s, errors.New("decision without authorization version cannot allow")
 				}
-				s.Priority = *e.Priority
-				s.IsDefault = *e.IsDefault
 			}
-		case "ASSIGNMENT_UPSERTED", "ASSIGNMENT_DELETED":
-			if e.RoleID <= 0 || e.AccountID <= 0 {
-				return s, errors.New("invalid assignment")
-			}
-			expected = fmt.Sprintf("assignment:%d:%d:%d", e.TeamID, e.AccountID, e.RoleID)
-			s.Kind = "assignment"
-			s.UserID = e.AccountID
-			s.Deleted = e.EventType == "ASSIGNMENT_DELETED"
-		case "MEMBER_ASSIGNMENTS_DELETED":
-			if e.AccountID <= 0 {
-				return s, errors.New("invalid account")
-			}
-			expected = fmt.Sprintf("member:%d:%d", e.TeamID, e.AccountID)
-			s.Kind = "member-fence"
-			s.UserID = e.AccountID
-			s.Deleted = true
-		default:
-			return s, errors.New("invalid role event")
 		}
-		s.Key = "role-source:" + expected
-	case "preference.channel-role-policy.state.v2":
-		if e.TeamID <= 0 || e.ChannelID <= 0 || e.RoleID <= 0 || e.SchemaVersion != 2 || (e.EventType != "UPSERT" && e.EventType != "DELETE") {
-			return s, errors.New("invalid policy")
-		}
-		s.Deleted = e.EventType == "DELETE"
-		if (!s.Deleted && len(e.Permissions) == 0) || (s.Deleted && e.Permissions != nil) {
-			return s, errors.New("invalid policy permissions")
-		}
-		expected = fmt.Sprintf("policy:%d:%d:%d", e.TeamID, e.ChannelID, e.RoleID)
-		s.Key = expected
-		s.Kind = "policy"
+		expected = fmt.Sprintf("%d:%d", e.ChannelID, e.AccountID)
+		s.Kind = "access"
+		s.Key = "access:" + expected
+		s.UserID = e.AccountID
 	case "preference.voice-channel-setting.state.v1":
 		if e.ChannelID <= 0 || e.SchemaVersion != 1 || e.EventType != "UPSERT" ||
 			e.MaxParticipants == nil || *e.MaxParticipants < 0 || (e.Bitrate != nil && *e.Bitrate <= 0) {
@@ -406,6 +325,9 @@ func parseState(topic, key string, payload []byte) (State, error) {
 	}
 	return s, nil
 }
+
+// toMicros matches Preference, which stores authorization versions in PostgreSQL at microsecond precision.
+func toMicros(t time.Time) int64 { return t.UnixMicro() }
 func parseOccurredAt(value string) (time.Time, error) {
 	p, e := time.Parse(time.RFC3339Nano, value)
 	if e != nil {
