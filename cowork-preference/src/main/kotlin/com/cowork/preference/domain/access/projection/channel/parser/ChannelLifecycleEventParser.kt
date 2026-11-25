@@ -22,13 +22,7 @@ object ChannelLifecycleEventParser {
         val isPrivate = payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean")
         val channelType = (payload.getValue("type") as? String)?.takeIf { it.isNotBlank() }
             ?: error("type must be a non-blank string")
-
-        // 필드 추가 전에 발행된 이벤트에는 값이 없으며 활성 채널로 본다.
-        val archived = when (val value = payload.getValue("archived")) {
-            null -> false
-            is Boolean -> value
-            else -> error("archived must be a boolean")
-        }
+        val archived = payload.getValue("archived") as? Boolean ?: error("archived must be a boolean")
 
         val event = ChannelLifecycleEvent(
             channelId,
