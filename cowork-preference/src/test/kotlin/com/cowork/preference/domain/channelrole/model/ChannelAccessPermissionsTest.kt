@@ -21,8 +21,8 @@ class ChannelAccessPermissionsTest :
                 overwrites: Map<Long, Map<String, Boolean>> = emptyMap(),
                 active: Boolean = true,
                 deleted: Boolean = false,
-                isPrivate: Boolean? = false,
-                channelType: String? = "TEXT",
+                isPrivate: Boolean = false,
+                channelType: String = "TEXT",
             ) = ChannelAccessPermissions.resolve(roles, overwrites, active, deleted, isPrivate, channelType)
 
             it("모든 CHANNEL_SCOPED 키의 결과를 담는다") {
@@ -49,9 +49,6 @@ class ChannelAccessPermissionsTest :
                 allowed.permissions[PermissionKeys.MESSAGE_READ] shouldBe true
                 allowed.readPrivate shouldBe true
             }
-            it("비공개 여부를 모르면 비공개로 판정한다") {
-                resolve(isPrivate = null).permissions[PermissionKeys.MESSAGE_READ] shouldBe false
-            }
             it("음성 채널은 voice_connect를 접근 권한으로 쓴다") {
                 val result = resolve(channelType = "VOICE")
                 result.permissions[PermissionKeys.VOICE_CONNECT] shouldBe false
@@ -62,11 +59,11 @@ class ChannelAccessPermissionsTest :
                 result.permissions.values.toSet() shouldBe setOf(true)
                 result.readPrivate shouldBe true
             }
-            it("활성 멤버가 아니거나 채널이 삭제되었거나 유형을 모르면 모든 권한을 거부한다") {
+            it("활성 멤버가 아니거나 채널이 삭제되었거나 팀 채널 유형이 아니면 모든 권한을 거부한다") {
                 listOf(
                     resolve(roles = listOf(manager), active = false),
                     resolve(roles = listOf(manager), deleted = true),
-                    resolve(roles = listOf(manager), channelType = null),
+                    resolve(roles = listOf(manager), channelType = "DM"),
                 ).forEach { result ->
                     result.permissions.values.toSet() shouldBe setOf(false)
                     result.readPrivate shouldBe false

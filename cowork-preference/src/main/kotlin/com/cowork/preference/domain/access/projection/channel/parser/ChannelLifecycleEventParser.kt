@@ -19,18 +19,10 @@ object ChannelLifecycleEventParser {
         val teamId = payload.getValue("teamId")?.let { ProjectionEventInput.positiveLong(it, "teamId") }
         val occurredAt = ProjectionEventInput.occurredAt(payload)
 
-        val isPrivate = when (val value = payload.getValue("isPrivate")) {
-            null -> null
-            is Boolean -> value
-            else -> error("isPrivate must be a boolean")
-        }
-
-        // 필드 추가 전에 발행된 이벤트에는 값이 없으며 활성 채널로 본다.
-        val archived = when (val value = payload.getValue("archived")) {
-            null -> false
-            is Boolean -> value
-            else -> error("archived must be a boolean")
-        }
+        val isPrivate = payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean")
+        val channelType = (payload.getValue("type") as? String)?.takeIf { it.isNotBlank() }
+            ?: error("type must be a non-blank string")
+        val archived = payload.getValue("archived") as? Boolean ?: error("archived must be a boolean")
 
         val event = ChannelLifecycleEvent(
             channelId,
@@ -38,7 +30,7 @@ object ChannelLifecycleEventParser {
             eventType == "DELETED",
             occurredAt,
             isPrivate,
-            payload.getString("channelType") ?: payload.getString("type"),
+            channelType,
             payload.getJsonObject("initialRolePolicySeed")?.let(InitialChannelRolePolicySeed::fromJson),
             archived = archived,
         )

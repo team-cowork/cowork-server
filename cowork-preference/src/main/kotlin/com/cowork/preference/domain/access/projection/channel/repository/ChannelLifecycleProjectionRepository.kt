@@ -25,7 +25,7 @@ class ChannelLifecycleProjectionRepository {
                 deleted = EXCLUDED.deleted,
                 is_private = EXCLUDED.is_private,
                 archived = EXCLUDED.archived,
-                channel_type = COALESCE(EXCLUDED.channel_type, tb_channel_lifecycle_projections.channel_type),
+                channel_type = EXCLUDED.channel_type,
                 source_occurred_at = EXCLUDED.source_occurred_at,
                 updated_at = now()
             WHERE (EXCLUDED.deleted OR NOT tb_channel_lifecycle_projections.deleted)
@@ -35,14 +35,6 @@ class ChannelLifecycleProjectionRepository {
                         EXCLUDED.source_occurred_at = tb_channel_lifecycle_projections.source_occurred_at
                         AND EXCLUDED.deleted
                         AND NOT tb_channel_lifecycle_projections.deleted
-                    )
-                    -- is_private 도입 전에 저장된 행은 같은 version의 snapshot으로 값을 채운다.
-                    OR (
-                        EXCLUDED.source_occurred_at = tb_channel_lifecycle_projections.source_occurred_at
-                        AND NOT EXCLUDED.deleted
-                        AND NOT tb_channel_lifecycle_projections.deleted
-                        AND ((tb_channel_lifecycle_projections.is_private IS NULL AND EXCLUDED.is_private IS NOT NULL)
-                             OR (tb_channel_lifecycle_projections.channel_type IS NULL AND EXCLUDED.channel_type IS NOT NULL))
                     )
               )
             """.trimIndent(),

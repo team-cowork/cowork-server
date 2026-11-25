@@ -49,9 +49,9 @@ class ChannelAccessGuard(
         val permission = when (channel.channelType) {
             "VOICE" -> "voice_connect"
             "TEXT" -> "message_read"
-            else -> throw ProjectionNotReadyException("team channel type is not known yet")
+            else -> throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
-        if (!policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)) {
+        if (!policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
@@ -96,7 +96,7 @@ class ChannelAccessGuard(
                 requester.userId,
                 channelId,
                 "channel_manage",
-                channel.isPrivate != false,
+                channel.isPrivate,
             )
         ) {
             throw ResourceAccessDeniedException(MANAGER_DENIED)
@@ -114,8 +114,8 @@ class ChannelAccessGuard(
         }
     }
 
-    private companion object {
+    companion object {
         const val CHANNEL_ACCESS_DENIED = "채널에 접근할 권한이 없습니다."
-        const val MANAGER_DENIED = "채널 설정을 관리할 권한이 없습니다."
+        private const val MANAGER_DENIED = "채널 설정을 관리할 권한이 없습니다."
     }
 }

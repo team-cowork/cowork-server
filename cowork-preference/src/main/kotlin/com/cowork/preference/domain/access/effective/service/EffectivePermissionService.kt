@@ -4,7 +4,7 @@ import com.cowork.preference.domain.access.effective.model.EffectivePermissionEv
 import com.cowork.preference.domain.access.effective.model.EffectivePermissionQuery
 import com.cowork.preference.domain.access.effective.model.EffectivePermissionResult
 import com.cowork.preference.domain.access.effective.model.PermissionScope
-import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
+import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
 import com.cowork.preference.domain.access.permission.PermissionDecision
 import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.access.permission.PolicyRole
@@ -91,12 +91,11 @@ class EffectivePermissionService(
         val decisions = EffectivePermissionEvaluator.channel(
             teamRoles(teamId, accountId),
             channelRolePolicyRepository.findOverwritesForRead(pool, teamId, scope.channelId),
-            // ChannelAccessGuard와 같이 아직 확인하지 못한 비공개 여부는 비공개로 판정한다.
-            isPrivate = channel.isPrivate != false,
+            isPrivate = channel.isPrivate,
             accessPermission = when (channel.channelType) {
                 "VOICE" -> PermissionKeys.VOICE_CONNECT
                 "TEXT" -> PermissionKeys.MESSAGE_READ
-                else -> throw ProjectionNotReadyException("team channel type is not known yet")
+                else -> throw ResourceAccessDeniedException(ChannelAccessGuard.CHANNEL_ACCESS_DENIED)
             },
             keys = keys,
         )

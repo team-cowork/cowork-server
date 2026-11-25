@@ -13,16 +13,15 @@ object ChannelAccessPermissions {
 
     /**
      * [roles]는 기본 역할과 할당 역할이고, [overwrites]는 역할 ID별 채널 덮어쓰기다.
-     * 활성 멤버가 아니거나, 채널이 삭제되었거나, 채널 유형을 모르면 모든 권한을 거부한다.
-     * 유효 권한 조회 API와 같이 비공개 여부를 모르면 비공개로 판정한다.
+     * 활성 멤버가 아니거나, 채널이 삭제되었거나, 팀 채널 유형(TEXT, VOICE)이 아니면 모든 권한을 거부한다.
      */
     fun resolve(
         roles: List<PolicyRole>,
         overwrites: Map<Long, Map<String, Boolean>>,
         active: Boolean,
         deleted: Boolean,
-        isPrivate: Boolean?,
-        channelType: String?,
+        isPrivate: Boolean,
+        channelType: String,
     ): Result {
         val accessPermission = when (channelType) {
             "TEXT" -> PermissionKeys.MESSAGE_READ
@@ -33,7 +32,7 @@ object ChannelAccessPermissions {
         val permissions = EffectivePermissionEvaluator.channel(
             roles,
             overwrites,
-            isPrivate = isPrivate != false,
+            isPrivate = isPrivate,
             accessPermission = accessPermission,
             keys = KEYS,
         ).mapValues { it.value.allowed }

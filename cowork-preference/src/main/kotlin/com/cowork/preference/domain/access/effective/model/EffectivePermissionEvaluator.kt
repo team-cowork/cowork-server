@@ -35,7 +35,7 @@ object EffectivePermissionEvaluator {
         keys.associateWith { RolePolicy.explain(roles, it) }
 
     /**
-     * [overwrites]는 역할 ID별 채널 덮어쓰기다. 비공개 여부를 모르면 비공개로 판정한다.
+     * [overwrites]는 역할 ID별 채널 덮어쓰기다.
      * Channel, Chat, Voice 서비스와 같이 [accessPermission] 이외 권한은 채널 접근 권한을 함께 요구한다.
      * Chat과 같이 채팅 작업과 음성 로그 조회는 음성 채널에서도 message_read를 함께 요구한다.
      */
