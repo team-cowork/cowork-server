@@ -273,6 +273,13 @@
         "segment.ms": "3600000"
       }
     },
+    "preference.team-access.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
     "preference.account-setting.state.v1": {
       "partitions": 1,
       "config": {
@@ -527,6 +534,7 @@
         "channel.dm-participant.state.v1",
         "channel.event.v2",
         "project.event.v2",
+        "preference.team-access.state.v1",
         "preference.team-role.state.v2",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
@@ -555,6 +563,7 @@
         "github.repo.event",
         "voice.event",
         "notification.trigger",
+        "preference.team-access.state.v1",
         "preference.team-role.state.v2",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
@@ -620,6 +629,7 @@
         "project.event.v2",
         "preference.status.changed",
         "preference.channel-notification.changed",
+        "preference.team-access.state.v1",
         "preference.team-role.state.v2",
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
@@ -656,6 +666,7 @@
         "github.issue.create",
         "github.issue.result",
         "notification.trigger",
+        "preference.team-access.state.v1",
         "preference.team-role.state.v2",
         "preference.github-repo.setting.command",
         "preference.github-repo.setting.state",
@@ -686,6 +697,7 @@
         "team.member.event",
         "team.member.event-dlt",
         "preference.account-role.state.v1",
+        "preference.team-access.state.v1",
         "preference.team-role.state.v2"
       ]
     },
@@ -702,6 +714,7 @@
         "team.github.disconnected-dlt",
         "team.github.renamed-dlt",
         "notification.trigger",
+        "preference.team-access.state.v1",
         "preference.team-role.state.v2",
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
