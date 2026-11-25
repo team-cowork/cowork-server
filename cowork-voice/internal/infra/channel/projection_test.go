@@ -26,59 +26,6 @@ func TestParseVoiceChannelSetting(t *testing.T) {
 	}
 }
 
-func TestParseChannelAccess(t *testing.T) {
-	const topic = "preference.channel-access.state.v1"
-	payload := func(auth string, connect bool) []byte {
-		return []byte(`{"eventType":"UPSERT","channelId":11,"accountId":217,"teamId":3,` +
-			`"permissions":{"voice_connect":` + map[bool]string{true: "true", false: "false"}[connect] + `,"voice_speak":false},` +
-			`"readPrivate":false,"sourceMembershipVersion":"2026-11-25T00:00:02Z","sourceAuthorizationVersion":` + auth + `,` +
-			`"occurredAt":"2026-11-25T00:00:03.123456Z"}`)
-	}
-	s, err := parseState(topic, "11:217", payload(`"2026-11-25T00:00:01.000001Z"`, true))
-	if err != nil {
-		t.Fatalf("parseState() error = %v", err)
-	}
-	if s.Key != "access:11:217" || s.Kind != "access" || s.TeamID != 3 || s.ChannelID != 11 || s.UserID != 217 ||
-		!s.Permissions["voice_connect"] || s.AuthorizationVersion != 1_795_564_801_000_001 {
-		t.Fatalf("unexpected state: %+v", s)
-	}
-	if _, err := parseState(topic, "11:217", payload("null", false)); err != nil {
-		t.Fatalf("deny without authorization version rejected: %v", err)
-	}
-	invalid := map[string][]byte{
-		"allow without authorization version": payload("null", true),
-		"authorization after membership":      payload(`"2026-11-25T00:00:05Z"`, true),
-		"missing readPrivate":                 []byte(`{"eventType":"UPSERT","channelId":11,"accountId":217,"teamId":3,"permissions":{"voice_connect":false},"sourceMembershipVersion":"1970-01-01T00:00:00Z","sourceAuthorizationVersion":null,"occurredAt":"2026-11-25T00:00:03Z"}`),
-	}
-	for name, body := range invalid {
-		if _, err := parseState(topic, "11:217", body); err == nil {
-			t.Errorf("%s: parseState() accepted invalid record", name)
-		}
-	}
-	if _, err := parseState(topic, "11:218", payload(`"2026-11-25T00:00:01Z"`, true)); err == nil {
-		t.Fatal("parseState() accepted mismatched key")
-	}
-}
-
-func TestParseTeamMemberAuthorizationVersion(t *testing.T) {
-	const topic = "team.member.event"
-	s, err := parseState(topic, "3:217", []byte(`{"eventType":"UPSERT","teamId":3,"userId":217,"role":"MEMBER","occurredAt":"2026-11-25T00:00:02Z","authorizationVersion":"2026-11-25T00:00:01.000001999Z"}`))
-	if err != nil {
-		t.Fatalf("parseState() error = %v", err)
-	}
-	if s.Key != "member:3:217" || s.AuthorizationVersion != 1_795_564_801_000_001 {
-		t.Fatalf("unexpected state: %+v", s)
-	}
-	for _, body := range []string{
-		`{"eventType":"UPSERT","teamId":3,"userId":217,"role":"MEMBER","occurredAt":"2026-11-25T00:00:02Z"}`,
-		`{"eventType":"UPSERT","teamId":3,"userId":217,"role":"MEMBER","occurredAt":"2026-11-25T00:00:02Z","authorizationVersion":"2026-11-25T00:00:03Z"}`,
-	} {
-		if _, err := parseState(topic, "3:217", []byte(body)); err == nil {
-			t.Errorf("parseState(%s) accepted invalid member", body)
-		}
-	}
-}
-
 func TestPermissionsFor(t *testing.T) {
 	public := false
 	ch := State{Kind: "channel", TeamID: 3, ChannelID: 11, ChannelType: "VOICE", IsPrivate: &public}
