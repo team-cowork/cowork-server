@@ -1,5 +1,5 @@
 export * from './channel-event.consumer.js';
-export * from './channel-role-policy-event.consumer.js';
+export * from './channel-access-event.consumer.js';
 export * from './chat-github-issue.producer.js';
 export * from './chat-message-quarantine.poller.js';
 export * from './chat-message-scope-validator.js';

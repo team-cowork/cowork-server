@@ -31,18 +31,15 @@ describe('MeetingNoteAttachmentDownloadService', () => {
 				}]),
 			},
 			dmParticipantRepository: {findByChannelIdsAndUserIds: jest.fn().mockResolvedValue(new Map())},
-			teamMemberRepository: {findByTeamIdsAndUserIds: jest.fn().mockResolvedValue([{teamId: 2, userId: 7, role: 'MEMBER'}])},
-			teamRoleRepository: {
-				findAssignmentsByTeamIdsAndAccountIds: jest.fn().mockResolvedValue([{teamId: 2, accountId: 7, roleId: 3}]),
-				findDefaultRolesByTeamIds: jest.fn().mockResolvedValue([]),
-				findRolesByIds: jest.fn().mockResolvedValue([{teamId: 2, roleId: 3, priority: 1}]),
+			teamMemberRepository: {
+				findByTeamIdsAndUserIds: jest.fn().mockResolvedValue([{
+					teamId: 2, userId: 7, role: 'MEMBER', authorizationVersion: 1n,
+				}]),
 			},
-			policyRepository: {
-				findByChannelIdsAndRoleIds: jest.fn().mockResolvedValue([
-					{
-						teamId: 2, channelId: 1, roleId: 3, permissions: Object.fromEntries([['voice_connect', true], ['message_read', false]]),
-					},
-				]),
+			channelAccessRepository: {
+				findByChannelIdsAndUserIds: jest.fn().mockResolvedValue([{
+					channelId: 1, userId: 7, teamId: 2, allowedPermissions: ['voice_connect'], readPrivate: false, sourceAuthorizationVersion: 1n,
+				}]),
 			},
 			projectionReadiness: readiness,
 		});

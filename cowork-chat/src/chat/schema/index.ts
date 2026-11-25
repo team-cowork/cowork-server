@@ -1,6 +1,6 @@
 export * from './dm-participant.schema.js';
 export * from './channel-projection.schema.js';
-export * from './channel-role-policy-projection.schema.js';
+export * from './channel-access-projection.schema.js';
 export * from './chat-message-quarantine.schema.js';
 export * from './message-search-index-state.schema.js';
 export * from './message-search-tombstone.schema.js';

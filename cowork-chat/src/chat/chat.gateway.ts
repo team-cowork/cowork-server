@@ -30,7 +30,7 @@ import {ChannelEventConsumer} from './kafka/channel-event.consumer.js';
 import {ThreadStateConsumer} from './kafka/thread-state.consumer.js';
 import {ProjectEventConsumer} from './kafka/project-event.consumer.js';
 import {TeamRoleEventConsumer} from './kafka/team-role-event.consumer.js';
-import {ChannelRolePolicyEventConsumer} from './kafka/channel-role-policy-event.consumer.js';
+import {ChannelAccessEventConsumer} from './kafka/channel-access-event.consumer.js';
 import {TeamMemberEventConsumer} from './kafka/team-member-event.consumer.js';
 import {JoinChannelDto} from './dto/index.js';
 
@@ -103,7 +103,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	private readonly teamRoleEventConsumer!: TeamRoleEventConsumer;
 
 	@inject()
-	private readonly channelRolePolicyEventConsumer!: ChannelRolePolicyEventConsumer;
+	private readonly channelAccessEventConsumer!: ChannelAccessEventConsumer;
 
 	@inject()
 	private readonly teamMemberEventConsumer!: TeamMemberEventConsumer;
@@ -295,7 +295,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 		this.dmParticipantConsumer.setReadableEmitter(async (channelId, event, payload) =>
 			this.chatService.emitToReadableChannelUsers(channelId, event, payload));
 		this.teamRoleEventConsumer.setSocketServer(server);
-		this.channelRolePolicyEventConsumer.setSocketServer(server);
+		this.channelAccessEventConsumer.setSocketServer(server);
 		this.teamMemberEventConsumer.setSocketServer(server);
 		this.roomSweepTimer = setInterval(() => {
 			void this.sweepLocalRooms(server);
