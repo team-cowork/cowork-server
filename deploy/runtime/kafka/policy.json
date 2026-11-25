@@ -507,7 +507,10 @@
   },
   "principals": {
     "cowork-applet": {
-      "topics": []
+      "topics": [
+        "team.member.event",
+        "preference.team-role.state.v2"
+      ]
     },
     "cowork-authorization": {
       "topics": [

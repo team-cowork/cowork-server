@@ -406,6 +406,7 @@
   "applet": {
     "environment": "Prod-CD(applet)",
     "secret_bindings": {
+      "APPLET_SECRET_ENCRYPTION_KEY": "APPLET_SECRET_ENCRYPTION_KEY",
       "APPLET_SECRET_KEY": "APPLET_SECRET_KEY",
       "DB_PASSWORD": "DB_PASSWORD"
     },
@@ -415,6 +416,7 @@
     },
     "optional_secrets": [],
     "immutable_secrets": [
+      "APPLET_SECRET_ENCRYPTION_KEY",
       "DB_ADMIN_PASSWORD"
     ],
     "kafka_principal": "cowork-applet",
