@@ -6,7 +6,9 @@ import com.cowork.preference.domain.access.projection.team.model.TeamMemberRecor
 import com.cowork.preference.domain.access.projection.team.parser.TeamMemberEventParser
 import com.cowork.preference.domain.access.projection.team.policy.TeamMemberCleanupPolicy
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.service.TeamRoleService
 import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpoint
 import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpointRepository
@@ -17,6 +19,8 @@ class TeamMemberProjectionHandler(
     private val teamMemberProjectionRepository: TeamMemberProjectionRepository,
     private val checkpointRepository: ProjectionCheckpointRepository,
     private val projectAccess: ProjectAccessStateRepository,
+    private val teamAccess: TeamAccessStateRepository,
+    private val channelAccess: ChannelAccessStateRepository,
 ) : ProjectionRecordHandler {
     override suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String? =
         when (val decision = TeamMemberEventParser.parse(key, value)) {
@@ -36,9 +40,12 @@ class TeamMemberProjectionHandler(
                 val defaultCreated = teamRoleService.ensureDefaultRole(connection, event.teamId)
                 teamRoleService.synchronizeMembershipPolicies(connection, event)
                 projectAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
+                teamAccess.refresh(connection, event.teamId, if (defaultCreated) null else event.userId)
+                channelAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
                 return@inTransaction
             }
-            when (TeamMemberCleanupPolicy.scope(event)) {
+            val scope = TeamMemberCleanupPolicy.scope(event)
+            when (scope) {
                 TeamMemberCleanupScope.TEAM -> {
                     teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)
                 }
@@ -56,15 +63,12 @@ class TeamMemberProjectionHandler(
             projectAccess.removeTeamAssignments(
                 connection,
                 event.teamId,
-                if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.TEAM) null else event.userId,
-                cutoff = if (TeamMemberCleanupPolicy.scope(event) ==
-                    TeamMemberCleanupScope.MEMBER
-                ) {
-                    event.occurredAt
-                } else {
-                    null
-                },
+                if (scope == TeamMemberCleanupScope.TEAM) null else event.userId,
+                cutoff = if (scope == TeamMemberCleanupScope.MEMBER) event.occurredAt else null,
             )
+            val refreshedAccountId = if (scope == TeamMemberCleanupScope.TEAM) null else event.userId
+            teamAccess.refresh(connection, event.teamId, refreshedAccountId)
+            channelAccess.refreshTeam(connection, event.teamId, refreshedAccountId)
         }
     }
 }

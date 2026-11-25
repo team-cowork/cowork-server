@@ -16,6 +16,7 @@ import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.exception.ChannelRolePolicyProjectionNotReadyException
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyState
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
@@ -37,6 +38,7 @@ class ChannelRolePolicyCommandProcessor(
     private val outboxRepository: PreferenceOutboxRepository,
     private val readiness: ProjectionReadinessView,
     private val initialAccess: InitialResourceAccessRepository,
+    private val channelAccess: ChannelAccessStateRepository,
 ) {
     suspend fun process(rawCommand: ChannelRolePolicyCommand) {
         val command = rawCommand.canonicalized()
@@ -138,6 +140,7 @@ class ChannelRolePolicyCommandProcessor(
             )
         }
         initialAccess.claim(connection, "CHANNEL", command.channelId)
+        channelAccess.refreshChannel(connection, command.channelId)
         return success(command, state)
     }
 

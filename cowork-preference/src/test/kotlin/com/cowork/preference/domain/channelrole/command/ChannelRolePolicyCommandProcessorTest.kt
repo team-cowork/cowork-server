@@ -280,6 +280,7 @@ class ChannelRolePolicyCommandProcessorTest {
             outboxRepository,
             readiness,
             initialAccess,
+            mockk(relaxed = true),
         )
 
         fun stubActiveCommand(
