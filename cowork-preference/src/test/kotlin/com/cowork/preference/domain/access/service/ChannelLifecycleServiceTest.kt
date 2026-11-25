@@ -92,6 +92,7 @@ class ChannelLifecycleServiceTest {
             policyRepository,
             outboxRepository,
             mockk(relaxed = true),
+            mockk(relaxed = true),
         )
 
         init {

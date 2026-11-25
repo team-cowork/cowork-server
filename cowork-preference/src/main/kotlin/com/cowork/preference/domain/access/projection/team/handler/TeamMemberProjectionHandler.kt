@@ -6,6 +6,7 @@ import com.cowork.preference.domain.access.projection.team.model.TeamMemberRecor
 import com.cowork.preference.domain.access.projection.team.parser.TeamMemberEventParser
 import com.cowork.preference.domain.access.projection.team.policy.TeamMemberCleanupPolicy
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.service.TeamRoleService
@@ -19,6 +20,7 @@ class TeamMemberProjectionHandler(
     private val checkpointRepository: ProjectionCheckpointRepository,
     private val projectAccess: ProjectAccessStateRepository,
     private val teamAccess: TeamAccessStateRepository,
+    private val channelAccess: ChannelAccessStateRepository,
 ) : ProjectionRecordHandler {
     override suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String? =
         when (val decision = TeamMemberEventParser.parse(key, value)) {
@@ -39,6 +41,7 @@ class TeamMemberProjectionHandler(
                 teamRoleService.synchronizeMembershipPolicies(connection, event)
                 projectAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
                 teamAccess.refresh(connection, event.teamId, if (defaultCreated) null else event.userId)
+                channelAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
                 return@inTransaction
             }
             val scope = TeamMemberCleanupPolicy.scope(event)
@@ -69,11 +72,9 @@ class TeamMemberProjectionHandler(
                     null
                 },
             )
-            teamAccess.refresh(
-                connection,
-                event.teamId,
-                if (scope == TeamMemberCleanupScope.TEAM) null else event.userId,
-            )
+            val refreshedAccountId = if (scope == TeamMemberCleanupScope.TEAM) null else event.userId
+            teamAccess.refresh(connection, event.teamId, refreshedAccountId)
+            channelAccess.refreshTeam(connection, event.teamId, refreshedAccountId)
         }
     }
 }

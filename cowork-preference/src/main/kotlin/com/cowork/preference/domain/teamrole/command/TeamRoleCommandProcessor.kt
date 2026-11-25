@@ -5,6 +5,7 @@ import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.command.model.ProcessedTeamRoleCommand
@@ -37,6 +38,7 @@ class TeamRoleCommandProcessor(
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
     private val projectAccess: ProjectAccessStateRepository,
     private val teamAccess: TeamAccessStateRepository,
+    private val channelAccess: ChannelAccessStateRepository,
 ) {
     suspend fun process(command: TeamRoleCommand) {
         outboxRepository.inTransaction { connection ->
@@ -242,6 +244,12 @@ class TeamRoleCommandProcessor(
         if (teamPermissionsChanged) {
             teamAccess.refresh(connection, command.teamId)
         }
+        val channelPermissionsChanged = (PermissionKeys.CHANNEL_SCOPED + PermissionKeys.ADMINISTRATOR).any {
+            (current.permissions[it] == true) != (role.permissions[it] == true)
+        }
+        if (channelPermissionsChanged) {
+            channelAccess.refreshTeam(connection, command.teamId)
+        }
         return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
     }
 
@@ -287,6 +295,7 @@ class TeamRoleCommandProcessor(
         }
         projectAccess.refreshTeam(connection, command.teamId)
         teamAccess.refresh(connection, command.teamId)
+        channelAccess.refreshTeam(connection, command.teamId)
         return success(command, null, roleEvent, deleted = true, stateEvents = events)
     }
 
@@ -344,6 +353,7 @@ class TeamRoleCommandProcessor(
         val event = TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant())
         projectAccess.refreshTeam(connection, command.teamId, targetId)
         teamAccess.refresh(connection, command.teamId, targetId)
+        channelAccess.refreshTeam(connection, command.teamId, targetId)
         return success(command, role, event, deleted = false)
     }
 
@@ -378,6 +388,7 @@ class TeamRoleCommandProcessor(
         val event = TeamRoleEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
         projectAccess.refreshTeam(connection, command.teamId, targetId)
         teamAccess.refresh(connection, command.teamId, targetId)
+        channelAccess.refreshTeam(connection, command.teamId, targetId)
         return success(command, role, event, deleted = true)
     }
 

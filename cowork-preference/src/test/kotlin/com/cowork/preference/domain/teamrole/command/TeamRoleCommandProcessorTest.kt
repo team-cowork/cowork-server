@@ -3,6 +3,7 @@ package com.cowork.preference.domain.teamrole.command
 import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
@@ -219,6 +220,7 @@ class TeamRoleCommandProcessorTest {
             mockk<ChannelRolePolicyRepository>(relaxed = true),
             mockk<ProjectAccessStateRepository>(relaxed = true),
             mockk<TeamAccessStateRepository>(relaxed = true),
+            mockk<ChannelAccessStateRepository>(relaxed = true),
         )
 
         fun stubCommand(command: TeamRoleCommand, actorRole: String, administrator: Boolean = true) {

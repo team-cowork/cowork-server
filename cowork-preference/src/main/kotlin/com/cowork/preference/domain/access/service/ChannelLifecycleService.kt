@@ -3,6 +3,7 @@ package com.cowork.preference.domain.access.service
 import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleEvent
 import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.repository.WebhookRepository
@@ -14,6 +15,7 @@ class ChannelLifecycleService(
     private val policyRepository: ChannelRolePolicyRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val initialAccess: InitialResourceAccessService,
+    private val channelAccess: ChannelAccessStateRepository,
     private val webhookRepository: WebhookRepository? = null,
 ) {
     /**
@@ -27,6 +29,8 @@ class ChannelLifecycleService(
                 initialAccess.channel(client, event, current)
             }
         }
+        // A deleted channel denies every permission, so its remaining policies need no separate recomputation.
+        if (applied || event.initialRolePolicySeed != null) channelAccess.refreshChannel(client, event.channelId)
         if (!applied || !event.deleted) return
         webhookRepository?.deleteChannel(client, event.channelId)?.let { deleted ->
             outboxRepository.enqueueAll(client, deleted.map { WebhookEvents.webhookState(it, snapshot = false) })
