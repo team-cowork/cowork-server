@@ -57,7 +57,7 @@ public class RoadmapController {
     private final ModifyRoadmapService modifyRoadmapService;
     private final DeleteRoadmapService deleteRoadmapService;
 
-    @Operation(summary = "로드맵 생성", description = "글로벌 로드맵을 생성하려면 `manage_global_roadmaps`가 필요합니다. 팀 로드맵은 소유 팀의 활성 멤버 중 `manage_team` 또는 `administrator` 권한을 가진 사용자가 생성할 수 있습니다.")
+    @Operation(summary = "로드맵 생성", description = "글로벌 로드맵을 생성하려면 `manage_global_roadmaps`가 필요합니다. 팀 로드맵은 소유 팀의 활성 멤버 중 `administrator` 또는 `manage_roadmaps` 권한을 가진 사용자가 생성할 수 있습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "생성 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -127,7 +127,7 @@ public class RoadmapController {
         return queryRoadmapTreeService.execute(userId, roadmapId);
     }
 
-    @Operation(summary = "로드맵 수정", description = "필드를 생략하거나 null을 보내면 기존 값을 유지합니다. 글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 팀 관리 권한을 가진 사용자가 변경할 수 있습니다.")
+    @Operation(summary = "로드맵 수정", description = "필드를 생략하거나 null을 보내면 기존 값을 유지합니다. 글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 `administrator` 또는 `manage_roadmaps` 권한을 가진 사용자가 변경할 수 있습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -146,7 +146,7 @@ public class RoadmapController {
         return modifyRoadmapService.execute(userId, roadmapId, request);
     }
 
-    @Operation(summary = "로드맵 삭제", description = "글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 팀 관리 권한을 가진 사용자가 변경할 수 있습니다.")
+    @Operation(summary = "로드맵 삭제", description = "글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 `administrator` 또는 `manage_roadmaps` 권한을 가진 사용자가 변경할 수 있습니다.")
     @ApiResponses({@ApiResponse(responseCode = "204", description = "응답 본문 없음", content = @Content),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
