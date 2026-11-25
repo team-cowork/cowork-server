@@ -118,10 +118,11 @@ class ChannelAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         teams.forEach { refreshTeam(client, it.getLong("team_id")) }
         val states = client.query("SELECT * FROM tb_channel_access_states ORDER BY channel_id, account_id")
             .execute().coAwait()
-        states.forEach { outbox.enqueue(client, event(it)) }
+        // Changed pairs above were already published as live records; only the full replay carries the snapshot flag.
+        states.forEach { outbox.enqueue(client, event(it, snapshot = true)) }
     }
 
-    private fun event(row: Row): PreferenceEvent {
+    private fun event(row: Row, snapshot: Boolean = false): PreferenceEvent {
         val channelId = row.getLong("channel_id")
         val accountId = row.getLong("account_id")
         val version = row.getOffsetDateTime("state_occurred_at").toInstant()
@@ -140,7 +141,8 @@ class ChannelAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                     "sourceAuthorizationVersion",
                     row.getOffsetDateTime("source_authorization_version")?.toInstant()?.toString(),
                 )
-                .put("occurredAt", version.toString()),
+                .put("occurredAt", version.toString())
+                .put("snapshot", snapshot),
             version,
         )
     }
