@@ -96,7 +96,7 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: deploy/ci
-      - name: Assign PR Assignees To Related Issues
+      - name: Sync Related Issues
         uses: actions/github-script@v9
         with:
           script: |

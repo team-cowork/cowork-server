@@ -2,6 +2,25 @@
 
 const { referencedIssueNumbers } = require('./issue_references.cjs');
 
+// Issue statuses move only when a PR opens or leaves draft, so later manual changes stay.
+const STATUS_ACTIONS = new Set(['opened', 'ready_for_review']);
+const DRAFT_STATUS = 'In progress';
+const REVIEW_STATUS = 'In review';
+
+/**
+ * Returns the GitHub issue status (preview) that the PR moves the issue to, or null.
+ * A status never moves backward, and a closed issue keeps its status because a started status reopens it.
+ */
+function nextIssueStatus(pullRequest, issue) {
+  if (issue.state !== 'open') return null;
+  const target = pullRequest.draft ? DRAFT_STATUS : REVIEW_STATUS;
+  const current = issue.status;
+  if (!current) return target;
+  if (current.name === target) return null;
+  const movable = pullRequest.draft ? ['backlog', 'planned'] : ['backlog', 'planned', 'started'];
+  return movable.includes(current.category) ? target : null;
+}
+
 async function syncPullRequestIssues({ github, context, core, close = false }) {
   const eventPullRequest = context.payload.pull_request;
   if (close && !eventPullRequest.merged) return;
@@ -49,6 +68,24 @@ async function syncPullRequestIssues({ github, context, core, close = false }) {
     } while (cursor);
   });
 
+  const updatesStatus = !close && STATUS_ACTIONS.has(context.payload.action);
+  let statusIds;
+  async function statusId(name) {
+    if (!statusIds) {
+      const result = await github.graphql(`
+        query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            planningStatuses(first: 50) { nodes { id name } }
+          }
+        }
+      `, { owner, repo });
+      statusIds = new Map(result.repository.planningStatuses.nodes.map(status => [status.name, status.id]));
+    }
+    const id = statusIds.get(name);
+    if (!id) throw new Error(`Issue status "${name}" is not available in ${repository}.`);
+    return id;
+  }
+
   const assignees = pullRequest.assignees.map(user => user.login);
   for (const number of numbers) {
     const parameters = { owner, repo, issue_number: number };
@@ -76,6 +113,17 @@ async function syncPullRequestIssues({ github, context, core, close = false }) {
         core.info(`Added PR assignees to issue #${number}.`);
       });
     }
+    const status = updatesStatus ? nextIssueStatus(pullRequest, issue) : null;
+    if (status) {
+      await attempt(`Set issue #${number} status to ${status}`, async () => {
+        await github.graphql(`
+          mutation($issueId: ID!, $statusId: ID!) {
+            setIssueStatus(input: { issueId: $issueId, statusId: $statusId }) { issue { number } }
+          }
+        `, { issueId: issue.node_id, statusId: await statusId(status) });
+        core.info(`Set issue #${number} status to ${status}.`);
+      });
+    }
     if (close && issue.state === 'open') {
       await attempt(`Close issue #${number}`, async () => {
         await github.rest.issues.update({ ...parameters, state: 'closed', state_reason: 'completed' });
@@ -86,4 +134,4 @@ async function syncPullRequestIssues({ github, context, core, close = false }) {
   if (failures.length && close) throw new Error(`PR issue synchronization failed: ${failures.join('; ')}`);
 }
 
-module.exports = { syncPullRequestIssues };
+module.exports = { nextIssueStatus, syncPullRequestIssues };
