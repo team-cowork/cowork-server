@@ -577,7 +577,6 @@
         "preference.team-access.state.v1",
         "preference.team-role.state.v2",
         "preference.channel-access.state.v1",
-        "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
         "preference.team-setting.state.v1",
         "preference.text-channel-setting.state.v1",
@@ -755,9 +754,7 @@
         "team.member.event-dlt",
         "channel.event.v2",
         "voice.event",
-        "preference.team-role.state.v2",
         "preference.channel-access.state.v1",
-        "preference.channel-role-policy.state.v2",
         "preference.voice-channel-setting.state.v1"
       ]
     }
