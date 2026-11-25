@@ -3,6 +3,7 @@ import {type ProjectionCheckpointOffset} from './projection-checkpoint.repositor
 import {
 	describeActiveCheckpointProblem,
 	describeStartupCheckpointProblem,
+	describeTopicIdentityProblem,
 	hasCompletedSnapshotBarriers,
 	isReadyWithLagGrace,
 	nextLag,
@@ -165,5 +166,16 @@ describe('describeActiveCheckpointProblem', () => {
 		} else {
 			expect(problem).toContain(expected);
 		}
+	});
+});
+
+describe('describeTopicIdentityProblem', () => {
+	it.each([
+		['broker topic UUID가 dataset과 같으면 이어 읽는다', 'topic-a', 'topic-a', false],
+		['같은 이름으로 다시 만든 topic은 UUID가 달라 재구축한다', 'topic-a', 'topic-b', true],
+		['topic UUID가 없는 기존 dataset은 재구축한다', undefined, 'topic-a', true],
+	])('%s', (_title, datasetTopicId, brokerTopicId, isProblem) => {
+		const problem = describeTopicIdentityProblem('channel.event.v2', {topicId: datasetTopicId}, brokerTopicId);
+		expect(problem !== undefined).toBe(isProblem);
 	});
 });
