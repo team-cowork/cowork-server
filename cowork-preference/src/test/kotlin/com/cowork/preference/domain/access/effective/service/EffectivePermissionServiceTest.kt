@@ -210,6 +210,18 @@ class EffectivePermissionServiceTest :
                 result.decisions.getValue("message_send").allowed shouldBe true
             }
 
+            it("팀 채널 유형이 TEXT나 VOICE가 아니면 접근을 거부한다") {
+                val fixture = EffectivePermissionFixture()
+                fixture.channel(TEAM_ID, type = "DM")
+                fixture.teamRoles(mapOf("message_read" to true))
+                coEvery {
+                    fixture.channelRolePolicyRepository.findOverwritesForRead(fixture.pool, TEAM_ID, CHANNEL_ID)
+                } returns
+                    emptyMap()
+
+                shouldThrow<ResourceAccessDeniedException> { fixture.evaluate(PermissionScope.Channel(CHANNEL_ID)) }
+            }
+
             it("DM 채널은 역할 권한이 없으므로 잘못된 요청으로 거부한다") {
                 val fixture = EffectivePermissionFixture()
                 fixture.channel(teamId = null)

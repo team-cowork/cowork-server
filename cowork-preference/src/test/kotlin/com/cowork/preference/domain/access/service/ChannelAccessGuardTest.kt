@@ -170,6 +170,15 @@ class ChannelAccessGuardTest :
                     }
                 }
 
+                context("팀 채널 유형이 TEXT나 VOICE가 아니면") {
+                    it("접근을 거부한다") {
+                        fixture.ready()
+                        fixture.channel(type = "DM")
+                        fixture.teamMember()
+                        shouldThrow<ResourceAccessDeniedException> { fixture.access() }
+                    }
+                }
+
                 context("팀 OWNER 또는 ADMIN이면") {
                     it("공개 여부와 무관하게 평가된 관리자 정책으로 통과한다") {
                         fixture.messageRead(true)

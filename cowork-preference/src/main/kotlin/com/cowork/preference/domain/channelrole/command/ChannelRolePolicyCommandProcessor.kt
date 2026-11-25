@@ -205,7 +205,7 @@ class ChannelRolePolicyCommandProcessor(
         val accessPermission = when (channel.channelType) {
             "TEXT" -> PermissionKeys.MESSAGE_READ
             "VOICE" -> PermissionKeys.VOICE_CONNECT
-            else -> throw ChannelRolePolicyProjectionNotReadyException("channel type is not known yet")
+            else -> reject("FORBIDDEN", "채널에 접근할 권한이 없습니다.")
         }
         if (!policyRepository.canAccess(
                 connection,
