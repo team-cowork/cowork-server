@@ -16,6 +16,8 @@ class FakeConsumer {
 	readonly logs = new Map<number, string[]>([[0, []], [1, []]]);
 	readonly logStart = new Map<number, number>();
 	readonly fetchOffsets: Array<[number, bigint]> = [];
+	leaders = [1, 1];
+	failingNode?: number;
 
 	async joinGroup(): Promise<string> {
 		return 'member';
@@ -36,7 +38,7 @@ class FakeConsumer {
 	}
 
 	async metadata() {
-		return {topics: new Map([[topic, {id: topicId, partitions: [{leader: 1}, {leader: 1}]}]])};
+		return {topics: new Map([[topic, {id: topicId, partitions: this.leaders.map(leader => ({leader}))}]])};
 	}
 
 	async listOffsets({partitions, timestamp}: {partitions: Record<string, number[]>; timestamp: bigint}) {
@@ -50,8 +52,12 @@ class FakeConsumer {
 		return new Map([[topic, offsets]]);
 	}
 
-	async fetch({topics}: {topics: Array<{topicId: string; partitions: Array<{partition: number; fetchOffset: bigint}>}>}) {
+	async fetch({node, topics}: {node: number; topics: Array<{topicId: string; partitions: Array<{partition: number; fetchOffset: bigint}>}>}) {
 		await delay(5);
+		if (node === this.failingNode) {
+			throw new Error(`broker ${node} unavailable`);
+		}
+
 		return {
 			responses: topics.map(request => ({
 				topicId: request.topicId,
@@ -107,6 +113,7 @@ function createFetcher(options: {
 	handle?: (value: string, partition: number) => Promise<void>;
 	resetTo?: 'earliest' | 'latest';
 	onProgress?: (partition: number, position: FetchPosition) => Promise<void>;
+	concurrency?: number;
 } = {}) {
 	const consumer = new FakeConsumer();
 	const handled: string[] = [];
@@ -114,7 +121,7 @@ function createFetcher(options: {
 		logger,
 		consumer: consumer as unknown as Consumer,
 		topic,
-		concurrency: 1,
+		concurrency: options.concurrency ?? 1,
 		async handle(record) {
 			await options.handle?.(record.value!, record.partition);
 			handled.push(record.value!);
@@ -287,5 +294,39 @@ describe('PartitionFetcher', () => {
 		await waitFor(() => handled.length === 4);
 		expect(handled.filter(value => value.startsWith('p0'))).toEqual(['p0-a', 'p0-b']);
 		expect(handled.filter(value => value.startsWith('p1'))).toEqual(['p1-a', 'p1-b']);
+	});
+
+	it('한 broker의 fetch가 실패해도 다른 broker의 처리가 끝나기 전에 같은 파티션을 다시 처리하지 않는다', async () => {
+		const {promise: blocked, resolve: release} = Promise.withResolvers<void>();
+		let inFlight = 0;
+		let maxInFlight = 0;
+		const {consumer, fetcher, handled} = await start({
+			concurrency: 2,
+			async handle(value, partition) {
+				if (partition !== 0) {
+					return;
+				}
+
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				if (value === 'a') {
+					await blocked;
+				}
+
+				inFlight--;
+			},
+		});
+		consumer.leaders = [1, 2];
+		consumer.failingNode = 2;
+		consumer.logs.set(0, ['a', 'b']);
+		consumer.assign([0, 1]);
+		fetcher.seek(0, {topicId, offset: 0n});
+		fetcher.seek(1, {topicId, offset: 0n});
+		fetcher.resume([0, 1]);
+		await delay(1500);
+		release();
+		await waitFor(() => handled.length === 2);
+		expect(maxInFlight).toBe(1);
+		expect(handled).toEqual(['a', 'b']);
 	});
 });

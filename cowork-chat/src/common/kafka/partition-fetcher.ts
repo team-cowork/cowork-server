@@ -19,6 +19,10 @@ import {connectWithRetry} from './connect-with-retry.js';
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30_000;
 const PARTITION_MAX_BYTES = 1_048_576;
+/**
+ 한 라운드는 모든 broker의 fetch를 기다리므로, 한가한 broker의 long poll(기본 5초)이 다른 broker 파티션을 막지 않게 짧게 둔다.
+ */
+const FETCH_MAX_WAIT_MS = 500;
 const OFFSET_OUT_OF_RANGE = protocolErrors.OFFSET_OUT_OF_RANGE.code;
 
 type FetchResponse = Awaited<ReturnType<Consumer['fetch']>>;
@@ -205,8 +209,8 @@ export class PartitionFetcher implements KafkaConsumerHandle {
 			byNode.set(leader, nodePositions);
 		}
 
-		const results = await Promise.all([...byNode].map(async ([node, nodePositions]) => this.fetchFromNode(node, nodePositions)));
-		return hasFailed || results.includes(true);
+		const results = await Promise.allSettled([...byNode].map(async ([node, nodePositions]) => this.fetchFromNode(node, nodePositions)));
+		return this.anyFailed(results) || hasFailed;
 	}
 
 	private async fetchFromNode(node: number, positions: Map<number, FetchPosition>): Promise<boolean> {
@@ -225,7 +229,7 @@ export class PartitionFetcher implements KafkaConsumerHandle {
 				partitionMaxBytes: PARTITION_MAX_BYTES,
 			})),
 		})));
-		const results = await Promise.all(response.responses.flatMap(topicResponse => topicResponse.partitions.map(async partitionResponse => {
+		const results = await Promise.allSettled(response.responses.flatMap(topicResponse => topicResponse.partitions.map(async partitionResponse => {
 			const partition = partitionResponse.partitionIndex;
 			const position = positions.get(partition);
 			// Incremental fetch session은 요청하지 않은 파티션을 돌려줄 수 있다.
@@ -247,7 +251,25 @@ export class PartitionFetcher implements KafkaConsumerHandle {
 
 			return this.permits.run(async () => this.process(partition, position, partitionResponse.records ?? []));
 		})));
-		return results.includes(true);
+		return this.anyFailed(results);
+	}
+
+	/**
+	 `Promise.all`은 한 갈래가 실패하면 나머지 처리가 끝나기 전에 라운드를 끝내, 다음 라운드가 같은 파티션을 겹쳐 처리하게 된다.
+	 그래서 모든 갈래가 끝날 때까지 기다리고, 실패한 갈래는 로그를 남긴 뒤 재시도 대상으로 본다.
+	 */
+	private anyFailed(results: Array<PromiseSettledResult<boolean>>): boolean {
+		let hasFailed = false;
+		for (const result of results) {
+			if (result.status === 'rejected') {
+				this.options.logger.warn(`Kafka fetch failed [topic=${this.options.topic}]: ${String(result.reason)}`);
+				hasFailed = true;
+			} else if (result.value) {
+				hasFailed = true;
+			}
+		}
+
+		return hasFailed;
 	}
 
 	/**
@@ -255,7 +277,7 @@ export class PartitionFetcher implements KafkaConsumerHandle {
 	 */
 	private async fetch(node: number, topics: Parameters<Consumer['fetch']>[0]['topics']): Promise<FetchResponse> {
 		try {
-			return await this.consumer.fetch({node, topics});
+			return await this.consumer.fetch({node, topics, maxWaitTime: FETCH_MAX_WAIT_MS});
 		} catch (error) {
 			const failed = findErrorBy<ResponseError & {response?: FetchResponse}>(error as Error, 'code', ResponseError.code);
 			if (!failed?.response?.responses) {
