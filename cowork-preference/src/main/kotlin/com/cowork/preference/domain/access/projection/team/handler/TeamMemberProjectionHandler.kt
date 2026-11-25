@@ -60,14 +60,8 @@ class TeamMemberProjectionHandler(
             projectAccess.removeTeamAssignments(
                 connection,
                 event.teamId,
-                if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.TEAM) null else event.userId,
-                cutoff = if (TeamMemberCleanupPolicy.scope(event) ==
-                    TeamMemberCleanupScope.MEMBER
-                ) {
-                    event.occurredAt
-                } else {
-                    null
-                },
+                if (scope == TeamMemberCleanupScope.TEAM) null else event.userId,
+                cutoff = if (scope == TeamMemberCleanupScope.MEMBER) event.occurredAt else null,
             )
             teamAccess.refresh(
                 connection,
