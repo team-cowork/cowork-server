@@ -51,7 +51,7 @@ class ChannelAccessGuard(
             "TEXT" -> "message_read"
             else -> throw ProjectionNotReadyException("team channel type is not known yet")
         }
-        if (!policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)) {
+        if (!policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
@@ -96,7 +96,7 @@ class ChannelAccessGuard(
                 requester.userId,
                 channelId,
                 "channel_manage",
-                channel.isPrivate != false,
+                channel.isPrivate,
             )
         ) {
             throw ResourceAccessDeniedException(MANAGER_DENIED)

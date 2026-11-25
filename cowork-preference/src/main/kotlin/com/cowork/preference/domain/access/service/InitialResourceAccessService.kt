@@ -94,7 +94,7 @@ class InitialResourceAccessService(
                     )
                 },
                 accessPermission,
-                current.isPrivate != false,
+                current.isPrivate,
             )
             if (!canAccess) return skip("Remaining overwrites do not grant creator access")
         }

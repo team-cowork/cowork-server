@@ -213,7 +213,7 @@ class ChannelRolePolicyCommandProcessor(
                 command.actorId,
                 command.channelId,
                 accessPermission,
-                channel.isPrivate != false,
+                channel.isPrivate,
             )
         ) {
             reject("FORBIDDEN", "채널에 접근할 권한이 없습니다.")
@@ -238,7 +238,7 @@ class ChannelRolePolicyCommandProcessor(
                     command.actorId,
                     command.channelId,
                     permission,
-                    channel.isPrivate != false,
+                    channel.isPrivate,
                 )
             ) {
                 reject("FORBIDDEN", "자신이 보유하지 않은 권한은 부여할 수 없습니다.")

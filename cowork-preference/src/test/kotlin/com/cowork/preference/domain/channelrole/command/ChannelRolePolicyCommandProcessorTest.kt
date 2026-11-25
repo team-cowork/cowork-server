@@ -97,7 +97,7 @@ class ChannelRolePolicyCommandProcessorTest {
             fixture.stubActiveCommand(
                 command = grantCommand,
                 actorRole = "MEMBER",
-                channel = activeChannel.copy(channelType = "TEXT", isPrivate = false),
+                channel = activeChannel,
             )
             coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, command.teamId) } returns
                 listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
@@ -328,7 +328,7 @@ class ChannelRolePolicyCommandProcessorTest {
                 command,
                 target,
                 actorRole = "MEMBER",
-                channel = activeChannel.copy(channelType = "TEXT", isPrivate = false),
+                channel = activeChannel,
             )
             coEvery { roleRepository.findMemberRoles(connection, command.teamId) } returns
                 listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
@@ -377,6 +377,8 @@ class ChannelRolePolicyCommandProcessorTest {
             teamId = command.teamId,
             deleted = false,
             sourceOccurredAt = Instant.parse("2026-08-30T01:00:00Z"),
+            isPrivate = false,
+            channelType = "TEXT",
         )
         val deletedChannel = activeChannel.copy(
             deleted = true,

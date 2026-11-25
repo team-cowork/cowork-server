@@ -91,8 +91,7 @@ class EffectivePermissionService(
         val decisions = EffectivePermissionEvaluator.channel(
             teamRoles(teamId, accountId),
             channelRolePolicyRepository.findOverwritesForRead(pool, teamId, scope.channelId),
-            // ChannelAccessGuard와 같이 아직 확인하지 못한 비공개 여부는 비공개로 판정한다.
-            isPrivate = channel.isPrivate != false,
+            isPrivate = channel.isPrivate,
             accessPermission = when (channel.channelType) {
                 "VOICE" -> PermissionKeys.VOICE_CONNECT
                 "TEXT" -> PermissionKeys.MESSAGE_READ
