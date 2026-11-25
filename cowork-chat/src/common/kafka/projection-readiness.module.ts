@@ -6,9 +6,9 @@ import {WebhookProjection, webhookProjectionSchema} from '../../chat/schema/webh
 import {DmParticipant, dmParticipantSchema} from '../../chat/schema/dm-participant.schema.js';
 import {ChannelProjection, channelProjectionSchema} from '../../chat/schema/channel-projection.schema.js';
 import {
-	ChannelRolePolicyProjection,
-	channelRolePolicyProjectionSchema,
-} from '../../chat/schema/channel-role-policy-projection.schema.js';
+	ChannelAccessProjection,
+	channelAccessProjectionSchema,
+} from '../../chat/schema/channel-access-projection.schema.js';
 import {ProjectProjection, projectProjectionSchema} from '../../chat/schema/project-projection.schema.js';
 import {
 	ProjectPermissionProjection,
@@ -68,7 +68,7 @@ import {ProjectionCheckpoint, projectionCheckpointSchema} from './projection-che
 			{name: TeamRoleProjection.name, schema: teamRoleProjectionSchema},
 			{name: TeamRoleAssignmentProjection.name, schema: teamRoleAssignmentProjectionSchema},
 			{name: TeamRoleMemberTombstone.name, schema: teamRoleMemberTombstoneSchema},
-			{name: ChannelRolePolicyProjection.name, schema: channelRolePolicyProjectionSchema},
+			{name: ChannelAccessProjection.name, schema: channelAccessProjectionSchema},
 			{name: TextChannelSettingProjection.name, schema: textChannelSettingProjectionSchema},
 			{name: TeamSettingProjection.name, schema: teamSettingProjectionSchema},
 			{name: WebhookProjection.name, schema: webhookProjectionSchema},

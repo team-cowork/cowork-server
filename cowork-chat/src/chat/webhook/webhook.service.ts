@@ -50,7 +50,7 @@ export class WebhookService {
 	private readonly unread!: UnreadCounterService;
 
 	async execute(executionId: string, input: {content: string; secret?: string; idempotencyKey?: string}) {
-		if (!this.readiness.areReady(['webhook', 'channel', 'teamMember', 'teamRole', 'channelRolePolicy'])) {
+		if (!this.readiness.areReady(['webhook', 'channel', 'teamMember', 'channelAccess'])) {
 			throw new ServiceUnavailableException('웹훅 정보가 아직 동기화되지 않았습니다.');
 		}
 

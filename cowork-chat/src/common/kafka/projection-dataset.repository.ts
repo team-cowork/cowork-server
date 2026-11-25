@@ -7,7 +7,7 @@ import {ThreadProjection} from '../../chat/schema/thread-projection.schema.js';
 import {WebhookProjection} from '../../chat/schema/webhook-projection.schema.js';
 import {DmParticipant} from '../../chat/schema/dm-participant.schema.js';
 import {ChannelProjection} from '../../chat/schema/channel-projection.schema.js';
-import {ChannelRolePolicyProjection} from '../../chat/schema/channel-role-policy-projection.schema.js';
+import {ChannelAccessProjection} from '../../chat/schema/channel-access-projection.schema.js';
 import {ProjectGithubRepoProjection} from '../../chat/schema/project-github-repo-projection.schema.js';
 import {ProjectPermissionProjection} from '../../chat/schema/project-permission-projection.schema.js';
 import {ProjectProjection} from '../../chat/schema/project-projection.schema.js';
@@ -38,7 +38,7 @@ export type ProjectionStreamName =
 	| 'projectGithubRepo'
 	| 'teamMember'
 	| 'teamRole'
-	| 'channelRolePolicy'
+	| 'channelAccess'
 	| 'textChannelSetting'
 	| 'teamSetting'
 	| 'webhook'
@@ -112,8 +112,8 @@ export class ProjectionDatasetRepository {
 	@injectModel(TeamRoleMemberTombstone.name)
 	private readonly teamRoleMemberTombstone!: Model<TeamRoleMemberTombstone>;
 
-	@injectModel(ChannelRolePolicyProjection.name)
-	private readonly channelRolePolicy!: Model<ChannelRolePolicyProjection>;
+	@injectModel(ChannelAccessProjection.name)
+	private readonly channelAccess!: Model<ChannelAccessProjection>;
 
 	@injectModel(TextChannelSettingProjection.name)
 	private readonly textChannelSetting!: Model<TextChannelSettingProjection>;
@@ -138,7 +138,7 @@ export class ProjectionDatasetRepository {
 			teamMember: [this.teamMember],
 			userProfile: [this.userProfile],
 			teamRole: [this.teamRole, this.teamRoleAssignment, this.teamRoleMemberTombstone],
-			channelRolePolicy: [this.channelRolePolicy],
+			channelAccess: [this.channelAccess],
 			textChannelSetting: [this.textChannelSetting],
 			teamSetting: [this.teamSetting],
 			webhook: [this.webhook],

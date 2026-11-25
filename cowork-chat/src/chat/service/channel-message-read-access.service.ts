@@ -4,18 +4,19 @@ import {
 	ServiceUnavailableException,
 	Inject as inject,
 } from '@nestjs/common';
+import {mongo} from 'mongoose';
 import {Server} from 'socket.io';
 import {CHANNEL_PERMISSION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {
 	DmParticipantRepository,
 	ChannelProjectionRepository,
 	ChannelProjectionView,
-	ChannelRolePolicyProjectionRepository,
+	ChannelAccessProjectionRepository,
+	type ChannelAccessProjectionView,
 	TeamMemberProjectionRepository,
-	TeamRoleProjectionRepository,
+	type TeamMemberProjectionView,
 } from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
-import {hasChannelPermission} from './channel-permission.js';
 
 export type ChannelReadAccessRequest = {
 	channelId: number;
@@ -26,7 +27,7 @@ export type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_at
 /**
  `VOICE_LOG_READ`는 음성 채널에서만 `voice_log_read`를 확인하고, 다른 채널에서는 항상 통과한다.
  */
-type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | 'VOICE_LOG_READ' | ChannelActionPermission;
+export type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | 'VOICE_LOG_READ' | ChannelActionPermission;
 
 const VOICE_LOG_READ_PERMISSION = 'voice_log_read';
 const VOICE_LOG_READ_MODES: AccessMode[] = ['MESSAGE_READ', 'VOICE_LOG_READ'];
@@ -50,14 +51,61 @@ export type RoomSocket = {
 
 const accessKey = (channelId: number, userId: number) => `${channelId}:${userId}`;
 const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
-const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}`;
+
+const toBigInt = (version: Nullable<bigint | mongo.Long> | undefined): bigint | undefined => {
+	const text = version?.toString();
+	return text === undefined ? undefined : BigInt(text);
+};
 
 /**
- Role×channel 읽기 및 채팅 작업 권한의 단일 평가 지점.
+ Preference의 판정 결과가 팀 멤버의 현재 인가 version으로 계산되었을 때만 권한을 허용한다.
+ 멤버십 변경이 판정 결과보다 먼저 도착하면 Preference가 결과를 다시 발행할 때까지 거부한다.
+ */
+export function isCurrentChannelAccessDecision(
+	decision: ChannelAccessProjectionView | undefined,
+	member: Pick<TeamMemberProjectionView, 'teamId' | 'authorizationVersion'> | undefined,
+): decision is ChannelAccessProjectionView {
+	const authorizationVersion = toBigInt(member?.authorizationVersion);
+	return decision !== undefined && decision.teamId === member?.teamId
+		&& authorizationVersion !== undefined && authorizationVersion > 0n
+		&& toBigInt(decision.sourceAuthorizationVersion) === authorizationVersion;
+}
 
- 기본·개별 역할 권한을 합친 뒤 기본 역할 overwrite, 개별 역할 deny, allow 순서로 적용한다.
- 활성 팀 멤버에게 부여된 관리자 정책은 채널 제한을 우회한다.
- 팀 채널 접근은 역할 권한으로 결정하고 DM만 대화 참여자를 확인한다.
+/**
+ 비공개 전환은 인가 version을 바꾸지 않는다. 공개 기준 판정이 남아 있어도 비공개 채널은 `readPrivate`를 요구한다.
+ 비공개 여부를 모르면 Preference와 같이 비공개로 본다.
+ */
+export function isChannelAccessAllowed(
+	decision: ChannelAccessProjectionView | undefined,
+	member: Pick<TeamMemberProjectionView, 'teamId' | 'authorizationVersion'> | undefined,
+	channel: {type: string; isPrivate?: Nullable<boolean>},
+	modes: AccessMode[],
+): boolean {
+	if (!isCurrentChannelAccessDecision(decision, member) || (channel.isPrivate !== false && !decision.readPrivate)) {
+		return false;
+	}
+
+	const channelType = channel.type;
+
+	const allowed = new Set(decision.allowedPermissions);
+	const visibilityPermission = channelType === 'VOICE' ? 'voice_connect' : 'message_read';
+	const permissionFor = (mode: Exclude<AccessMode, 'VOICE_LOG_READ'>) => {
+		if (mode === 'CHANNEL_METADATA') {
+			return visibilityPermission;
+		}
+
+		return mode === 'MESSAGE_READ' ? 'message_read' : mode;
+	};
+
+	return allowed.has(visibilityPermission) && modes.every(mode => (mode === 'VOICE_LOG_READ'
+		? channelType !== 'VOICE' || allowed.has(VOICE_LOG_READ_PERMISSION)
+		: allowed.has(permissionFor(mode))));
+}
+
+/**
+ 채널 읽기 및 채팅 작업 권한의 단일 평가 지점.
+
+ 팀 채널은 Preference가 발행한 채널 권한 판정 결과로 결정하고, DM만 대화 참여자를 확인한다.
  */
 @injectable()
 export class ChannelMessageReadAccessService {
@@ -77,10 +125,7 @@ export class ChannelMessageReadAccessService {
 	private readonly teamMemberRepository!: TeamMemberProjectionRepository;
 
 	@inject()
-	private readonly teamRoleRepository!: TeamRoleProjectionRepository;
-
-	@inject()
-	private readonly policyRepository!: ChannelRolePolicyProjectionRepository;
+	private readonly channelAccessRepository!: ChannelAccessProjectionRepository;
 
 	@inject()
 	private readonly projectionReadiness!: ProjectionReadinessService;
@@ -182,52 +227,14 @@ export class ChannelMessageReadAccessService {
 		const teamMembers = await this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, userIds);
 		const teamMemberByKey = new Map(teamMembers.map(member => [teamUserKey(member.teamId, member.userId), member]));
 
-		const policyCandidates = teamRequests.filter(({request, teamId}) =>
-			teamMemberByKey.has(teamUserKey(teamId, request.userId)));
-		if (policyCandidates.length === 0) {
-			return result;
-		}
-
-		const accountIds = [...new Set(policyCandidates.map(({request}) => request.userId))];
-		const [assignments, defaults] = await Promise.all([
-			this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds(teamIds, accountIds),
-			this.teamRoleRepository.findDefaultRolesByTeamIds(teamIds),
-		]);
-		const roleIds = [...new Set([...assignments, ...defaults].map(({roleId}) => roleId))];
-		const candidateChannelIds = [...new Set(policyCandidates.map(({request}) => request.channelId))];
-		const [roles, policies] = await Promise.all([
-			this.teamRoleRepository.findRolesByIds(roleIds),
-			this.policyRepository.findByChannelIdsAndRoleIds(candidateChannelIds, roleIds),
-		]);
-		const roleById = new Map([...roles, ...defaults].map(role => [role.roleId, role]));
-		const policyByKey = new Map(policies.map(policy => [policyKey(policy.channelId, policy.roleId), policy]));
-		const assignmentsByTeamUser = new Map<string, number[]>();
-		for (const assignment of assignments) {
-			const key = teamUserKey(assignment.teamId, assignment.accountId);
-			const existing = assignmentsByTeamUser.get(key);
-			if (existing) {
-				existing.push(assignment.roleId);
-			} else {
-				assignmentsByTeamUser.set(key, [assignment.roleId]);
-			}
-		}
-
-		for (const {request, channel, teamId} of policyCandidates) {
-			const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
-			const applicable = roleById.values().filter(role => role.teamId === teamId
-				&& (role.isDefault || assignedRoleIds.includes(role.roleId))).toArray();
-			const channelPolicies = new Map(applicable.flatMap(role => {
-				const policy = policyByKey.get(policyKey(request.channelId, role.roleId));
-				return policy?.teamId === teamId ? [[role.roleId, policy.permissions ?? {}] as const] : [];
-			}));
-			const visibilityPermission = channel.type === 'VOICE' ? 'voice_connect' : 'message_read';
-			const canUse = (permission: string) => hasChannelPermission(
-				applicable, channelPolicies, permission, (channel.isPrivate ?? true) && (permission === 'message_read' || permission === 'voice_connect'),
-			);
-			const isAllowed = canUse(visibilityPermission) && modes.every(mode => (mode === 'VOICE_LOG_READ'
-				? channel.type !== 'VOICE' || canUse(VOICE_LOG_READ_PERMISSION)
-				: canUse(mode === 'CHANNEL_METADATA' ? visibilityPermission : (mode === 'MESSAGE_READ' ? 'message_read' : mode))));
-			result.set(accessKey(request.channelId, request.userId), isAllowed);
+		const teamChannelIds = [...new Set(teamRequests.map(({request}) => request.channelId))];
+		const teamUserIds = [...new Set(teamRequests.map(({request}) => request.userId))];
+		const decisions = await this.channelAccessRepository.findByChannelIdsAndUserIds(teamChannelIds, teamUserIds);
+		const decisionByKey = new Map(decisions.map(decision => [accessKey(decision.channelId, decision.userId), decision]));
+		for (const {request, channel, teamId} of teamRequests) {
+			const key = accessKey(request.channelId, request.userId);
+			const member = teamMemberByKey.get(teamUserKey(teamId, request.userId));
+			result.set(key, isChannelAccessAllowed(decisionByKey.get(key), member, channel, modes));
 		}
 
 		return result;

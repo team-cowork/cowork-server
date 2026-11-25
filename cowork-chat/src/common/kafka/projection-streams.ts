@@ -91,12 +91,12 @@ export const PROJECTION_STREAMS = {
 		expectedSource: 'cowork-preference',
 		sourceGeneration: sourceGeneration('TEAM_ROLE'),
 	},
-	channelRolePolicy: {
-		name: 'channelRolePolicy',
-		topic: 'preference.channel-role-policy.state.v2',
-		groupId: 'cowork-chat-channel-role-policy-state-v2-projection',
+	channelAccess: {
+		name: 'channelAccess',
+		topic: 'preference.channel-access.state.v1',
+		groupId: 'cowork-chat-channel-access-state-v1-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('CHANNEL_ROLE_POLICY'),
+		sourceGeneration: sourceGeneration('CHANNEL_ACCESS'),
 	},
 	textChannelSetting: {
 		name: 'textChannelSetting',
@@ -133,4 +133,4 @@ export type ProjectionName = keyof typeof PROJECTION_STREAMS;
 /**
 채널 권한 판정(HTTP 라우트 gate와 소켓 broadcast)이 읽는 projection만 모은다.
 */
-export const CHANNEL_PERMISSION_STREAMS: ProjectionName[] = ['channel', 'teamMember', 'teamRole', 'channelRolePolicy', 'dmParticipant'];
+export const CHANNEL_PERMISSION_STREAMS: ProjectionName[] = ['channel', 'teamMember', 'channelAccess', 'dmParticipant'];

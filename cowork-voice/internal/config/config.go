@@ -40,7 +40,7 @@ func Load() (*AppConfig, error) {
 		LiveKitAPIKey: os.Getenv("LIVEKIT_API_KEY"), LiveKitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),
 		KafkaBrokers:              os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
 		KafkaTopicVoiceEvent:      os.Getenv("KAFKA_TOPIC_VOICE_EVENT"),
-		KafkaGroupIDChannelAccess: getEnv("KAFKA_GROUP_ID_CHANNEL_ACCESS", "cowork-voice.channel-permissions.v1"),
+		KafkaGroupIDChannelAccess: getEnv("KAFKA_GROUP_ID_CHANNEL_ACCESS", "cowork-voice.channel-permissions.v2"),
 	}
 	for _, key := range []string{
 		"LIVEKIT_URL", "LIVEKIT_WS_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET",

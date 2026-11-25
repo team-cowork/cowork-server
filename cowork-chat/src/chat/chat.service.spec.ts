@@ -767,9 +767,7 @@ describe('ChatService', () => {
 				{projectId: 5, title: '배포 오류'},
 			);
 
-			expect(mockChatGithubIssueCommandProducer.send).toHaveBeenCalledWith(
-				expect.objectContaining({body: null}),
-			);
+			expect(mockChatGithubIssueCommandProducer.send).toHaveBeenCalledWith(expect.objectContaining({body: null}));
 		});
 
 		it('팀에 속하지 않는 채널에서는 커맨드를 발행하지 않는다', async () => {

@@ -5,13 +5,8 @@ import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
-import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
-import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
-import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjection
-import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjectionRepository
-import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstoneRepository
-import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
-import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
+import com.cowork.channel.domain.channelRolePolicy.access.ChannelAccessProjection
+import com.cowork.channel.domain.channelRolePolicy.access.ChannelAccessProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
@@ -24,36 +19,29 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
-import java.util.Optional
 
 class ChannelPermissionSupportTest {
     private val memberRepository = mockk<DmParticipantRepository>()
     private val teamPermissionService = mockk<TeamPermissionService>()
     private val membershipRepository = mockk<TeamMembershipRepository>()
-    private val assignmentRepository = mockk<TeamRoleAssignmentProjectionRepository>()
-    private val tombstoneRepository = mockk<TeamRoleMemberTombstoneRepository>()
-    private val roleRepository = mockk<TeamRoleProjectionRepository>()
-    private val policyRepository = mockk<ChannelRolePolicyProjectionRepository>()
-    private val objectMapper = jacksonObjectMapper()
+    private val accessRepository = mockk<ChannelAccessProjectionRepository>()
     private val evaluator = ChannelMessageReadPolicyEvaluator(
         membershipRepository,
-        assignmentRepository,
-        tombstoneRepository,
-        roleRepository,
-        policyRepository,
+        mockk(),
+        mockk(),
+        mockk(),
+        mockk(),
+        accessRepository,
         mockk<ProjectionReadinessGate>(relaxed = true),
-        objectMapper,
+        mockk(),
     )
     private val support = ChannelPermissionSupport(memberRepository, teamPermissionService, evaluator)
 
     @Test
-    fun `관리자 정책은 비공개 채널 제한을 우회한다`() {
+    fun `판정 결과가 허용하면 비공개 텍스트 채널에 멤버 등록 없이 접근한다`() {
         every { teamPermissionService.requireTeamMember(10L, 7L) } returns Unit
-        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns
-            TeamMembership(teamId = 10L, userId = 7L, role = "OWNER")
-        stubPolicy(messageRead = false, voiceConnect = false, administrator = true)
+        stubPolicy(messageRead = true, voiceConnect = false)
         support.requireChannelAccess(channel(isPrivate = true), 7L)
         verify(exactly = 0) { memberRepository.existsByChannelIdAndUserId(any(), any()) }
     }
@@ -65,7 +53,7 @@ class ChannelPermissionSupportTest {
 
         support.requireChannelAccess(channel(isPrivate = false), 7L)
 
-        verify { policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, setOf(3L), setOf(1L)) }
+        verify { accessRepository.findAllById(listOf("3:7")) }
     }
 
     @Test
@@ -121,39 +109,31 @@ class ChannelPermissionSupportTest {
         assertEquals("채널 메시지 읽기 권한이 없습니다.", exception.message)
     }
 
-    private fun stubPolicy(messageRead: Boolean, voiceConnect: Boolean?, administrator: Boolean = false) {
+    private fun stubPolicy(messageRead: Boolean, voiceConnect: Boolean?) {
         val occurredAt = Instant.parse("2026-10-23T00:00:00Z")
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns
-            TeamMembership(teamId = 10L, userId = 7L, role = "MEMBER")
-        every { tombstoneRepository.findById("10:7") } returns Optional.empty()
-        every { roleRepository.findAllByTeamIdAndIsDefaultTrueAndDeletedFalse(10L) } returns emptyList()
-        every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns listOf(
-            TeamRoleAssignmentProjection("10:7:1", 10L, 7L, 1L, sourceOccurredAt = occurredAt),
-        )
-        every { roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(10L, setOf(1L)) } returns listOf(
-            TeamRoleProjection(
-                roleId = 1L,
+            TeamMembership(
                 teamId = 10L,
-                priority = 10,
-                permissionsJson = "{\"administrator\":$administrator}",
+                userId = 7L,
+                role = "MEMBER",
                 sourceOccurredAt = occurredAt,
-            ),
-        )
-        every {
-            policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, setOf(3L), setOf(1L))
-        } returns listOf(
-            ChannelRolePolicyProjection(
-                policyKey = "policy:10:3:1",
-                teamId = 10L,
+                authorizationVersion = occurredAt,
+            )
+        every { accessRepository.findAllById(listOf("3:7")) } returns listOf(
+            ChannelAccessProjection(
+                accessKey = "3:7",
                 channelId = 3L,
-                roleId = 1L,
-                permissionsJson = objectMapper.writeValueAsString(
-                    buildMap {
-                        put("message_read", messageRead)
-                        voiceConnect?.let { put("voice_connect", it) }
-                    },
-                ),
+                userId = 7L,
+                teamId = 10L,
+                allowedPermissions = buildSet {
+                    if (messageRead) add("message_read")
+                    if (voiceConnect == true) add("voice_connect")
+                },
+                // 비공개 채널 테스트도 같은 판정 결과를 쓰므로, 비공개 접근은 접근 권한과 같게 둔다.
+                canReadPrivate = messageRead || voiceConnect == true,
                 sourceOccurredAt = occurredAt,
+                sourceMembershipVersion = occurredAt,
+                sourceAuthorizationVersion = occurredAt,
             ),
         )
     }

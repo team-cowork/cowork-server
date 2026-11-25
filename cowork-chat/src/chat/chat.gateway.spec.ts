@@ -62,7 +62,7 @@ const mockTeamRoleEventConsumer = {
 	setSocketServer: jest.fn(),
 };
 
-const mockChannelRolePolicyEventConsumer = {
+const mockChannelAccessEventConsumer = {
 	setSocketServer: jest.fn(),
 };
 
@@ -88,7 +88,7 @@ describe('ChatGateway', () => {
 			projectEventConsumer: mockProjectEventConsumer,
 			dmParticipantConsumer: mockDmParticipantConsumer,
 			teamRoleEventConsumer: mockTeamRoleEventConsumer,
-			channelRolePolicyEventConsumer: mockChannelRolePolicyEventConsumer,
+			channelAccessEventConsumer: mockChannelAccessEventConsumer,
 			teamMemberEventConsumer: mockTeamMemberEventConsumer,
 			rateLimiter: mockRateLimiter,
 			projectionReadiness: mockProjectionReadiness,

@@ -1,6 +1,6 @@
 export * from './dm-participant.repository.js';
 export * from './channel-projection.repository.js';
-export * from './channel-role-policy-projection.repository.js';
+export * from './channel-access-projection.repository.js';
 export * from './chat-message-quarantine.repository.js';
 export * from './message-search-index-state.repository.js';
 export * from './message-search-index.repository.js';
