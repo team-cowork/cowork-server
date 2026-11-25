@@ -6,9 +6,7 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isBooleanRecord} from '../../common/util/boolean-record.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
@@ -17,6 +15,7 @@ import {ProjectionContractError} from '../../common/kafka/projection-message.pro
 import {TeamRoleProjectionRepository, ChannelProjectionRepository} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 
 type TeamRoleEvent = {
 	eventType: 'ROLE_UPSERTED' | 'ROLE_DELETED' | 'ASSIGNMENT_UPSERTED' | 'ASSIGNMENT_DELETED' | 'MEMBER_ASSIGNMENTS_DELETED';
@@ -33,7 +32,7 @@ type TeamRoleEvent = {
 @injectable()
 export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TeamRoleEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 	private io?: Server;
 
 	@inject()
@@ -179,19 +178,14 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-chat-team-role-event',
-			...getKafkaClientConfig(this.configService),
-		});
 		const stream = PROJECTION_STREAMS.teamRole;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-team-role-event', readiness: this.projectionReadiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy(): Promise<void> {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

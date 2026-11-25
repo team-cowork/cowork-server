@@ -23,7 +23,10 @@ export class ProjectionDataset {
 	@prop({required: true}) stream!: string;
 	@prop({required: true}) groupId!: string;
 	@prop({required: true}) topic!: string;
-	@prop({required: true}) sourceGeneration!: string;
+	/**
+    Dataset을 채운 broker topic UUID. 이 필드가 없는 기존 row는 topic을 알 수 없는 것으로 본다.
+    */
+	@prop({type: String, default: null}) topicId!: Nullable<string>;
 	@prop({required: true}) datasetGeneration!: string;
 	@prop({required: true}) mode!: ProjectionRunMode;
 	@prop({required: true}) status!: ProjectionDatasetStatus;

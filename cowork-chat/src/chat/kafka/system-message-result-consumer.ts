@@ -1,8 +1,6 @@
 import {type Logger, ServiceUnavailableException} from '@nestjs/common';
 import {type ConfigService} from '@nestjs/config';
-import {type Consumer, Kafka} from 'kafkajs';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {type KafkaConsumerHandle, startCommittedConsumer} from '../../common/kafka/partition-fetcher.js';
 import {type ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {type KafkaMessageSource} from './system-message-key.js';
 
@@ -23,54 +21,43 @@ export type SystemMessageConsumerOptions<E> = {
 	clientId: string;
 	groupId: string;
 	topic: string;
-	handle: (event: E, source: KafkaMessageSource, heartbeat: () => Promise<void>) => Promise<void>;
+	handle: (event: E, source: KafkaMessageSource) => Promise<void>;
 };
 
 /**
- 결과 토픽을 구독하고 메시지마다 `handle`을 호출한다. `handle`은 오래 기다리는 동안 `heartbeat`로 Kafka heartbeat를 보낸다.
+ 결과 토픽을 구독하고 메시지마다 `handle`을 호출한다.
 
  JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다. 채널 부재는 {@link isMissingChannelAfterReady}일 때만
  건너뛴다. 그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
  */
-export async function startSystemMessageConsumer<E>(options: SystemMessageConsumerOptions<E>): Promise<Consumer> {
-	const kafka = new Kafka({
+export async function startSystemMessageConsumer<E>(options: SystemMessageConsumerOptions<E>): Promise<KafkaConsumerHandle> {
+	return startCommittedConsumer({
+		logger: options.logger,
+		configService: options.configService,
 		clientId: options.clientId,
-		...getKafkaClientConfig(options.configService),
-	});
-	const consumer = kafka.consumer({groupId: options.groupId});
-	await connectWithRetry(options.logger, `Kafka consumer startup: ${options.topic}`, async () => {
-		await consumer.connect();
-		await consumer.subscribe({topic: options.topic, fromBeginning: false});
-	});
+		groupId: options.groupId,
+		topic: options.topic,
+		fromBeginning: false,
+		async handle({topic, partition, offset, value}) {
+			if (value === null) {
+				return;
+			}
 
-	void consumer
-		.run({
-			async eachMessage({topic, partition, message, heartbeat}) {
-				if (!message.value) {
+			try {
+				const event = JSON.parse(value) as E;
+				await options.handle(event, {topic, partition, offset});
+			} catch (error) {
+				if (isMissingChannelAfterReady(error, options.projectionReadiness)) {
+					options.logger.warn(`Skipping result for a channel missing after projection readiness topic=${topic} partition=${partition} offset=${offset}`);
 					return;
 				}
 
-				try {
-					const event = JSON.parse(message.value.toString()) as E;
-					await options.handle(event, {topic, partition, offset: message.offset}, heartbeat);
-				} catch (error) {
-					if (isMissingChannelAfterReady(error, options.projectionReadiness)) {
-						options.logger.warn(`Skipping result for a channel missing after projection readiness topic=${topic} partition=${partition} offset=${message.offset}`);
-						return;
-					}
-
-					options.logger.error(`Failed to process ${topic} event`, error);
-					if (!(error instanceof SyntaxError)) {
-						throw error;
-					}
+				if (!(error instanceof SyntaxError)) {
+					throw error;
 				}
-			},
-		})
-		.catch(async (error: unknown) => {
-			options.logger.error(`${options.topic} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
 
-	return consumer;
+				options.logger.error(`Failed to process ${topic} event`, error);
+			}
+		},
+	});
 }

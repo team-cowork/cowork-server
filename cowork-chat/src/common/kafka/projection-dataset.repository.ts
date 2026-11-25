@@ -48,7 +48,7 @@ export type ProjectionDatasetState = {
 	stream: ProjectionStreamName;
 	groupId: string;
 	topic: string;
-	sourceGeneration: string;
+	topicId?: string;
 	datasetGeneration: string;
 	mode: ProjectionRunMode;
 	status: ProjectionDatasetStatus;
@@ -65,7 +65,6 @@ type ProjectionDatasetStream = {
 	name: string;
 	groupId: string;
 	topic: string;
-	sourceGeneration: string;
 };
 
 @injectable()
@@ -151,7 +150,7 @@ export class ProjectionDatasetRepository {
 			stream: dataset.stream as ProjectionStreamName,
 			groupId: dataset.groupId,
 			topic: dataset.topic,
-			sourceGeneration: dataset.sourceGeneration,
+			...((dataset.topicId !== null && dataset.topicId !== undefined) && {topicId: dataset.topicId}),
 			datasetGeneration: dataset.datasetGeneration,
 			mode: dataset.mode,
 			status: dataset.status,
@@ -172,6 +171,7 @@ export class ProjectionDatasetRepository {
 
 	async createBootstrap(
 		stream: ProjectionDatasetStream,
+		topicId: string,
 		baseOffsets: ProjectionDatasetPartitionOffset[],
 		targetOffsets: ProjectionDatasetPartitionOffset[],
 	): Promise<ProjectionDatasetState> {
@@ -183,7 +183,7 @@ export class ProjectionDatasetRepository {
 					stream: stream.name,
 					groupId: stream.groupId,
 					topic: stream.topic,
-					sourceGeneration: stream.sourceGeneration,
+					topicId,
 					datasetGeneration,
 					mode: 'BOOTSTRAP',
 					status: 'INITIALIZING',
@@ -219,7 +219,6 @@ export class ProjectionDatasetRepository {
 					reason,
 				},
 				$setOnInsert: {
-					sourceGeneration: stream.sourceGeneration,
 					datasetGeneration: randomUUID(),
 					mode: 'REBUILD',
 					activationDocumentCount: 0,
@@ -245,12 +244,13 @@ export class ProjectionDatasetRepository {
 		stream: ProjectionDatasetStream,
 		request: {
 			reason: string;
+			topicId: string;
 			baseOffsets: ProjectionDatasetPartitionOffset[];
 			targetOffsets: ProjectionDatasetPartitionOffset[];
 		},
 
 	): Promise<ProjectionDatasetState> {
-		const {reason, baseOffsets, targetOffsets} = request;
+		const {reason, topicId, baseOffsets, targetOffsets} = request;
 		const datasetGeneration = randomUUID();
 		const dataset = await this.datasets.findOneAndUpdate(
 			{
@@ -260,7 +260,7 @@ export class ProjectionDatasetRepository {
 				$set: {
 					groupId: stream.groupId,
 					topic: stream.topic,
-					sourceGeneration: stream.sourceGeneration,
+					topicId,
 					datasetGeneration,
 					mode: 'REBUILD',
 					status: 'REBUILD_REQUESTED',

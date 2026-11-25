@@ -40,14 +40,12 @@ export class ChatMessageProducer extends LazyKafkaProducer {
 			occurredAt: new Date().toISOString(),
 		};
 
-		await this.publish({
-			topic: CHAT_MESSAGE_TOPIC,
-			messages: [
-				{
-					key: channelId.toString(),
-					value: JSON.stringify(event),
-				},
-			],
-		});
+		await this.publish([
+			{
+				topic: CHAT_MESSAGE_TOPIC,
+				key: channelId.toString(),
+				value: JSON.stringify(event),
+			},
+		]);
 	}
 }
