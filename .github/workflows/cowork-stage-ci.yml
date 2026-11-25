@@ -3,7 +3,8 @@ name: cowork Stage CI Workflow
 on:
   pull_request:
     # Metadata edits do not start another run; push or reopen after title/base changes to revalidate.
-    types: [opened, reopened, synchronize]
+    # ready_for_review only runs PR metadata and the new PR notification.
+    types: [opened, reopened, synchronize, ready_for_review]
     branches-ignore:
       - 'main'
   schedule:
@@ -12,7 +13,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A ready_for_review run validates nothing, so it must not cancel the validation run of the same head.
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}${{
+      github.event.action == 'ready_for_review' && '-ready-for-review' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -23,7 +27,7 @@ permissions:
 jobs:
   validate-title:
     name: Validate PR Title
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'ready_for_review'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -105,7 +109,8 @@ jobs:
 
   detect-changes:
     name: Select CI Targets
-    if: github.event_name != 'schedule'
+    # Every build, coverage, and status job depends on this job, so skipping it skips them too.
+    if: github.event_name != 'schedule' && github.event.action != 'ready_for_review'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -422,8 +427,9 @@ jobs:
     name: Notify New PR
     # Fork and Dependabot pull requests cannot read the webhook secret. The review queue covers them.
     if: >
-      github.event_name == 'pull_request' && github.event.action == 'opened' &&
-      !github.event.pull_request.draft &&
+      github.event_name == 'pull_request' &&
+      ((github.event.action == 'opened' && !github.event.pull_request.draft) ||
+        github.event.action == 'ready_for_review') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
