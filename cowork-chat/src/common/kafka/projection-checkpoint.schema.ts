@@ -14,7 +14,7 @@ export class ProjectionCheckpoint {
     */
 	@prop({required: true}) datasetGeneration!: string;
 	/**
-    Checkpoint를 기록한 broker topic UUID. Topic을 재생성하면 바뀐다. 이 필드가 없는 기존 row는 연속성을 증명하지 못한다.
+    Checkpoint를 기록한 broker topic UUID. Topic을 재생성하면 바뀐다. 이 필드가 없는 기존 row는 시작 시 dataset과 함께 넘겨받는다.
     */
 	@prop({type: String, default: null}) topicId!: Nullable<string>;
 	/**

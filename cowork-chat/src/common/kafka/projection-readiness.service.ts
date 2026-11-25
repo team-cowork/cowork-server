@@ -87,6 +87,8 @@ const ADMIN_DISCONNECT_TIMEOUT_MS = 2000;
  */
 const ZERO_TOPIC_ID = '00000000-0000-0000-0000-000000000000';
 
+const REBUILD_PENDING_STATUSES = new Set<ProjectionDatasetState['status']>(['REBUILD_REQUIRED', 'REBUILD_REQUESTED', 'RESETTING']);
+
 type TopicOffsets = {
 	topicId: string;
 	partitions: StartupPartitionOffset[];
@@ -258,12 +260,15 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			return this.datasets.markRebuildRequired(stream, 'Projection dataset stream identity changed', dataset);
 		}
 
-		const topicProblem = describeTopicIdentityProblem(stream.topic, dataset, topicId);
+		// Topic UUID를 저장하기 전에 기록된 기존 row는 broker UUID를 가진 것으로 보고 검사해, 모두 통과하면 그 UUID를 넘겨받는다.
+		const isLegacy = dataset.topicId === undefined && !REBUILD_PENDING_STATUSES.has(dataset.status);
+		const checked = isLegacy ? {...dataset, topicId} : dataset;
+		const topicProblem = describeTopicIdentityProblem(stream.topic, checked, topicId);
 		if (topicProblem !== undefined) {
 			return this.datasets.markRebuildRequired(stream, topicProblem, dataset);
 		}
 
-		if (['REBUILD_REQUIRED', 'REBUILD_REQUESTED', 'RESETTING'].includes(dataset.status)) {
+		if (REBUILD_PENDING_STATUSES.has(dataset.status)) {
 			return dataset;
 		}
 
@@ -279,8 +284,25 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			}
 		}
 
-		const checkpointProblem = describeStartupCheckpointProblem(stream.topic, dataset, checkpoints, targets);
-		return checkpointProblem === undefined ? dataset : this.datasets.markRebuildRequired(stream, checkpointProblem, dataset);
+		const checkpointProblem = describeStartupCheckpointProblem(
+			stream.topic,
+			checked,
+			isLegacy ? checkpoints.map(checkpoint => ({...checkpoint, topicId: checkpoint.topicId ?? topicId})) : checkpoints,
+			targets,
+		);
+		if (checkpointProblem !== undefined) {
+			return this.datasets.markRebuildRequired(stream, checkpointProblem, dataset);
+		}
+
+		if (!isLegacy) {
+			return dataset;
+		}
+
+		this.logger.log(`Legacy projection dataset passed startup checks; adopting broker topic UUID: ${stream.topic} topicId=${topicId}`);
+		// Checkpoint를 먼저 기록해, 중간에 멈추면 dataset이 기존 row로 남아 다음 시작에서 다시 넘겨받게 한다.
+		await this.checkpoints.adoptTopicId(stream.groupId, stream.topic, dataset.datasetGeneration, topicId);
+		const adopted = await this.datasets.adoptTopicId(name, dataset.datasetGeneration, topicId);
+		return adopted ?? this.datasets.markRebuildRequired(stream, 'Projection topic UUID adoption was superseded', dataset);
 	}
 
 	private async captureStartupState(

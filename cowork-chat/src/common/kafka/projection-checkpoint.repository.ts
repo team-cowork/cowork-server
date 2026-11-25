@@ -520,6 +520,15 @@ export class ProjectionCheckpointRepository {
 	}
 
 	/**
+    Topic UUID가 비어 있는 같은 dataset generation의 checkpoint에만 기록한다.
+    */
+	async adoptTopicId(groupId: string, topic: string, datasetGeneration: string, topicId: string): Promise<void> {
+		await this.model.updateMany({
+			groupId, topic, datasetGeneration, topicId: null,
+		}, {$set: {topicId}});
+	}
+
+	/**
     성공한 Kafka heartbeat마다 DB time lease를 연장한다.
     */
 	async renewAssignment(

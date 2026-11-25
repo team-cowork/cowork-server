@@ -278,6 +278,22 @@ export class ProjectionDatasetRepository {
 		return this.toState(dataset);
 	}
 
+	/**
+    Topic UUID가 비어 있거나 이미 같은 값일 때만 기록한다. 다른 writer가 바꾼 generation이나 UUID는 덮어쓰지 않는다.
+    */
+	async adoptTopicId(
+		stream: ProjectionStreamName,
+		datasetGeneration: string,
+		topicId: string,
+	): Promise<ProjectionDatasetState | undefined> {
+		const dataset = await this.datasets.findOneAndUpdate(
+			{stream, datasetGeneration, topicId: {$in: [null, topicId]}},
+			{$set: {topicId}},
+			{returnDocument: 'after'},
+		).lean<Nullable<ProjectionDataset>>();
+		return dataset ? this.toState(dataset) : undefined;
+	}
+
 	async tryBeginReset(stream: ProjectionStreamName, datasetGeneration: string): Promise<boolean> {
 		const result = await this.datasets.updateOne(
 			{stream, datasetGeneration, status: 'REBUILD_REQUESTED'},
