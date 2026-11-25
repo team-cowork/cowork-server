@@ -80,7 +80,8 @@ func TestParseTeamMemberAuthorizationVersion(t *testing.T) {
 }
 
 func TestPermissionsFor(t *testing.T) {
-	ch := State{Kind: "channel", TeamID: 3, ChannelID: 11, ChannelType: "VOICE"}
+	public := false
+	ch := State{Kind: "channel", TeamID: 3, ChannelID: 11, ChannelType: "VOICE", IsPrivate: &public}
 	member := &State{Kind: "member", TeamID: 3, UserID: 217, AuthorizationVersion: 5}
 	decision := func(version int64, permissions map[string]bool) *State {
 		return &State{Kind: "access", TeamID: 3, ChannelID: 11, UserID: 217, AuthorizationVersion: version, Permissions: permissions}
@@ -113,4 +114,19 @@ func TestPermissionsFor(t *testing.T) {
 			}
 		})
 	}
+	t.Run("private channel needs private access even with a public decision", func(t *testing.T) {
+		private := true
+		for _, visibility := range []*bool{&private, nil} {
+			privateCh := ch
+			privateCh.IsPrivate = visibility
+			if permissionsFor(privateCh, member, decision(5, allowed))["voice_connect"] {
+				t.Fatal("public decision granted a private channel")
+			}
+			granted := decision(5, allowed)
+			granted.ReadPrivate = true
+			if !permissionsFor(privateCh, member, granted)["voice_connect"] {
+				t.Fatal("private access was denied")
+			}
+		}
+	})
 }

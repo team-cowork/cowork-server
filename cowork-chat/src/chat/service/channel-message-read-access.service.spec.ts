@@ -17,40 +17,50 @@ const member = (userId: number, authorizationVersion = 1n) => ({
 const decision = (channelId: number, userId: number, allowedPermissions: string[], sourceAuthorizationVersion: Nullable<bigint> = 1n): Decision => ({
 	channelId, userId, teamId: 1, allowedPermissions, readPrivate: false, sourceAuthorizationVersion,
 });
+const privateDecision = (channelId: number, userId: number, allowedPermissions: string[]): Decision => ({
+	...decision(channelId, userId, allowedPermissions), readPrivate: true,
+});
 
 describe('isChannelAccessAllowed', () => {
 	const current = member(2);
 
 	it('텍스트 채널은 message_read, 음성 채널은 voice_connect를 접근 권한으로 쓴다', () => {
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, 'TEXT', ['CHANNEL_METADATA'])).toBe(true);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, 'VOICE', ['CHANNEL_METADATA'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(10, 2, ['voice_connect']), current, 'VOICE', ['CHANNEL_METADATA'])).toBe(true);
-		expect(isChannelAccessAllowed(decision(10, 2, ['voice_connect']), current, 'VOICE', ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, {type: 'TEXT', isPrivate: false}, ['CHANNEL_METADATA'])).toBe(true);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, {type: 'VOICE', isPrivate: false}, ['CHANNEL_METADATA'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['voice_connect']), current, {type: 'VOICE', isPrivate: false}, ['CHANNEL_METADATA'])).toBe(true);
+		expect(isChannelAccessAllowed(decision(10, 2, ['voice_connect']), current, {type: 'VOICE', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
 	});
 
 	it('작업 권한은 접근 권한과 함께 허용되어야 한다', () => {
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_send']), current, 'TEXT', ['message_send'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, 'TEXT', ['message_send'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read', 'message_send', 'file_attach']), current, 'TEXT', ['message_send', 'file_attach'])).toBe(true);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read', 'message_send']), current, 'TEXT', ['message_send', 'file_attach'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_send']), current, {type: 'TEXT', isPrivate: false}, ['message_send'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, {type: 'TEXT', isPrivate: false}, ['message_send'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read', 'message_send', 'file_attach']), current, {type: 'TEXT', isPrivate: false}, ['message_send', 'file_attach'])).toBe(true);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read', 'message_send']), current, {type: 'TEXT', isPrivate: false}, ['message_send', 'file_attach'])).toBe(false);
 	});
 
 	it('voice_log_read는 음성 채널에서만 요구한다', () => {
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, 'TEXT', ['MESSAGE_READ', 'VOICE_LOG_READ'])).toBe(true);
-		expect(isChannelAccessAllowed(decision(30, 2, ['voice_connect', 'message_read']), current, 'VOICE', ['MESSAGE_READ', 'VOICE_LOG_READ'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(30, 2, ['voice_connect', 'message_read', 'voice_log_read']), current, 'VOICE', ['MESSAGE_READ', 'VOICE_LOG_READ'])).toBe(true);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ', 'VOICE_LOG_READ'])).toBe(true);
+		expect(isChannelAccessAllowed(decision(30, 2, ['voice_connect', 'message_read']), current, {type: 'VOICE', isPrivate: false}, ['MESSAGE_READ', 'VOICE_LOG_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(30, 2, ['voice_connect', 'message_read', 'voice_log_read']), current, {type: 'VOICE', isPrivate: false}, ['MESSAGE_READ', 'VOICE_LOG_READ'])).toBe(true);
+	});
+
+	it('비공개이거나 비공개 여부를 모르는 채널은 공개 기준 판정 대신 비공개 접근 값을 요구한다', () => {
+		for (const isPrivate of [true, undefined]) {
+			expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), current, {type: 'TEXT', isPrivate}, ['MESSAGE_READ'])).toBe(false);
+			expect(isChannelAccessAllowed(privateDecision(10, 2, ['message_read']), current, {type: 'TEXT', isPrivate}, ['MESSAGE_READ'])).toBe(true);
+		}
 	});
 
 	it('판정 결과나 활성 멤버십이 없으면 거부한다', () => {
-		expect(isChannelAccessAllowed(undefined, current, 'TEXT', ['MESSAGE_READ'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), undefined, 'TEXT', ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(undefined, current, {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read']), undefined, {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
 	});
 
 	it('현재 인가 version이나 팀과 다르게 계산된 판정 결과는 Preference가 다시 발행할 때까지 거부한다', () => {
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read'], 2n), current, 'TEXT', ['MESSAGE_READ'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read'], null), current, 'TEXT', ['MESSAGE_READ'])).toBe(false);
-		expect(isChannelAccessAllowed({...decision(10, 2, ['message_read']), teamId: 2}, current, 'TEXT', ['MESSAGE_READ'])).toBe(false);
-		expect(isChannelAccessAllowed(decision(10, 2, ['message_read'], 0n), member(2, 0n), 'TEXT', ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read'], 2n), current, {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read'], null), current, {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed({...decision(10, 2, ['message_read']), teamId: 2}, current, {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
+		expect(isChannelAccessAllowed(decision(10, 2, ['message_read'], 0n), member(2, 0n), {type: 'TEXT', isPrivate: false}, ['MESSAGE_READ'])).toBe(false);
 	});
 });
 
@@ -113,14 +123,14 @@ describe('ChannelMessageReadAccessService', () => {
 		const everything = ['message_read', 'message_send', 'thread_reply', 'file_attach', 'message_manage'];
 		setDecisions([
 			decision(10, 1, everything),
-			decision(20, 1, everything),
+			privateDecision(20, 1, everything),
 			decision(10, 7, everything),
 			decision(10, 2, ['message_read']),
-			decision(20, 2, ['message_read']),
+			privateDecision(20, 2, ['message_read']),
 			decision(10, 3, ['message_read']),
 			decision(20, 3, []),
 			decision(10, 5, ['message_read']),
-			decision(20, 5, ['message_read']),
+			privateDecision(20, 5, ['message_read']),
 			decision(10, 6, ['message_read']),
 		]);
 	});

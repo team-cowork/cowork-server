@@ -129,7 +129,8 @@ class ChannelPermissionSupportTest {
                     if (messageRead) add("message_read")
                     if (voiceConnect == true) add("voice_connect")
                 },
-                canReadPrivate = false,
+                // 비공개 채널 테스트도 같은 판정 결과를 쓰므로, 비공개 접근은 접근 권한과 같게 둔다.
+                canReadPrivate = messageRead || voiceConnect == true,
                 sourceOccurredAt = occurredAt,
                 sourceMembershipVersion = occurredAt,
                 sourceAuthorizationVersion = occurredAt,

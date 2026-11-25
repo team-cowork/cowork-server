@@ -52,6 +52,8 @@ type State struct {
 	// AuthorizationVersion은 member에서는 현재 인가 version이고, access에서는 판정에 쓴 인가 version이다.
 	// 두 값을 microsecond로 맞춰 저장한다. 0은 인가 version이 없다는 뜻이다.
 	AuthorizationVersion int64 `bson:"authorization_version"`
+	// ReadPrivate은 access에서 채널이 비공개라면 접근할 수 있는지 여부다.
+	ReadPrivate bool `bson:"read_private"`
 	// MaxParticipants 0은 제한 없음, Bitrate nil은 클라이언트 기본값이다(voice-setting 전용).
 	MaxParticipants int  `bson:"max_participants"`
 	Bitrate         *int `bson:"bitrate"`
@@ -180,10 +182,14 @@ func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, use
 
 // permissionsFor returns Preference's decision only when it was computed from the member's current authorization.
 // A member event can arrive before Preference republishes the decision, so a mismatched version denies until it catches up.
+// A private transition keeps the authorization version, so a private channel also needs ReadPrivate. Unknown visibility is private.
 func permissionsFor(ch State, member, decision *State) map[string]bool {
 	if member == nil || member.Deleted || member.TeamID != ch.TeamID || member.AuthorizationVersion <= 0 ||
 		decision == nil || decision.TeamID != ch.TeamID || decision.ChannelID != ch.ChannelID ||
 		decision.AuthorizationVersion != member.AuthorizationVersion || !decision.Permissions["voice_connect"] {
+		return nil
+	}
+	if (ch.IsPrivate == nil || *ch.IsPrivate) && !decision.ReadPrivate {
 		return nil
 	}
 	return decision.Permissions
@@ -307,6 +313,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		s.Kind = "access"
 		s.Key = "access:" + expected
 		s.UserID = e.AccountID
+		s.ReadPrivate = *e.ReadPrivate
 	case "preference.voice-channel-setting.state.v1":
 		if e.ChannelID <= 0 || e.SchemaVersion != 1 || e.EventType != "UPSERT" ||
 			e.MaxParticipants == nil || *e.MaxParticipants < 0 || (e.Bitrate != nil && *e.Bitrate <= 0) {

@@ -96,6 +96,15 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
+    fun `비공개 채널은 공개 기준 판정이 남아 있어도 비공개 접근 값을 요구한다`() {
+        val privateChannel = channel().apply { isPrivate = true }
+        decisions(decision(1L, "message_read"))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(privateChannel)))
+        decisions(decision(1L, "message_read", readPrivate = true))
+        assertEquals(listOf(privateChannel), evaluator.filterReadable(10L, 7L, listOf(privateChannel)))
+    }
+
+    @Test
     fun `채널 작업과 재정렬은 접근 권한과 해당 권한을 함께 요구한다`() {
         decisions(decision(1L, "channel_manage", "channel_reorder"))
         assertThrows(ExpectedException::class.java) {

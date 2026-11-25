@@ -122,7 +122,10 @@ class ChannelMessageReadPolicyEvaluator(
             .mapTo(mutableSetOf()) { it.userId }
     }
 
-    /** 채널 접근 권한이 없으면 Preference가 다른 권한도 거부하지만, 접근 권한을 함께 확인한다. */
+    /**
+     * 채널 접근 권한이 없으면 Preference가 다른 권한도 거부하지만, 접근 권한을 함께 확인한다.
+     * 비공개 전환은 인가 version을 바꾸지 않으므로, 공개 기준 판정이 남아 있어도 비공개 채널은 [ChannelAccessProjection.canReadPrivate]를 요구한다.
+     */
     private fun allows(
         teamId: Long,
         channel: Channel,
@@ -137,6 +140,7 @@ class ChannelMessageReadPolicyEvaluator(
             PermissionKeys.MESSAGE_READ
         }
         return accessPermission in decision.allowedPermissions &&
+            (!channel.isPrivate || decision.canReadPrivate) &&
             (permission == null || permission in decision.allowedPermissions)
     }
 

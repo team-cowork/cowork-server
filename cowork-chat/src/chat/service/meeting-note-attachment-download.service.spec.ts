@@ -38,7 +38,7 @@ describe('MeetingNoteAttachmentDownloadService', () => {
 			},
 			channelAccessRepository: {
 				findByChannelIdsAndUserIds: jest.fn().mockResolvedValue([{
-					channelId: 1, userId: 7, teamId: 2, allowedPermissions: ['voice_connect'], readPrivate: false, sourceAuthorizationVersion: 1n,
+					channelId: 1, userId: 7, teamId: 2, allowedPermissions: ['voice_connect'], readPrivate: true, sourceAuthorizationVersion: 1n,
 				}]),
 			},
 			projectionReadiness: readiness,

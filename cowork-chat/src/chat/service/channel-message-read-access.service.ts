@@ -71,15 +71,21 @@ export function isCurrentChannelAccessDecision(
 		&& toBigInt(decision.sourceAuthorizationVersion) === authorizationVersion;
 }
 
+/**
+ 비공개 전환은 인가 version을 바꾸지 않는다. 공개 기준 판정이 남아 있어도 비공개 채널은 `readPrivate`를 요구한다.
+ 비공개 여부를 모르면 Preference와 같이 비공개로 본다.
+ */
 export function isChannelAccessAllowed(
 	decision: ChannelAccessProjectionView | undefined,
 	member: Pick<TeamMemberProjectionView, 'teamId' | 'authorizationVersion'> | undefined,
-	channelType: string,
+	channel: {type: string; isPrivate?: Nullable<boolean>},
 	modes: AccessMode[],
 ): boolean {
-	if (!isCurrentChannelAccessDecision(decision, member)) {
+	if (!isCurrentChannelAccessDecision(decision, member) || (channel.isPrivate !== false && !decision.readPrivate)) {
 		return false;
 	}
+
+	const channelType = channel.type;
 
 	const allowed = new Set(decision.allowedPermissions);
 	const visibilityPermission = channelType === 'VOICE' ? 'voice_connect' : 'message_read';
@@ -228,7 +234,7 @@ export class ChannelMessageReadAccessService {
 		for (const {request, channel, teamId} of teamRequests) {
 			const key = accessKey(request.channelId, request.userId);
 			const member = teamMemberByKey.get(teamUserKey(teamId, request.userId));
-			result.set(key, isChannelAccessAllowed(decisionByKey.get(key), member, channel.type, modes));
+			result.set(key, isChannelAccessAllowed(decisionByKey.get(key), member, channel, modes));
 		}
 
 		return result;
