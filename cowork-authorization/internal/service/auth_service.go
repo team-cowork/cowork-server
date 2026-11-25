@@ -85,7 +85,7 @@ func NewAuthService(
 func (s *AuthService) BeginLogin(ctx context.Context, provider, redirectURI string) (string, string, error) {
 	switch provider {
 	case "", ProviderDataGSM:
-		return s.login.Begin(ctx, redirectURI)
+		return s.login.Begin(ctx, redirectURI, 0)
 	case ProviderGitHub:
 		if s.github != nil {
 			return s.github.Begin(ctx, redirectURI, 0)
@@ -94,12 +94,17 @@ func (s *AuthService) BeginLogin(ctx context.Context, provider, redirectURI stri
 	return "", "", loginFailure("provider", ErrInvalidLoginRequest)
 }
 
-// BeginLink starts authentication of a second login method for the signed-in user. Only GitHub can be linked.
+// BeginLink starts authentication of a second login method for the signed-in user.
 func (s *AuthService) BeginLink(ctx context.Context, userID int64, provider, redirectURI string) (string, string, error) {
-	if userID <= 0 || provider != ProviderGitHub || s.github == nil {
-		return "", "", loginFailure("provider", ErrInvalidLoginRequest)
+	if userID > 0 {
+		switch {
+		case provider == ProviderDataGSM:
+			return s.login.Begin(ctx, redirectURI, userID)
+		case provider == ProviderGitHub && s.github != nil:
+			return s.github.Begin(ctx, redirectURI, userID)
+		}
 	}
-	return s.github.Begin(ctx, redirectURI, userID)
+	return "", "", loginFailure("provider", ErrInvalidLoginRequest)
 }
 
 func (s *AuthService) AllowsLoginOrigin(origin string) bool {
@@ -130,26 +135,40 @@ func (s *AuthService) CompleteLogin(ctx context.Context, session string, callbac
 	if err != nil {
 		return nil, err
 	}
-	return s.issueUserSession(ctx, userInfo)
+	command, err := s.dataGSMCommand(domain.UserIdentityCommandUpsert, userInfo, nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.commitIdentityAndIssueSession(ctx, command)
 }
 
-// CompleteLink adds the authenticated GitHub account to the user who started the link attempt.
-// It does not issue a new session, and it does not change the account profile.
+// CompleteLink adds the authenticated login method to the user who started the link attempt.
+// It does not issue a new session, and it does not change the common account profile.
 func (s *AuthService) CompleteLink(ctx context.Context, userID int64, session string, callback url.Values) error {
 	attempt, err := s.login.take(ctx, session)
 	if err != nil {
 		return err
 	}
-	if userID <= 0 || attempt.LinkUserID != userID || attempt.Provider != ProviderGitHub {
+	if userID <= 0 || attempt.LinkUserID != userID || attempt.Provider != ProviderGitHub && attempt.Provider != ProviderDataGSM {
 		return loginFailure("attempt_purpose", ErrAuthenticationRejected)
 	}
-	identity, err := s.completeGitHub(ctx, attempt, callback)
-	if err != nil {
-		return err
-	}
-	command, err := s.githubCommand(domain.UserIdentityCommandLink, identity, &userID)
-	if err != nil {
-		return err
+	var command domain.UserIdentityCommand
+	if attempt.Provider == ProviderGitHub {
+		identity, err := s.completeGitHub(ctx, attempt, callback)
+		if err != nil {
+			return err
+		}
+		if command, err = s.githubCommand(domain.UserIdentityCommandLink, identity, &userID); err != nil {
+			return err
+		}
+	} else {
+		userInfo, err := s.login.CompleteAttempt(ctx, attempt, callback)
+		if err != nil {
+			return err
+		}
+		if command, err = s.dataGSMCommand(domain.UserIdentityCommandLink, userInfo, &userID); err != nil {
+			return err
+		}
 	}
 	committed, err := s.identity.EnsureUser(ctx, command)
 	if err != nil {
@@ -182,26 +201,28 @@ func (s *AuthService) githubCommand(commandType string, identity *GitHubIdentity
 	return command, nil
 }
 
-func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.UserInfo) (*TokenPair, error) {
+// dataGSMCommand builds the command for a verified DataGSM student.
+func (s *AuthService) dataGSMCommand(commandType string, userInfo *oauth.UserInfo, accountID *int64) (domain.UserIdentityCommand, error) {
+	var command domain.UserIdentityCommand
 	if userInfo.ObjectType == nil || *userInfo.ObjectType != "STUDENT" || userInfo.Student == nil {
-		return nil, fmt.Errorf("non-student users are not supported")
+		return command, fmt.Errorf("non-student users are not supported")
 	}
 
 	st := userInfo.Student
 	if err := validateDataGSMAccountRole(userInfo.Role); err != nil {
-		return nil, err
+		return command, err
 	}
 	grade, err := studentInteger(st.Grade)
 	if err != nil {
-		return nil, err
+		return command, err
 	}
 	classNumber, err := studentInteger(st.ClassNum)
 	if err != nil {
-		return nil, err
+		return command, err
 	}
 	studentNumberInClass, err := studentInteger(st.Number)
 	if err != nil {
-		return nil, err
+		return command, err
 	}
 	var major *string
 	if st.Major != nil {
@@ -213,18 +234,25 @@ func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.User
 		Sex: string(st.Sex), Grade: grade, ClassNumber: classNumber, StudentNumberInClass: studentNumberInClass,
 		Major: major, Role: string(st.Role), GithubID: st.GitHubID, DataGSMStudentID: &studentID,
 	}
-	return s.loginWithIdentity(ctx, "DATAGSM", strconv.FormatInt(userInfo.ID, 10), st.Name, userInfo.Email, student)
+	if command, err = s.identityCommand(ProviderDataGSM, strconv.FormatInt(userInfo.ID, 10), st.Name, userInfo.Email, student); err != nil {
+		return command, err
+	}
+	command.CommandType, command.AccountID = commandType, accountID
+	if domain.ValidateUserIdentityCommand(command) != nil {
+		return command, ErrAuthenticationRejected
+	}
+	return command, nil
 }
 
-func (s *AuthService) loginWithIdentity(ctx context.Context, provider, subject, name, email string, student *domain.StudentIdentity) (*TokenPair, error) {
+func (s *AuthService) validatedCommand(provider, subject, name, email string, student *domain.StudentIdentity) (domain.UserIdentityCommand, error) {
 	command, err := s.identityCommand(provider, subject, name, email, student)
 	if err != nil {
-		return nil, err
+		return command, err
 	}
 	if err := domain.ValidateUserIdentityCommand(command); err != nil {
-		return nil, ErrAuthenticationRejected
+		return command, ErrAuthenticationRejected
 	}
-	return s.commitIdentityAndIssueSession(ctx, command)
+	return command, nil
 }
 
 func (s *AuthService) identityCommand(provider, subject, name, email string, student *domain.StudentIdentity) (domain.UserIdentityCommand, error) {
@@ -244,7 +272,11 @@ func (s *AuthService) DevSignIn(ctx context.Context, id, password string) (*Toke
 	if !ok {
 		return nil, ErrAuthenticationRejected
 	}
-	return s.loginWithIdentity(ctx, "DEV", slot, "개발 계정 "+slot[4:], slot+"@dev.cowork.invalid", nil)
+	command, err := s.validatedCommand("DEV", slot, "개발 계정 "+slot[4:], slot+"@dev.cowork.invalid", nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.commitIdentityAndIssueSession(ctx, command)
 }
 
 func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {

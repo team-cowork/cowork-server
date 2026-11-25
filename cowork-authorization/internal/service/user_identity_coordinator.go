@@ -16,12 +16,14 @@ const (
 	identityNotLinkedCode     = "IDENTITY_NOT_LINKED"
 	identityAlreadyLinkedCode = "IDENTITY_ALREADY_LINKED"
 	dataGSMLoginRequiredCode  = "DATAGSM_LOGIN_REQUIRED"
+	gitHubLoginRequiredCode   = "GITHUB_LOGIN_REQUIRED"
 )
 
 var (
 	ErrIdentityNotLinked     = errors.New("an existing account uses this email or GitHub ID, but this login method is not linked to it")
 	ErrIdentityAlreadyLinked = errors.New("the login method is already linked to another account, or the account already has one")
 	ErrDataGSMLoginRequired  = errors.New("a GSM school email must sign in with DataGSM first and then link GitHub")
+	ErrGitHubLoginRequired   = errors.New("an account without student information uses this email or GitHub ID; sign in with GitHub and then link DataGSM")
 )
 
 type UserIdentityOperationStore interface {
@@ -89,6 +91,8 @@ func (c *UserIdentityCoordinator) EnsureUser(
 					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrIdentityAlreadyLinked, code)
 				case dataGSMLoginRequiredCode:
 					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrDataGSMLoginRequired, code)
+				case gitHubLoginRequiredCode:
+					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrGitHubLoginRequired, code)
 				}
 				return nil, fmt.Errorf("user identity command failed: %s", code)
 			case domain.UserIdentityPending:

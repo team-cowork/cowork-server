@@ -133,7 +133,7 @@ func newLoginFixture(t *testing.T) *loginFixture {
 }
 func (f *loginFixture) begin(t *testing.T) (string, url.Values) {
 	t.Helper()
-	raw, session, err := f.login.Begin(context.Background(), "https://app.example/callback")
+	raw, session, err := f.login.Begin(context.Background(), "https://app.example/callback", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,11 +330,11 @@ func TestLoginStorageAndOriginPolicy(t *testing.T) {
 			t.Fatal(origin)
 		}
 	}
-	if _, _, err := f.login.Begin(context.Background(), "https://evil.example/callback"); !errors.Is(err, ErrInvalidLoginRequest) {
+	if _, _, err := f.login.Begin(context.Background(), "https://evil.example/callback", 0); !errors.Is(err, ErrInvalidLoginRequest) {
 		t.Fatal(err)
 	}
 	f.store.err = errors.New("Redis unavailable")
-	if _, _, err := f.login.Begin(context.Background(), "https://app.example/callback"); !errors.Is(err, ErrAuthenticationUnavailable) {
+	if _, _, err := f.login.Begin(context.Background(), "https://app.example/callback", 0); !errors.Is(err, ErrAuthenticationUnavailable) {
 		t.Fatal(err)
 	}
 }
@@ -377,7 +377,11 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			identity := &fakeIdentityCoordinator{userID: 27}
 			store := &fakeRefreshTokenStore{}
 			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil, nil)
-			pair, err := svc.issueUserSession(context.Background(), info)
+			var pair *TokenPair
+			command, err := svc.dataGSMCommand(domain.UserIdentityCommandUpsert, info, nil)
+			if err == nil {
+				pair, err = svc.commitIdentityAndIssueSession(context.Background(), command)
+			}
 			if tc.valid {
 				if err != nil || pair == nil || identity.command.Student.Major != nil || identity.command.Student.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
 					t.Fatalf("pair=%+v err=%v command=%+v", pair, err, identity.command)
@@ -392,5 +396,47 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 				t.Fatal("ineligible user received a session")
 			}
 		})
+	}
+}
+
+func TestDataGSMLinkIsBoundToTheUserWhoStartedItAndCarriesTheStudent(t *testing.T) {
+	f := newLoginFixture(t)
+	cfg := &config.AppConfig{JWTSecret: "unit-secret", JWTAccessExpire: time.Minute, JWTRefreshExpire: time.Hour}
+	identity := &fakeIdentityCoordinator{userID: 7}
+	svc := NewAuthService(cfg, identity, &fakeRefreshTokenStore{}, NewTokenService(cfg), f.login, nil)
+	beginLink := func(userID int64) (string, url.Values) {
+		raw, session, err := svc.BeginLink(context.Background(), userID, ProviderDataGSM, "https://app.example/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		u, _ := url.Parse(raw)
+		f.nonce = u.Query().Get("nonce")
+		return session, url.Values{"state": {u.Query().Get("state")}, "code": {"provider-code"}}
+	}
+
+	session, callback := beginLink(7)
+	if err := svc.CompleteLink(context.Background(), 8, session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+		t.Fatalf("another user completed the link: err=%v calls=%d", err, f.calls)
+	}
+	session, callback = beginLink(7)
+	if _, err := svc.CompleteLogin(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+		t.Fatalf("a link attempt signed in: err=%v calls=%d", err, f.calls)
+	}
+
+	session, callback = beginLink(7)
+	if err := svc.CompleteLink(context.Background(), 7, session, callback); err != nil {
+		t.Fatal(err)
+	}
+	command := identity.command
+	if command.CommandType != domain.UserIdentityCommandLink || command.AccountID == nil || *command.AccountID != 7 ||
+		command.Provider != ProviderDataGSM || command.ProviderSubject != "99" ||
+		command.Student == nil || command.Student.DataGSMStudentID == nil || *command.Student.DataGSMStudentID != 501 {
+		t.Fatalf("unexpected link command %+v", command)
+	}
+
+	identity.err = ErrIdentityAlreadyLinked
+	session, callback = beginLink(7)
+	if err := svc.CompleteLink(context.Background(), 7, session, callback); !errors.Is(err, ErrIdentityAlreadyLinked) {
+		t.Fatalf("err=%v", err)
 	}
 }

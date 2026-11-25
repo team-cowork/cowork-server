@@ -138,8 +138,8 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 			return errors.New("accountId is only allowed for LINK")
 		}
 	case UserIdentityCommandLink:
-		if command.AccountID == nil || *command.AccountID <= 0 || command.Provider != "GITHUB" {
-			return errors.New("LINK requires a positive accountId and the GITHUB provider")
+		if command.AccountID == nil || *command.AccountID <= 0 || command.Provider != "GITHUB" && command.Provider != "DATAGSM" {
+			return errors.New("LINK requires a positive accountId and the GITHUB or DATAGSM provider")
 		}
 	default:
 		return fmt.Errorf("commandType must be UPSERT or LINK")

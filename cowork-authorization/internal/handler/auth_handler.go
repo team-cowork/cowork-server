@@ -212,6 +212,8 @@ func loginError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "login method is already linked"})
 	case errors.Is(err, service.ErrDataGSMLoginRequired):
 		c.JSON(http.StatusConflict, gin.H{"error": "datagsm login required"})
+	case errors.Is(err, service.ErrGitHubLoginRequired):
+		c.JSON(http.StatusConflict, gin.H{"error": "github login required"})
 	case errors.Is(err, service.ErrAuthenticationUnavailable):
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
 	default:
