@@ -280,6 +280,13 @@
         "segment.ms": "3600000"
       }
     },
+    "preference.channel-access.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
     "preference.account-setting.state.v1": {
       "partitions": 1,
       "config": {
@@ -536,6 +543,7 @@
         "project.event.v2",
         "preference.team-access.state.v1",
         "preference.team-role.state.v2",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
         "preference.channel-role-policy.command.v2",
@@ -565,6 +573,7 @@
         "notification.trigger",
         "preference.team-access.state.v1",
         "preference.team-role.state.v2",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
         "preference.team-setting.state.v1",
@@ -634,6 +643,7 @@
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
         "preference.team-role.result.v2-dlt",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
@@ -743,6 +753,7 @@
         "channel.event.v2",
         "voice.event",
         "preference.team-role.state.v2",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.voice-channel-setting.state.v1"
       ]
