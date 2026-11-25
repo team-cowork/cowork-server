@@ -17,6 +17,7 @@ import com.cowork.preference.domain.teamrole.exception.TeamRoleProjectionNotRead
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.messaging.event.PreferenceEvent
@@ -35,6 +36,7 @@ class TeamRoleCommandProcessor(
     private val readiness: ProjectionReadiness,
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
     private val projectAccess: ProjectAccessStateRepository,
+    private val teamAccess: TeamAccessStateRepository,
 ) {
     suspend fun process(command: TeamRoleCommand) {
         outboxRepository.inTransaction { connection ->
@@ -234,6 +236,12 @@ class TeamRoleCommandProcessor(
         if (projectPermissionsChanged) {
             projectAccess.refreshTeam(connection, command.teamId)
         }
+        val teamPermissionsChanged = PermissionKeys.TEAM_SCOPED.any {
+            (current.permissions[it] == true) != (role.permissions[it] == true)
+        }
+        if (teamPermissionsChanged) {
+            teamAccess.refresh(connection, command.teamId)
+        }
         return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
     }
 
@@ -278,6 +286,7 @@ class TeamRoleCommandProcessor(
             add(roleEvent)
         }
         projectAccess.refreshTeam(connection, command.teamId)
+        teamAccess.refresh(connection, command.teamId)
         return success(command, null, roleEvent, deleted = true, stateEvents = events)
     }
 
@@ -334,6 +343,7 @@ class TeamRoleCommandProcessor(
         val assignment = requireNotNull(roleRepository.findAssignment(connection, targetId, command.teamId, roleId))
         val event = TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant())
         projectAccess.refreshTeam(connection, command.teamId, targetId)
+        teamAccess.refresh(connection, command.teamId, targetId)
         return success(command, role, event, deleted = false)
     }
 
@@ -367,6 +377,7 @@ class TeamRoleCommandProcessor(
         val assignment = AccountTeamRole(targetId, command.teamId, roleId)
         val event = TeamRoleEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
         projectAccess.refreshTeam(connection, command.teamId, targetId)
+        teamAccess.refresh(connection, command.teamId, targetId)
         return success(command, role, event, deleted = true)
     }
 

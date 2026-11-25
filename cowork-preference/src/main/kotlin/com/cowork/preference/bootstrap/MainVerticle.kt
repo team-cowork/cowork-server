@@ -42,6 +42,7 @@ import com.cowork.preference.domain.setting.service.PreferenceService
 import com.cowork.preference.domain.teamrole.command.TeamRoleCommandConsumer
 import com.cowork.preference.domain.teamrole.command.TeamRoleCommandProcessor
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.domain.teamrole.service.TeamRoleService
 import com.cowork.preference.domain.webhook.presentation.WebhookHandler
@@ -155,6 +156,7 @@ class MainVerticle : AbstractVerticle() {
         val prefService = PreferenceService(prefRepo, preferenceCache, outboxRepository)
         val notifService = NotificationService(notifRepo, outboxRepository)
         val projectAccessRepo = ProjectAccessStateRepository(outboxRepository)
+        val teamAccessRepo = TeamAccessStateRepository(outboxRepository)
         val initialAccessRepo = InitialResourceAccessRepository()
         val initialAccessService = InitialResourceAccessService(
             initialAccessRepo,
@@ -181,6 +183,7 @@ class MainVerticle : AbstractVerticle() {
             readiness = projectionReadiness,
             channelRolePolicyRepository = channelRolePolicyRepo,
             projectAccess = projectAccessRepo,
+            teamAccess = teamAccessRepo,
         )
         val githubRepoSettingCommandProcessor = GithubRepoSettingCommandProcessor(
             preferenceRepository = prefRepo,
@@ -267,6 +270,7 @@ class MainVerticle : AbstractVerticle() {
         val snapshotPublisher = PreferenceSnapshotPublisher(
             projectAccessRepository = projectAccessRepo,
             projectAccessReadiness = projectAccessReadiness,
+            teamAccessRepository = teamAccessRepo,
             notificationRepository = notifRepo,
             preferenceRepository = prefRepo,
             teamRoleRepository = teamRoleRepo,
@@ -285,6 +289,7 @@ class MainVerticle : AbstractVerticle() {
                 snapshotPublisher::publishTeamStateIfLeader,
                 snapshotPublisher::publishChannelRolePoliciesIfLeader,
                 snapshotPublisher::publishProjectAccessIfLeader,
+                snapshotPublisher::publishTeamAccessIfLeader,
                 snapshotPublisher::publishSettingStatesIfLeader,
                 snapshotPublisher::publishWebhooksIfLeader,
             ),
@@ -309,6 +314,7 @@ class MainVerticle : AbstractVerticle() {
                 teamMemberProjectionRepo,
                 checkpointRepository,
                 projectAccessRepo,
+                teamAccessRepo,
             ),
             checkpointRepository = checkpointRepository,
             topicIdentity = projectionTopicIdentity,

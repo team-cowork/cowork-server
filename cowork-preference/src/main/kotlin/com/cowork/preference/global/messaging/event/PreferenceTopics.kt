@@ -4,6 +4,7 @@ object PreferenceTopics {
     const val ACCOUNT_ROLE_TOPIC = "preference.account-role.state.v1"
     const val CHANNEL_NOTIFICATION_TOPIC = "preference.channel-notification.changed"
     const val PROJECT_ACCESS_STATE_TOPIC = "preference.project-access.state.v1"
+    const val TEAM_ACCESS_STATE_TOPIC = "preference.team-access.state.v1"
     const val TEAM_ROLE_TOPIC = "preference.team-role.state.v2"
     const val TEAM_ROLE_COMMAND_TOPIC = "preference.team-role.command.v2"
     const val TEAM_ROLE_COMMAND_RESULT_TOPIC = "preference.team-role.result.v2"

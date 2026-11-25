@@ -7,6 +7,7 @@ import com.cowork.preference.domain.access.projection.team.parser.TeamMemberEven
 import com.cowork.preference.domain.access.projection.team.policy.TeamMemberCleanupPolicy
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.service.TeamRoleService
 import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpoint
 import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpointRepository
@@ -17,6 +18,7 @@ class TeamMemberProjectionHandler(
     private val teamMemberProjectionRepository: TeamMemberProjectionRepository,
     private val checkpointRepository: ProjectionCheckpointRepository,
     private val projectAccess: ProjectAccessStateRepository,
+    private val teamAccess: TeamAccessStateRepository,
 ) : ProjectionRecordHandler {
     override suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String? =
         when (val decision = TeamMemberEventParser.parse(key, value)) {
@@ -36,9 +38,11 @@ class TeamMemberProjectionHandler(
                 val defaultCreated = teamRoleService.ensureDefaultRole(connection, event.teamId)
                 teamRoleService.synchronizeMembershipPolicies(connection, event)
                 projectAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
+                teamAccess.refresh(connection, event.teamId, if (defaultCreated) null else event.userId)
                 return@inTransaction
             }
-            when (TeamMemberCleanupPolicy.scope(event)) {
+            val scope = TeamMemberCleanupPolicy.scope(event)
+            when (scope) {
                 TeamMemberCleanupScope.TEAM -> {
                     teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)
                 }
@@ -64,6 +68,11 @@ class TeamMemberProjectionHandler(
                 } else {
                     null
                 },
+            )
+            teamAccess.refresh(
+                connection,
+                event.teamId,
+                if (scope == TeamMemberCleanupScope.TEAM) null else event.userId,
             )
         }
     }

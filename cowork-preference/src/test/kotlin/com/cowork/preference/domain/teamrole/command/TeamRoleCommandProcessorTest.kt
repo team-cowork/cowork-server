@@ -12,6 +12,7 @@ import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandI
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
@@ -217,6 +218,7 @@ class TeamRoleCommandProcessorTest {
             readiness,
             mockk<ChannelRolePolicyRepository>(relaxed = true),
             mockk<ProjectAccessStateRepository>(relaxed = true),
+            mockk<TeamAccessStateRepository>(relaxed = true),
         )
 
         fun stubCommand(command: TeamRoleCommand, actorRole: String, administrator: Boolean = true) {
