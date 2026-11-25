@@ -12,8 +12,6 @@ data class CreateTeamRequest(
     var name: String,
     @param:Schema(description = "팀 설명", example = "협업 서비스 개발팀")
     val description: String?,
-    @param:Schema(description = "팀 아이콘 URL", example = "https://example.com/icon.png")
-    val iconUrl: String?,
 ) {
     init {
         name = name.trim()
