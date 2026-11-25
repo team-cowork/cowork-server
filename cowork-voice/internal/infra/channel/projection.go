@@ -34,9 +34,6 @@ func expectedSource(topic string) string {
 	}
 }
 
-// retiredKinds were copied from team role and channel policy topics before Preference published decisions.
-var retiredKinds = bson.A{"role", "assignment", "member-fence", "policy"}
-
 // State copies source facts and Preference's channel access decisions.
 type State struct {
 	Key         string          `bson:"_id"`
@@ -91,11 +88,6 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	return err
 }
 
-// RemoveRetiredStates deletes rows that no current topic updates. Running it again does nothing.
-func RemoveRetiredStates(ctx context.Context, db *mongo.Database) error {
-	_, err := db.Collection(permissionCollection).DeleteMany(ctx, bson.M{"kind": bson.M{"$in": retiredKinds}})
-	return err
-}
 func (p *Projection) State(ctx context.Context, key string) (State, bool, error) {
 	var state State
 	err := p.col.FindOne(ctx, bson.M{"_id": key}).Decode(&state)
