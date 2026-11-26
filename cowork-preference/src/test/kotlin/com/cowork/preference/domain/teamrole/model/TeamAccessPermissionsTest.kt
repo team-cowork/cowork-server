@@ -28,6 +28,12 @@ class TeamAccessPermissionsTest :
                 )
                 result.filterValues { !it }.keys shouldBe setOf(PermissionKeys.TRANSFER_TEAM_OWNERSHIP)
             }
+            it("프로젝트 생성과 역할 부여에 쓰는 기본 권한은 팀 권한과 별도로 발행한다") {
+                val roles = listOf(role("project_read" to true, "message_send" to true, "manage_roles" to true))
+                TeamAccessPermissions.baseGrants(roles, active = true) shouldBe listOf("message_send", "project_read")
+                TeamAccessPermissions.baseGrants(roles, active = false) shouldBe emptyList()
+                TeamAccessPermissions.resolve(roles, active = true).containsKey("project_read") shouldBe false
+            }
             it("소유권 이양은 직접 허용할 때만 허용한다") {
                 TeamAccessPermissions.resolve(
                     listOf(role(PermissionKeys.TRANSFER_TEAM_OWNERSHIP to true)),

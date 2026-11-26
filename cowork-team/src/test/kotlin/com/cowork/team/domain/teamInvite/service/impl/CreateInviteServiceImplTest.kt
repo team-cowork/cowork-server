@@ -24,7 +24,11 @@ class CreateInviteServiceImplTest {
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
     private val teamPermissionGuard =
-        TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(42L to mapOf("manage_invites" to true))))
+        TeamPermissionGuard(
+            teamMemberRepository,
+            policyReader(1, mapOf(42L to mapOf("manage_invites" to true))),
+            mockk(),
+        )
 
     private val service =
         CreateInviteServiceImpl(teamInviteRepository, JpaTeamDirectory(teamRepository), teamPermissionGuard)

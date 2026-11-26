@@ -27,6 +27,7 @@ class DeleteInviteServiceImplTest {
                 42L to mapOf("manage_invites" to true),
             ),
         ),
+        mockk(),
     )
 
     private val service = DeleteInviteServiceImpl(teamInviteRepository, teamPermissionGuard)

@@ -7,13 +7,13 @@ import com.cowork.project.domain.github.event.GITHUB_PULL_REQUEST_STATE_TOPIC
 import com.cowork.project.domain.github.event.GITHUB_REPO_STATE_TOPIC
 import com.cowork.project.domain.githubBoard.event.GITHUB_PROJECT_ITEM_STATE_TOPIC
 import com.cowork.project.domain.githubBoard.event.GITHUB_PROJECT_STATE_TOPIC
+import com.cowork.project.global.consumer.TeamAccessState
 import com.cowork.project.global.consumer.Topics
 import org.springframework.stereotype.Component
 
 @Component
 class ProjectionStreams {
-    val teamRole =
-        ProjectionStream("cowork-project.team-role-projection", ProjectionTopics.TEAM_ROLE_STATE, "cowork-preference")
+    val teamAccess = ProjectionStream(TeamAccessState.GROUP, TeamAccessState.TOPIC, "cowork-preference")
     val projectAccess =
         ProjectionStream("cowork-project.project-access", ProjectionTopics.PROJECT_ACCESS_STATE, "cowork-preference")
     val channelState = ProjectionStream(
@@ -58,7 +58,7 @@ class ProjectionStreams {
 
     val required: Set<ProjectionStream> = setOf(
         projectAccess,
-        teamRole,
+        teamAccess,
         channelState,
         teamMember,
         teamLifecycle,

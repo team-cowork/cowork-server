@@ -1,5 +1,6 @@
 package com.cowork.channel.global.projection
 
+import com.cowork.channel.global.consumer.TeamAccessState
 import com.cowork.channel.global.consumer.Topics
 import org.springframework.stereotype.Component
 
@@ -8,6 +9,7 @@ class ProjectionStreams {
     val project = ProjectionStream("cowork-channel.project-event", Topics.PROJECT_EVENT, "cowork-project")
     val teamMember = ProjectionStream("cowork-channel.team-member", Topics.TEAM_MEMBER_EVENT, "cowork-team")
     val teamLifecycle = ProjectionStream("cowork-channel.team-lifecycle", Topics.TEAM_LIFECYCLE, "cowork-team")
+    val teamAccess = ProjectionStream(TeamAccessState.GROUP, TeamAccessState.TOPIC, "cowork-preference")
     val teamRole = ProjectionStream(
         "cowork-channel.team-role-projection",
         Topics.PREFERENCE_TEAM_ROLE_CHANGED,
@@ -31,7 +33,7 @@ class ProjectionStreams {
         "cowork-preference",
     )
     val required: Set<ProjectionStream> =
-        setOf(project, teamMember, teamLifecycle, teamRole, channelRolePolicy, channelAccess)
+        setOf(project, teamMember, teamLifecycle, teamAccess, teamRole, channelRolePolicy, channelAccess)
 
     /**
      * 채널 lifecycle 상태를 변경할 수 있는 upstream stream이다. cowork-preference 정책 snapshot이

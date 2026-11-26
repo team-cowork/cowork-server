@@ -18,18 +18,18 @@ public class RoadmapAccessGuard {
     private final RoadmapPolicyRepository roadmapPolicyRepository;
     private final ProjectionReadiness teamMemberProjectionReadiness;
     private final ProjectionReadiness accountPolicyReadiness;
-    private final ProjectionReadiness teamPolicyReadiness;
+    private final ProjectionReadiness teamAccessReadiness;
 
     public RoadmapAccessGuard(TeamMemberProjectionRepository teamMemberProjectionRepository,
             RoadmapPolicyRepository roadmapPolicyRepository,
             @Qualifier("teamMemberProjectionReadiness") ProjectionReadiness teamMemberProjectionReadiness,
             @Qualifier("accountPolicyReadiness") ProjectionReadiness accountPolicyReadiness,
-            @Qualifier("teamPolicyReadiness") ProjectionReadiness teamPolicyReadiness) {
+            @Qualifier("teamAccessReadiness") ProjectionReadiness teamAccessReadiness) {
         this.teamMemberProjectionRepository = teamMemberProjectionRepository;
         this.roadmapPolicyRepository = roadmapPolicyRepository;
         this.teamMemberProjectionReadiness = teamMemberProjectionReadiness;
         this.accountPolicyReadiness = accountPolicyReadiness;
-        this.teamPolicyReadiness = teamPolicyReadiness;
+        this.teamAccessReadiness = teamAccessReadiness;
     }
 
     public void requireCreatable(Long userId, RoadmapScope scope, Long ownerTeamId) {
@@ -74,7 +74,7 @@ public class RoadmapAccessGuard {
 
     public boolean accountAllows(Long userId, String action) {
         requireReady(accountPolicyReadiness);
-        return roadmapPolicyRepository.allows(0, userId, action);
+        return roadmapPolicyRepository.accountAllows(userId, action);
     }
 
     public void requireTeamMember(Long teamId, Long userId) {
@@ -91,9 +91,8 @@ public class RoadmapAccessGuard {
 
     public void requireRoadmapManager(Long userId, Long teamId) {
         requireTeamMember(teamId, userId);
-        requireReady(teamPolicyReadiness);
-        if (!roadmapPolicyRepository.allows(teamId, userId, "administrator")
-                && !roadmapPolicyRepository.allows(teamId, userId, "manage_roadmaps")) {
+        requireReady(teamAccessReadiness);
+        if (!roadmapPolicyRepository.canManageRoadmaps(teamId, userId)) {
             throw new ExpectedException("로드맵 관리 권한이 필요합니다.", HttpStatus.FORBIDDEN);
         }
     }

@@ -2,6 +2,7 @@ package com.cowork.roadmap.global.config;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -20,6 +21,7 @@ import com.cowork.roadmap.global.team.projection.readiness.ProjectionReadiness;
 import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicGenerationRegistry;
 import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicIdentityProvider;
 import com.cowork.roadmap.global.team.repository.ProjectionCheckpointRepository;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 @Configuration
 @EnableKafka
@@ -27,10 +29,10 @@ public class KafkaConsumerConfig {
 
     public static final String TEAM_MEMBER_TOPIC = "team.member.event";
     public static final String ACCOUNT_POLICY_TOPIC = "preference.account-role.state.v1";
-    public static final String TEAM_POLICY_TOPIC = "preference.team-role.state.v2";
-    public static final String TEAM_MEMBER_GROUP = "cowork-roadmap.team-member";
+    public static final String TEAM_ACCESS_TOPIC = "preference.team-access.state.v2";
+    public static final String TEAM_MEMBER_GROUP = "cowork-roadmap.team-member.v2";
     public static final String ACCOUNT_POLICY_GROUP = "cowork-roadmap.account-role.v1";
-    public static final String TEAM_POLICY_GROUP = "cowork-roadmap.team-role.v2";
+    public static final String TEAM_ACCESS_GROUP = "cowork-roadmap.team-access.v2";
 
     @Value("${projection.readiness.assignment-retry-backoff-ms:1000}")
     private long retryBackoff;
@@ -39,33 +41,40 @@ public class KafkaConsumerConfig {
 
     @Bean
     ProjectionReadiness teamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
-            ProjectionTopicIdentityProvider broker) {
-        return readiness(checkpoints, broker, TEAM_MEMBER_GROUP, TEAM_MEMBER_TOPIC);
+            ProjectionTopicIdentityProvider broker,
+            TeamMemberProjectionRepository teamMemberProjectionRepository) {
+        return readiness(checkpoints,
+                broker,
+                TEAM_MEMBER_GROUP,
+                TEAM_MEMBER_TOPIC,
+                teamMemberProjectionRepository::allActiveMembersHaveAuthorizationVersion);
     }
 
     @Bean
     ProjectionReadiness accountPolicyReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider broker) {
-        return readiness(checkpoints, broker, ACCOUNT_POLICY_GROUP, ACCOUNT_POLICY_TOPIC);
+        return readiness(checkpoints, broker, ACCOUNT_POLICY_GROUP, ACCOUNT_POLICY_TOPIC, () -> true);
     }
 
     @Bean
-    ProjectionReadiness teamPolicyReadiness(ProjectionCheckpointRepository checkpoints,
+    ProjectionReadiness teamAccessReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider broker) {
-        return readiness(checkpoints, broker, TEAM_POLICY_GROUP, TEAM_POLICY_TOPIC);
+        return readiness(checkpoints, broker, TEAM_ACCESS_GROUP, TEAM_ACCESS_TOPIC, () -> true);
     }
 
     private ProjectionReadiness readiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider broker,
             String group,
-            String topic) {
+            String topic,
+            BooleanSupplier projectionDataReady) {
         return new ProjectionReadiness(checkpoints,
                 broker,
                 new ProjectionTopicGenerationRegistry(),
                 group,
                 topic,
                 retryBackoff,
-                retryTimeout);
+                retryTimeout,
+                projectionDataReady);
     }
 
     @Bean
@@ -83,9 +92,9 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    ConcurrentKafkaListenerContainerFactory<String, String> teamPolicyListenerContainerFactory(
+    ConcurrentKafkaListenerContainerFactory<String, String> teamAccessListenerContainerFactory(
             KafkaProperties properties,
-            @Qualifier("teamPolicyReadiness") ProjectionReadiness readiness) {
+            @Qualifier("teamAccessReadiness") ProjectionReadiness readiness) {
         return listenerFactory(properties, readiness);
     }
 

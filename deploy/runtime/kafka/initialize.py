@@ -24,6 +24,10 @@ from confluent_kafka.admin import (
     UserScramCredentialUpsertion,
 )
 
+# TODO(#1111): After Chat, Project and Roadmap run v2 and their rollback window closes,
+# remove their preference.team-role.state.v2 ACLs from policy.json.
+# TODO(#1111): After all old Preference producers stop and their v1 outbox drains,
+# remove the preference.team-access.state.v1 topic declaration and Preference ACL from policy.json.
 POLICY_FILE = Path("/local/kafka/policy.json")
 CREDENTIALS_FILE = Path("/secrets/credentials.json")
 READY_FILE = Path("/alloc/data/bootstrap-ready")

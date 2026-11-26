@@ -83,6 +83,7 @@ class ChannelArchivePermissionSupportTest :
                     mockk(),
                     readinessGate,
                     mockk(),
+                    mockk(),
                 ),
             )
             every { evaluator.requireChannelAccess(10L, 7L, any()) } just runs

@@ -19,15 +19,7 @@ import {
 	projectGithubRepoProjectionSchema,
 } from '../../chat/schema/project-github-repo-projection.schema.js';
 import {TeamMemberProjection, teamMemberProjectionSchema} from '../../chat/schema/team-member-projection.schema.js';
-import {
-	TeamRoleAssignmentProjection,
-	teamRoleAssignmentProjectionSchema,
-} from '../../chat/schema/team-role-assignment-projection.schema.js';
-import {
-	TeamRoleMemberTombstone,
-	teamRoleMemberTombstoneSchema,
-} from '../../chat/schema/team-role-member-tombstone.schema.js';
-import {TeamRoleProjection, teamRoleProjectionSchema} from '../../chat/schema/team-role-projection.schema.js';
+import {TeamAccessProjection, teamAccessProjectionSchema} from '../../chat/schema/team-access-projection.schema.js';
 import {
 	TextChannelSettingProjection,
 	textChannelSettingProjectionSchema,
@@ -65,9 +57,7 @@ import {ProjectionCheckpoint, projectionCheckpointSchema} from './projection-che
 			{name: ProjectPermissionProjection.name, schema: projectPermissionProjectionSchema},
 			{name: ProjectGithubRepoProjection.name, schema: projectGithubRepoProjectionSchema},
 			{name: TeamMemberProjection.name, schema: teamMemberProjectionSchema},
-			{name: TeamRoleProjection.name, schema: teamRoleProjectionSchema},
-			{name: TeamRoleAssignmentProjection.name, schema: teamRoleAssignmentProjectionSchema},
-			{name: TeamRoleMemberTombstone.name, schema: teamRoleMemberTombstoneSchema},
+			{name: TeamAccessProjection.name, schema: teamAccessProjectionSchema},
 			{name: ChannelAccessProjection.name, schema: channelAccessProjectionSchema},
 			{name: TextChannelSettingProjection.name, schema: textChannelSettingProjectionSchema},
 			{name: TeamSettingProjection.name, schema: teamSettingProjectionSchema},

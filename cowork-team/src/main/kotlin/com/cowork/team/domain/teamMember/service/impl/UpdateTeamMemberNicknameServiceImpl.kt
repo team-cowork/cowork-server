@@ -32,7 +32,7 @@ class UpdateTeamMemberNicknameServiceImpl(
             teamMemberRepository.findByTeamIdAndUserIdForUpdate(teamId, actorId)
                 ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
         } else {
-            val roles = teamPermissionGuard.requirePermission(
+            teamPermissionGuard.requirePermission(
                 teamId,
                 actorId,
                 PermissionKeys.MANAGE_NICKNAMES,
@@ -40,7 +40,8 @@ class UpdateTeamMemberNicknameServiceImpl(
             )
             val target = teamMemberRepository.findByTeamIdAndUserIdForUpdate(teamId, targetUserId)
                 ?: throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-            requireManageable(team.id, team.ownerId, roles.maxOfOrNull { it.priority } ?: 0, target)
+            val actorPriority = teamRoleQueries.getMemberRoles(teamId, actorId).maxOfOrNull { it.priority } ?: 0
+            requireManageable(team.id, team.ownerId, actorPriority, target)
             target
         }
 

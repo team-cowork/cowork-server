@@ -12,9 +12,7 @@ import {ProjectGithubRepoProjection} from '../../chat/schema/project-github-repo
 import {ProjectPermissionProjection} from '../../chat/schema/project-permission-projection.schema.js';
 import {ProjectProjection} from '../../chat/schema/project-projection.schema.js';
 import {TeamMemberProjection} from '../../chat/schema/team-member-projection.schema.js';
-import {TeamRoleAssignmentProjection} from '../../chat/schema/team-role-assignment-projection.schema.js';
-import {TeamRoleMemberTombstone} from '../../chat/schema/team-role-member-tombstone.schema.js';
-import {TeamRoleProjection} from '../../chat/schema/team-role-projection.schema.js';
+import {TeamAccessProjection} from '../../chat/schema/team-access-projection.schema.js';
 import {TextChannelSettingProjection} from '../../chat/schema/text-channel-setting-projection.schema.js';
 import {TeamSettingProjection} from '../../chat/schema/team-setting-projection.schema.js';
 import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema.js';
@@ -37,7 +35,7 @@ export type ProjectionStreamName =
 	| 'projectPermission'
 	| 'projectGithubRepo'
 	| 'teamMember'
-	| 'teamRole'
+	| 'teamAccess'
 	| 'channelAccess'
 	| 'textChannelSetting'
 	| 'teamSetting'
@@ -103,14 +101,8 @@ export class ProjectionDatasetRepository {
 	@injectModel(UserProfileProjection.name)
 	private readonly userProfile!: Model<UserProfileProjection>;
 
-	@injectModel(TeamRoleProjection.name)
-	private readonly teamRole!: Model<TeamRoleProjection>;
-
-	@injectModel(TeamRoleAssignmentProjection.name)
-	private readonly teamRoleAssignment!: Model<TeamRoleAssignmentProjection>;
-
-	@injectModel(TeamRoleMemberTombstone.name)
-	private readonly teamRoleMemberTombstone!: Model<TeamRoleMemberTombstone>;
+	@injectModel(TeamAccessProjection.name)
+	private readonly teamAccess!: Model<TeamAccessProjection>;
 
 	@injectModel(ChannelAccessProjection.name)
 	private readonly channelAccess!: Model<ChannelAccessProjection>;
@@ -137,7 +129,7 @@ export class ProjectionDatasetRepository {
 			projectGithubRepo: [this.projectGithubRepo],
 			teamMember: [this.teamMember],
 			userProfile: [this.userProfile],
-			teamRole: [this.teamRole, this.teamRoleAssignment, this.teamRoleMemberTombstone],
+			teamAccess: [this.teamAccess],
 			channelAccess: [this.channelAccess],
 			textChannelSetting: [this.textChannelSetting],
 			teamSetting: [this.teamSetting],

@@ -232,22 +232,17 @@ class TeamRoleCommandProcessor(
             input.mentionable ?: current.mentionable,
             input.permissions?.let { TeamRolePermissions.merge(current.permissions, it) } ?: current.permissions,
         )
-        val projectPermissionsChanged = (PermissionKeys.PROJECT_SCOPED + PermissionKeys.ADMINISTRATOR).any {
-            (current.permissions[it] == true) != (role.permissions[it] == true)
+        val changed = PermissionKeys.ROLE_SCOPED.filter {
+            (current.permissions[it] == true) !=
+                (role.permissions[it] == true)
         }
-        if (projectPermissionsChanged) {
+        if (changed.any { it == PermissionKeys.ADMINISTRATOR || it in PermissionKeys.PROJECT_SCOPED }) {
             projectAccess.refreshTeam(connection, command.teamId)
         }
-        val teamPermissionsChanged = PermissionKeys.TEAM_SCOPED.any {
-            (current.permissions[it] == true) != (role.permissions[it] == true)
-        }
-        if (teamPermissionsChanged) {
+        if (changed.isNotEmpty()) {
             teamAccess.refresh(connection, command.teamId)
         }
-        val channelPermissionsChanged = (PermissionKeys.CHANNEL_SCOPED + PermissionKeys.ADMINISTRATOR).any {
-            (current.permissions[it] == true) != (role.permissions[it] == true)
-        }
-        if (channelPermissionsChanged) {
+        if (changed.any { it == PermissionKeys.ADMINISTRATOR || it in PermissionKeys.CHANNEL_SCOPED }) {
             channelAccess.refreshTeam(connection, command.teamId)
         }
         return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
