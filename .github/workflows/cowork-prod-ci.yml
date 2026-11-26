@@ -3,7 +3,8 @@ name: cowork Prod CI Workflow
 on:
   pull_request:
     # Metadata edits do not start another run; push or reopen after title/base changes to revalidate.
-    types: [opened, reopened, synchronize]
+    # ready_for_review only runs PR metadata and the new PR notification.
+    types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - 'main'
   push:
@@ -12,12 +13,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Skipped version pushes must not replace pending validation runs.
+  # Skipped version pushes and ready_for_review runs must not replace pending validation runs.
   group: >-
     ${{ github.workflow }}-${{ github.ref }}${{
       github.event_name == 'push' &&
       github.actor == 'cowork-server-versioning-bot[bot]' &&
-      '-version-writeback' || '' }}
+      '-version-writeback' || '' }}${{
+      github.event.action == 'ready_for_review' && '-ready-for-review' || '' }}
   # Keep active push validation; later runs include changes since the last success.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -29,7 +31,7 @@ permissions:
 jobs:
   validate-title:
     name: Validate PR Title
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'ready_for_review'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -102,7 +104,7 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: deploy/ci
-      - name: Assign PR Assignees To Related Issues
+      - name: Sync Related Issues
         uses: actions/github-script@v9
         with:
           script: |
@@ -111,7 +113,10 @@ jobs:
 
   detect-changes:
     name: Select CI Targets
-    if: github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]'
+    # Every build, coverage, and status job depends on this job, so skipping it skips them too.
+    if: >
+      github.event.action != 'ready_for_review' &&
+      (github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -430,8 +435,9 @@ jobs:
     name: Notify New PR
     # Fork and Dependabot pull requests cannot read the webhook secret. The review queue covers them.
     if: >
-      github.event_name == 'pull_request' && github.event.action == 'opened' &&
-      !github.event.pull_request.draft &&
+      github.event_name == 'pull_request' &&
+      ((github.event.action == 'opened' && !github.event.pull_request.draft) ||
+        github.event.action == 'ready_for_review') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
