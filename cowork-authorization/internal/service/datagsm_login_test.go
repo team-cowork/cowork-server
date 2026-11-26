@@ -378,7 +378,7 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			store := &fakeRefreshTokenStore{}
 			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil, nil)
 			var pair *TokenPair
-			command, err := svc.dataGSMCommand(domain.UserIdentityCommandUpsert, info, nil)
+			command, err := svc.dataGSMCommand(domain.UserIdentityCommandUpsert, info, nil, nil)
 			if err == nil {
 				pair, err = svc.commitIdentityAndIssueSession(context.Background(), command)
 			}
@@ -419,7 +419,7 @@ func TestDataGSMLinkIsBoundToTheUserWhoStartedItAndCarriesTheStudent(t *testing.
 		t.Fatalf("another user completed the link: err=%v calls=%d", err, f.calls)
 	}
 	session, callback = beginLink(7)
-	if _, err := svc.CompleteLogin(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+	if _, err := svc.CompleteLogin(context.Background(), session, callback, ""); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
 		t.Fatalf("a link attempt signed in: err=%v calls=%d", err, f.calls)
 	}
 

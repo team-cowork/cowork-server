@@ -4,8 +4,10 @@ namespace CoworkUser.Config;
 
 public sealed record AppConfig
 {
-    public const string ProviderCommandTopic = "user.identity.command.v3";
-    public const string ProviderCommandGroup = "cowork-user.user-identity-command.v3";
+    public const string LegacyProviderCommandTopic = "user.identity.command.v3";
+    public const string LegacyProviderCommandGroup = "cowork-user.user-identity-command.v3";
+    public const string ProviderCommandTopic = "user.identity.command.v4";
+    public const string ProviderCommandGroup = "cowork-user.user-identity-command.v4";
     public const string ProviderResultTopic = "user.identity.result.v2";
 
     public required int Port { get; init; }

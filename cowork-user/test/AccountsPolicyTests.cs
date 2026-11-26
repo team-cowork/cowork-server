@@ -8,6 +8,15 @@ public class AccountsPolicyTests
 {
     static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
+    [Theory]
+    [InlineData(null, null, "Create")]
+    [InlineData(null, 7L, "LinkGitHub")]
+    [InlineData(9L, null, "LinkDataGsm")]
+    [InlineData(7L, 7L, "SignIn")]
+    [InlineData(9L, 7L, "Conflict")]
+    public void School_login_uses_only_verified_provider_bindings(long? github, long? dataGsm, string action) =>
+        Assert.Equal(action, Accounts.ResolveSchoolLogin(github, dataGsm).ToString());
+
     [Fact]
     public void Login_claims_only_change_for_a_newer_command()
     {
