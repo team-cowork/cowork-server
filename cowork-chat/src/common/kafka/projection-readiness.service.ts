@@ -261,7 +261,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 		}
 
 		// Topic UUID를 저장하기 전에 기록된 기존 row는 broker UUID를 가진 것으로 보고 검사해, 모두 통과하면 그 UUID를 넘겨받는다.
-		const isLegacy = dataset.topicId === undefined && !REBUILD_PENDING_STATUSES.has(dataset.status);
+		// 진행 중인 rebuild는 현재 topic을 처음부터 다시 읽으므로 바로 넘겨받고, REBUILD_REQUIRED는 운영자의 rebuild 요청을 기다린다.
+		const isLegacy = dataset.topicId === undefined && dataset.status !== 'REBUILD_REQUIRED';
 		const checked = isLegacy ? {...dataset, topicId} : dataset;
 		const topicProblem = describeTopicIdentityProblem(stream.topic, checked, topicId);
 		if (topicProblem !== undefined) {
@@ -269,7 +270,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 		}
 
 		if (REBUILD_PENDING_STATUSES.has(dataset.status)) {
-			return dataset;
+			return isLegacy ? this.adoptLegacyTopicId(name, stream, dataset, topicId) : dataset;
 		}
 
 		if (dataset.status === 'ACTIVE') {
@@ -294,11 +295,16 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			return this.datasets.markRebuildRequired(stream, checkpointProblem, dataset);
 		}
 
-		if (!isLegacy) {
-			return dataset;
-		}
+		return isLegacy ? this.adoptLegacyTopicId(name, stream, dataset, topicId) : dataset;
+	}
 
-		this.logger.log(`Legacy projection dataset passed startup checks; adopting broker topic UUID: ${stream.topic} topicId=${topicId}`);
+	private async adoptLegacyTopicId(
+		name: ProjectionName,
+		stream: ProjectionStream,
+		dataset: ProjectionDatasetState,
+		topicId: string,
+	): Promise<ProjectionDatasetState> {
+		this.logger.log(`Adopting broker topic UUID for legacy projection dataset: ${stream.topic} status=${dataset.status} topicId=${topicId}`);
 		// Checkpoint를 먼저 기록해, 중간에 멈추면 dataset이 기존 row로 남아 다음 시작에서 다시 넘겨받게 한다.
 		await this.checkpoints.adoptTopicId(stream.groupId, stream.topic, dataset.datasetGeneration, topicId);
 		const adopted = await this.datasets.adoptTopicId(name, dataset.datasetGeneration, topicId);
