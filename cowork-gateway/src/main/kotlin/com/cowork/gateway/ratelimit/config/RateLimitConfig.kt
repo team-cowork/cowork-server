@@ -40,9 +40,11 @@ class RateLimitConfig {
     @Bean
     fun anonymousKeyResolver(): KeyResolver = KeyResolver { Mono.just("anonymous") }
 
-    // 에이전트 토큰 교환이 몰려도 로그인 경로의 anonymous 버킷을 소진하지 않게 키를 나눈다
+    // 에이전트 토큰 교환은 미인증 요청과 같이 연결 상대 주소로 나누고, 로그인 경로의 버킷과 키가 겹치지 않게 접두사를 붙인다
     @Bean
-    fun agentTokenExchangeKeyResolver(): KeyResolver = KeyResolver { Mono.just("agent-token-exchange") }
+    fun agentTokenExchangeKeyResolver(): KeyResolver = KeyResolver { exchange ->
+        Mono.just("agent-token-exchange:${remoteAddressKey(exchange)}")
+    }
 
     /**
      * Rate Limiting 키 전략:
@@ -62,8 +64,10 @@ class RateLimitConfig {
         if (!userId.isNullOrBlank()) {
             Mono.just(userId)
         } else {
-            val ip = exchange.request.remoteAddress?.address?.hostAddress ?: "unknown"
-            Mono.just(ip)
+            Mono.just(remoteAddressKey(exchange))
         }
     }
+
+    private fun remoteAddressKey(exchange: ServerWebExchange): String =
+        exchange.request.remoteAddress?.address?.hostAddress ?: "unknown"
 }
