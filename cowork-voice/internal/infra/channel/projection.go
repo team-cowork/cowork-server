@@ -182,6 +182,7 @@ func (p *Projection) Apply(ctx context.Context, s State) error {
 	accepted := bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}
 	if s.Kind == "member" {
 		// Members stored before authorization versions were kept take the field from the replayed record.
+		// TODO: Remove this branch once the rollback window closes and all stored members have authorization_version.
 		accepted = append(accepted, bson.M{"source_version": s.Version, "authorization_version": bson.M{"$exists": false}})
 	}
 	filter := bson.M{"_id": s.Key, "$or": accepted}
