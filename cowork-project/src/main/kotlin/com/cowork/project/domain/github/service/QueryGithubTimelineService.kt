@@ -44,6 +44,9 @@ class QueryGithubTimelineService(
         if (number < 1 || page < 0 || size !in 1..100) {
             throw ExpectedException("번호 또는 페이지 범위가 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
         }
+        if (page > 0 && snapshotId == null) {
+            throw ExpectedException("다음 페이지를 조회하려면 스냅샷 ID를 지정하십시오.", HttpStatus.BAD_REQUEST)
+        }
         val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
         githubTimelineReadiness.requireReady()
         val stream = when (parentType) {

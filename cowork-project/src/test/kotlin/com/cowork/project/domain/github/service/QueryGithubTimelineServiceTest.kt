@@ -106,6 +106,10 @@ class QueryGithubTimelineServiceTest :
             }
         }
 
+        it("다음 페이지에서 스냅샷 ID가 없으면 400을 반환한다") {
+            shouldThrow<ExpectedException> { read(1) }.statusCode shouldBe HttpStatus.BAD_REQUEST
+        }
+
         it("이전 스냅샷으로 다음 페이지를 요청하면 409를 반환한다") {
             every { timelines.snapshot(subject) } returns GithubTimelineSnapshot(id, parent, 2, Instant.now())
             shouldThrow<ExpectedException> { read(1, snapshotId = UUID.randomUUID()) }.statusCode shouldBe

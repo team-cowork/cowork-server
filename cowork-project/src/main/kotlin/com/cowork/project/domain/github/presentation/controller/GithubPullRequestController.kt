@@ -1,6 +1,7 @@
 package com.cowork.project.domain.github.presentation.controller
 
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
+import com.cowork.project.domain.github.presentation.data.request.GithubTimelineQueryReqDto
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubCommentReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestActionResDto
@@ -27,20 +28,21 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import org.springdoc.core.annotations.ParameterObject
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
-import java.util.UUID
 
 @Tag(name = "GitHub PR", description = "프로젝트에 연결된 GitHub 저장소의 PR 조회/머지/승인/닫기 API")
 @ApiResponses(
@@ -77,12 +79,12 @@ class GithubPullRequestController(
 
     @Operation(
         summary = "PR 활동 이력 조회",
-        description = "발생 시각이 같은 활동은 식별자 순으로 반환합니다. 다음 페이지는 같은 size와 snapshotId로 요청하십시오.",
+        description = "발생 시각이 같은 활동은 식별자 순으로 반환합니다. 다음 페이지부터 첫 페이지 응답의 snapshotId를 보내고 size를 유지하십시오.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "활동 이력 조회 성공"),
-        ApiResponse(responseCode = "400", description = "잘못된 번호 또는 페이지 범위"),
+        ApiResponse(responseCode = "400", description = "잘못된 번호, 페이지 범위 또는 다음 페이지의 스냅샷 ID 누락"),
         ApiResponse(responseCode = "403", description = "프로젝트 읽기 권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트, 저장소 또는 PR 없음"),
         ApiResponse(responseCode = "409", description = "요청한 스냅샷 만료"),
@@ -94,18 +96,16 @@ class GithubPullRequestController(
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-        @Parameter(schema = Schema(minimum = "0")) @RequestParam(defaultValue = "0") page: Int,
-        @Parameter(schema = Schema(minimum = "1", maximum = "100")) @RequestParam(defaultValue = "30") size: Int,
-        @RequestParam(required = false) snapshotId: UUID?,
+        @Valid @ParameterObject @ModelAttribute queryReq: GithubTimelineQueryReqDto,
     ): GithubTimelineResDto = queryGithubTimelineService.execute(
         userId,
         projectId,
         repoId,
         GithubTimelineParent.PULL_REQUEST,
         prNumber,
-        page,
-        size,
-        snapshotId,
+        queryReq.page,
+        queryReq.size,
+        queryReq.snapshotId,
     )
 
     @Operation(
