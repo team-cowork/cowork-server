@@ -5,24 +5,21 @@ namespace CoworkUser.Platform;
 
 public static partial class Iso8601
 {
-    [GeneratedRegex(@"\A(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:[.,](\d+))?(Z|[+-]\d{2}(?::?\d{2})?)?\z")]
+    [GeneratedRegex(@"\A(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,6})\d*)?(Z|[+-]\d{2}(?::?\d{2})?)?\z")]
     private static partial Regex Pattern();
 
     /// <summary>
-    /// Parses an ISO 8601 date-time to UTC like Elixir's DateTime.from_iso8601: an offset is required
-    /// unless <paramref name="assumeUtc"/>; fractional seconds keep up to microsecond precision.
+    /// Parses a timestamp to UTC at microsecond precision. An offset is required unless
+    /// <paramref name="assumeUtc"/> is set.
     /// </summary>
-    public static bool TryParse(string? value, out DateTime utc, out int precision, bool assumeUtc = false)
+    public static bool TryParse(string? value, out DateTime utc, bool assumeUtc = false)
     {
         utc = default;
-        precision = 0;
         var match = value is null ? null : Pattern().Match(value);
         if (match is not { Success: true } || (!assumeUtc && !match.Groups[8].Success)) return false;
 
         int Part(int group) => int.Parse(match.Groups[group].Value, CultureInfo.InvariantCulture);
-        var fraction = match.Groups[7].Value;
-        precision = Math.Min(fraction.Length, 6);
-        var microseconds = precision == 0 ? 0 : int.Parse(fraction[..precision].PadRight(6, '0'), CultureInfo.InvariantCulture);
+        var microseconds = int.Parse(match.Groups[7].Value.PadRight(6, '0'), CultureInfo.InvariantCulture);
 
         try
         {
@@ -36,7 +33,7 @@ public static partial class Iso8601
                 if (zone == "-00:00" || zone == "-0000" || zone == "-00") return false;
                 var hours = int.Parse(digits[..2], CultureInfo.InvariantCulture);
                 var minutes = digits.Length > 2 ? int.Parse(digits[2..], CultureInfo.InvariantCulture) : 0;
-                // TimeSpan normalizes +99:99, so the zone range is checked here like Elixir does.
+                // TimeSpan normalizes out-of-range hours and minutes.
                 if (hours > 23 || minutes > 59) return false;
                 offset = new TimeSpan(hours, minutes, 0);
                 if (zone[0] == '-') offset = -offset;
@@ -50,17 +47,12 @@ public static partial class Iso8601
         }
     }
 
-    /// <summary>Formats like Elixir's DateTime.to_iso8601 for a UTC value.</summary>
-    public static string Format(DateTime utc, int precision = 6)
-    {
-        var text = utc.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
-        if (precision > 0)
-            text += "." + (utc.Ticks % TimeSpan.TicksPerSecond / 10).ToString("D6", CultureInfo.InvariantCulture)[..precision];
-        return text + "Z";
-    }
+    /// <summary>Kafka events and stored command hashes use six fractional digits in UTC.</summary>
+    public static string Format(DateTime utc) =>
+        utc.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture);
 
     public static DateTime TruncateMicros(DateTime value) =>
-        DateTime.SpecifyKind(new DateTime(value.Ticks - value.Ticks % 10), DateTimeKind.Utc);
+        new(value.Ticks - value.Ticks % 10, DateTimeKind.Utc);
 
     public static DateTime UtcNow() => TruncateMicros(DateTime.UtcNow);
 

@@ -386,7 +386,7 @@ public static partial class Accounts
         {
             if (rawExpires.ValueKind == JsonValueKind.Null) expiresAt = null;
             else if (rawExpires.ValueKind == JsonValueKind.String && rawExpires.GetString()!.Trim() == "") expiresAt = null;
-            else if (rawExpires.ValueKind == JsonValueKind.String && Iso8601.TryParse(rawExpires.GetString(), out var parsed, out _, assumeUtc: true))
+            else if (rawExpires.ValueKind == JsonValueKind.String && Iso8601.TryParse(rawExpires.GetString(), out var parsed, assumeUtc: true))
                 expiresAt = parsed.AddTicks(-(parsed.Ticks % TimeSpan.TicksPerSecond));
             else errors.Add("status_expires_at", "is invalid");
         }
@@ -623,7 +623,7 @@ public static partial class Accounts
         // UserSyncContract has already validated the payload shape.
         var studentId = payload.Get("datagsm_student_id").Integer();
         var studentRole = payload.GetString("student_role");
-        Iso8601.TryParse(payload.GetString("occurred_at"), out var occurredAt, out _);
+        Iso8601.TryParse(payload.GetString("occurred_at"), out var occurredAt);
 
         return await App.TransactionAsync(async (connection, transaction) =>
         {

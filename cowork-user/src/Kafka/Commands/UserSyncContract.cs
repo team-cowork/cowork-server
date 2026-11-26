@@ -17,7 +17,7 @@ public static class UserSyncContract
         && payload.GetString("event_type") == "student.updated"
         && ContractFields.RequiredString(payload.Get("event_id"), 255)
         && payload.Get("event_index").Integer() is >= 0
-        && Iso8601.TryParse(payload.GetString("occurred_at"), out _, out _)
+        && Iso8601.TryParse(payload.GetString("occurred_at"), out _)
         && ContractFields.RequiredString(payload.Get("email"), 255)
         && ContractFields.RequiredString(payload.Get("name"), 50)
         && ContractFields.RequiredString(payload.Get("sex"), 10)
