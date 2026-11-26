@@ -2,19 +2,17 @@ package com.cowork.project.domain.github.service
 
 import com.cowork.project.global.projection.ProjectionCheckpointStore
 import com.cowork.project.global.projection.ProjectionStreams
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.logging.logger.logger
 
 @Component
 class GithubTimelineReadiness(
     private val projectionCheckpointStore: ProjectionCheckpointStore,
     private val projectionStreams: ProjectionStreams,
 ) {
-    private val log = LoggerFactory.getLogger(javaClass)
-
     @Volatile
     private var ready = false
 
@@ -22,7 +20,7 @@ class GithubTimelineReadiness(
     @Scheduled(fixedDelayString = "\${projection.readiness.poll-interval-ms:1000}")
     fun refresh() {
         ready = runCatching { projectionCheckpointStore.isCaughtUp(setOf(projectionStreams.githubTimelineState)) }
-            .onFailure { if (ready) log.warn("Failed to check GitHub timeline consumer progress", it) }
+            .onFailure { if (ready) logger().warn("Failed to check GitHub timeline consumer progress", it) }
             .getOrDefault(false)
     }
 
