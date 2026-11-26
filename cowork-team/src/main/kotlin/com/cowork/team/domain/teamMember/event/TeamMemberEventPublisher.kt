@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+import java.time.ZoneId
 
 @Component
 class TeamMemberEventPublisher(
@@ -65,6 +66,8 @@ class TeamMemberEventPublisher(
             nickname = state.nickname,
             occurredAt = state.stateOccurredAt,
             authorizationVersion = state.authorizationVersion,
+            // JPA Auditing이 joined_at을 JVM 기본 시간대의 현재 시각으로 채운다.
+            joinedAt = state.joinedAt?.atZone(ZoneId.systemDefault())?.toInstant(),
             snapshot = snapshot,
         )
         val key = "${event.teamId}:${event.userId}"

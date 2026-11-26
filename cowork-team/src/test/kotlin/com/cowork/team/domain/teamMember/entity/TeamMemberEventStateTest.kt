@@ -4,6 +4,7 @@ import com.cowork.team.domain.teamAccess.LockedTeam
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 class TeamMemberEventStateTest :
@@ -55,6 +56,19 @@ class TeamMemberEventStateTest :
                         member.changeRole(TeamRole.MEMBER)
                         state.apply(team, member, false, joinedAt.plusSeconds(2))
                         state.authorizationVersion shouldBe joinedAt.plusSeconds(2)
+                    }
+                }
+
+                context("멤버가 재가입해 가입 시각이 바뀐 경우") {
+                    it("새 가입 시각을 기록한다") {
+                        member.joinedAt = LocalDateTime.parse("2026-10-25T00:00:00")
+                        val state = TeamMemberEventState.create(team, member, false, joinedAt)
+                        state.joinedAt shouldBe LocalDateTime.parse("2026-10-25T00:00:00")
+
+                        member.joinedAt = LocalDateTime.parse("2026-10-26T00:00:00")
+                        state.apply(team, member, false, joinedAt.plusSeconds(1))
+
+                        state.joinedAt shouldBe LocalDateTime.parse("2026-10-26T00:00:00")
                     }
                 }
 

@@ -11,6 +11,7 @@ import jakarta.persistence.IdClass
 import jakarta.persistence.Table
 import java.io.Serializable
 import java.time.Instant
+import java.time.LocalDateTime
 
 data class TeamMemberEventStateId(var teamId: Long = 0, var userId: Long = 0) : Serializable
 
@@ -45,6 +46,10 @@ class TeamMemberEventState(
     @Column(name = "authorization_version")
     var authorizationVersion: Instant,
 
+    // 마이그레이션이 tb_team_members.joined_at을 그대로 복사하므로 같은 타입을 쓴다.
+    @Column(name = "joined_at")
+    var joinedAt: LocalDateTime?,
+
 ) {
     fun apply(team: LockedTeam, member: TeamMember, deleted: Boolean, requestedAt: Instant): Instant {
         require(team.id == teamId && member.teamId == teamId && member.userId == userId) {
@@ -55,6 +60,7 @@ class TeamMemberEventState(
         role = member.role
         teamName = team.name
         nickname = member.nickname
+        joinedAt = member.joinedAt
         this.deleted = deleted
         stateOccurredAt = nextVersion
         if (authorizationChanged) authorizationVersion = nextVersion
@@ -70,6 +76,7 @@ class TeamMemberEventState(
                 role = member.role,
                 teamName = team.name,
                 nickname = member.nickname,
+                joinedAt = member.joinedAt,
                 deleted = deleted,
                 stateOccurredAt = version,
                 authorizationVersion = version,
