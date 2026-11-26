@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 @Component
 class TeamMemberEventPublisher(
@@ -30,9 +32,9 @@ class TeamMemberEventPublisher(
         publishMutation(member, deleted = true, occurredAt = occurredAt)
 
     @Transactional(propagation = Propagation.MANDATORY)
-    fun publishSnapshot(state: TeamMemberEventState) {
+    fun publishSnapshot(state: TeamMemberEventState, joinedAt: LocalDateTime?) {
         entityManager.flush()
-        enqueue(state, snapshot = true)
+        enqueue(state, joinedAt, snapshot = true)
     }
 
     private fun publishMutation(member: TeamMember, deleted: Boolean, occurredAt: Instant): Instant {
@@ -51,11 +53,11 @@ class TeamMemberEventPublisher(
         }
         teamMemberEventStateRepository.save(state)
         entityManager.flush()
-        enqueue(state, snapshot = false)
+        enqueue(state, lockedMember.joinedAt, snapshot = false)
         return version
     }
 
-    private fun enqueue(state: TeamMemberEventState, snapshot: Boolean) {
+    private fun enqueue(state: TeamMemberEventState, joinedAt: LocalDateTime?, snapshot: Boolean) {
         val event = TeamMemberEvent(
             eventType = if (state.deleted) "DELETE" else "UPSERT",
             teamId = state.teamId,
@@ -65,6 +67,8 @@ class TeamMemberEventPublisher(
             nickname = state.nickname,
             occurredAt = state.stateOccurredAt,
             authorizationVersion = state.authorizationVersion,
+            // JPA auditing records joinedAt in the JVM local time zone.
+            joinedAt = if (state.deleted) null else requireNotNull(joinedAt).atZone(ZoneId.systemDefault()).toInstant(),
             snapshot = snapshot,
         )
         val key = "${event.teamId}:${event.userId}"

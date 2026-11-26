@@ -956,13 +956,14 @@ export class MessageRepository {
 		return (await this.messageModel.exists({'attachments.objectKey': objectKey})) !== null;
 	}
 
-	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>, shouldExcludeSystem = false): Promise<number> {
+	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>, shouldExcludeSystem = false, joinedAt?: Date): Promise<number> {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
 			// 채널 메시지 목록과 같은 기준으로 센다. 스레드 메시지는 채널 목록에 없으므로 채널 읽음 처리로 지울 수 없다.
 			threadId: null,
 			...(afterId && {_id: {$gt: afterId}}),
+			...(joinedAt && {createdAt: {$gt: joinedAt}}),
 			...(shouldExcludeSystem && NOT_SYSTEM_MESSAGE),
 		};
 
@@ -1003,15 +1004,16 @@ export class MessageRepository {
 	}
 
 	async countUnreadForChannels(
-		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>; shouldExcludeSystem?: boolean}>,
+		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>; shouldExcludeSystem?: boolean; joinedAt?: Date}>,
 	): Promise<Map<number, number>> {
 		if (memberships.length === 0) {
 			return new Map();
 		}
 
-		const orConditions = memberships.map(({channelId, lastReadMessageId, shouldExcludeSystem}) => ({
+		const orConditions = memberships.map(({channelId, lastReadMessageId, shouldExcludeSystem, joinedAt}) => ({
 			channelId,
 			threadId: null,
+			...(joinedAt && {createdAt: {$gt: joinedAt}}),
 			...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
 			...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
 		}));

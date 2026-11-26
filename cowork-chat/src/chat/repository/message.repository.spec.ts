@@ -83,6 +83,31 @@ describe('MessageRepository unread 집계', () => {
 		});
 	});
 
+	it('팀 가입 시각과 마지막 읽음 위치를 모두 지난 채널 메시지만 센다', async () => {
+		const joinedAt = new Date('2026-11-25T09:00:00.123Z');
+		await repository.countUnreadForChannels([
+			{channelId: 1, lastReadMessageId: null, joinedAt},
+			{channelId: 2, lastReadMessageId: lastReadId, joinedAt},
+		]);
+		await repository.countUnread(2, lastReadId, false, joinedAt);
+
+		const channelFilter = {threadId: null, createdAt: {$gt: joinedAt}};
+		expect(messageModel.aggregate).toHaveBeenLastCalledWith([
+			{
+				$match: {
+					webhookDeleted: {$ne: true}, $or: [
+						{channelId: 1, ...channelFilter},
+						{channelId: 2, ...channelFilter, _id: {$gt: lastReadId}},
+					],
+				},
+			},
+			{$group: {_id: '$channelId', count: {$sum: 1}}},
+		]);
+		expect(messageModel.countDocuments).toHaveBeenLastCalledWith({
+			channelId: 2, ...channelFilter, webhookDeleted: {$ne: true}, _id: {$gt: lastReadId},
+		});
+	});
+
 	it('다중 채널 unread도 답장을 포함하고 스레드 메시지와 삭제된 웹훅 영수증은 제외한다', async () => {
 		const counts = await repository.countUnreadForChannels([
 			{channelId: 1, lastReadMessageId: lastReadId},

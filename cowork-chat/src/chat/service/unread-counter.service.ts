@@ -17,14 +17,14 @@ import {type Nullable} from '../../common/type/nullable.js';
 // This.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
 // 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
 type WithUnreadCounterScripts<Context extends ClientContext = {type: 'default'}> = {
-	incrementIfPresentScript(field: string, appliedKey: string, appliedTtlSeconds: number, chunkIndex: number, ...keys: string[]): Result<number, Context>;
-	setIfNotStaleScript(key: string, field: string, cursorField: string, cursor: string, count: string, ttlSeconds: number, replaceSameCursorFlag: string): Result<number, Context>;
+	incrementIfPresentScript(field: string, appliedKey: string, appliedTtlSeconds: number, chunkIndex: number, messageTime: number, ...keys: string[]): Result<number, Context>;
+	setIfNotStaleScript(key: string, field: string, cursorField: string, cursor: string, count: string, ttlSeconds: number, replaceSameCursorFlag: string, joinedTime: number): Result<number, Context>;
 };
 type UnreadCounterRedis = Redis & WithUnreadCounterScripts;
 type UnreadCounterPipeline = ChainableCommander & WithUnreadCounterScripts<{type: 'pipeline'}>;
 
 // ARGV[1]=field ARGV[2]=적용 기록 비트맵 키('' 이면 기록 없음) ARGV[3]=그 TTL ARGV[4]=청크 번호
-// ARGV[5..]=유저별 unread:{userId} 해시 키 — 필드가 이미 존재하는 키에 대해서만 1 증가시킨다.
+// ARGV[5]=메시지 생성 시각(ms) ARGV[6..]=유저별 unread:{userId} 해시 키 — 필드가 이미 존재하는 키에 대해서만 1 증가시킨다.
 // 청크 하나가 스크립트 한 번이라 청크 단위로 원자적이므로, 적용 기록은 수신자가 아니라 청크 번호 비트로 남긴다.
 // 비트가 이미 켜진 청크는 통째로 건너뛰어 같은 이벤트의 재처리가 (이벤트, 수신자)당 한 번만 반영되고,
 // 기록은 수신자 수와 무관하게 이벤트당 수 바이트로 유지된다. 필드가 없어도 기록해야, 그 사이 캐시미스 폴백이
@@ -42,8 +42,11 @@ if applied ~= '' then
     end
 end
 local incremented = 0
-for i = 5, #ARGV do
-    if redis.call('HEXISTS', ARGV[i], field) == 1 then
+local messageTime = tonumber(ARGV[5])
+local joinedField = field .. ':joinedAt'
+for i = 6, #ARGV do
+    local joinedTime = redis.call('HGET', ARGV[i], joinedField)
+    if joinedTime and messageTime > tonumber(joinedTime) and redis.call('HEXISTS', ARGV[i], field) == 1 then
         redis.call('HINCRBY', ARGV[i], field, 1)
         incremented = incremented + 1
     end
@@ -53,37 +56,39 @@ return incremented
 
 // KEYS[1]=unread:{userId} ARGV[1]=channelId 필드 ARGV[2]=그 읽음 위치 필드 ARGV[3]=이번 값의 읽음 위치(hex, 없으면 '')
 // ARGV[4]=안읽음 수 ARGV[5]=TTL ARGV[6]=같은 읽음 위치면 덮어쓸지('1'|'0')
+// ARGV[7]=팀 가입 시각(ms), DM은 0. 재가입 시 예전 가입 기간에 계산한 수와 읽음 위치를 무시한다.
 // 저장된 읽음 위치보다 오래된 위치로 계산한 값은 버린다. ObjectId hex는 길이가 같은 소문자라 문자열 비교가
 // MongoDB `$max`의 ObjectId 비교와 순서가 같고, ''(읽음 위치 없음)는 어떤 위치보다도 앞선다.
-// 읽음 위치가 기록되지 않은 이전 형식의 값은 읽음 처리는 덮어쓰고, 캐시미스 채움은 이미 값이 있으면 건드리지 않는다.
-// 두 필드에는 같은 필드 TTL을 건다. 해시 키 EXPIRE는 다른 채널에 쓸 때마다 늘어나 활동 중인 사용자에게는 만료되지 않지만,
+// 개수, 읽음 위치, 가입 시각에는 같은 필드 TTL을 건다. 해시 키 EXPIRE는 다른 채널에 쓸 때마다 늘어나 활동 중인 사용자에게는 만료되지 않지만,
 // 필드 TTL은 HINCRBY로는 늘어나지 않아 증가와 교차해 어긋난 값도 마지막 정확한 기록 뒤 TTL 안에 사라지고 캐시미스 폴백이
 // 다시 채운다. count와 cursor가 함께 만료되어야 cursor만 남아 같은 위치의 캐시미스 채움을 막는 일이 없다(Redis 7.4+).
 const SET_IF_NOT_STALE_SCRIPT = `
-local stored = redis.call('HGET', KEYS[1], ARGV[2])
-if stored then
-    if ARGV[3] < stored or (ARGV[3] == stored and ARGV[6] ~= '1') then
-        return 0
-    end
-elseif ARGV[6] ~= '1' and redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
+local joinedField = ARGV[1] .. ':joinedAt'
+local storedJoin = redis.call('HGET', KEYS[1], joinedField)
+if storedJoin and tonumber(storedJoin) > tonumber(ARGV[7]) then
     return 0
 end
-redis.call('HSET', KEYS[1], ARGV[1], ARGV[4], ARGV[2], ARGV[3])
-redis.call('HEXPIRE', KEYS[1], ARGV[5], 'FIELDS', 2, ARGV[1], ARGV[2])
+if storedJoin == ARGV[7] then
+    local stored = redis.call('HGET', KEYS[1], ARGV[2])
+    if stored and (ARGV[3] < stored or (ARGV[3] == stored and ARGV[6] ~= '1')) then
+        return 0
+    end
+end
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[4], ARGV[2], ARGV[3], joinedField, ARGV[7])
+redis.call('HEXPIRE', KEYS[1], ARGV[5], 'FIELDS', 3, ARGV[1], ARGV[2], joinedField)
 redis.call('EXPIRE', KEYS[1], ARGV[5])
 return 1
 `;
 
-// 키 v2: 음성 채널 로그 권한이 없는 사용자의 안읽음 수에서 음성 채널 SYSTEM 메시지를 뺀다.
-// 이전 키에는 그 메시지 수가 들어 있으므로 키를 바꿔 한 번 다시 계산하게 한다. 이전 키는 TTL로 사라진다.
-const KEY_PREFIX = 'unread:v2:';
+// 가입 전 메시지가 포함된 v2 캐시는 자체 TTL로 만료된다.
+const KEY_PREFIX = 'unread:v3:';
 const CURSOR_FIELD_SUFFIX = ':cursor';
-// 수신자별 set을 쓰던 이전 `unread:applied:` 키와 타입이 달라 접두사를 분리한다.
-const APPLIED_KEY_PREFIX = 'unread:applied-chunks:';
+const APPLIED_KEY_PREFIX = 'unread:applied-chunks:v3:';
 const TTL_SECONDS = 86_400;
 const INCREMENT_CHUNK_SIZE = 100;
 
 export type UnreadCacheEntry = {
+	joinedAt?: Date;
 	count: number;
 	// 이 값을 계산한 기준 읽음 위치(ObjectId hex). 읽음 기록이 없으면 null.
 	readCursor: Nullable<string>;
@@ -143,6 +148,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
 			String(entry.count),
 			TTL_SECONDS,
 			shouldReplaceSameCursor ? '1' : '0',
+			entry.joinedAt?.getTime() ?? 0,
 		);
 	}
 
@@ -165,18 +171,20 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      @returns 캐시에 값이 있는 채널은 `hits`, 없는(또는 Redis 오류로 판단 불가한) 채널은 `misses`.
      Redis 자체가 오류를 던지면 `null`을 반환해 호출부가 전체를 미스로 간주하고 폴백하게 한다.
      */
-	async getMany(userId: number, channelIds: number[]): Promise<Nullable<UnreadCacheResult>> {
+	async getMany(userId: number, channelIds: number[], joinedAt?: Date): Promise<Nullable<UnreadCacheResult>> {
 		if (channelIds.length === 0) {
 			return {hits: new Map(), misses: []};
 		}
 
 		try {
-			const values = await this.client.hmget(this.key(userId), ...channelIds.map(String));
+			const joinedTime = String(joinedAt?.getTime() ?? 0);
+			const fields = channelIds.flatMap(id => [String(id), `${id}:joinedAt`]);
+			const values = await this.client.hmget(this.key(userId), ...fields);
 			const hits = new Map<number, number>();
 			const misses: number[] = [];
 			for (const [i, channelId] of channelIds.entries()) {
-				const raw = values[i];
-				if (raw === null || raw === undefined) {
+				const raw = values[i * 2];
+				if (raw === null || raw === undefined || values[(i * 2) + 1] !== joinedTime) {
 					misses.push(channelId);
 				} else {
 					hits.set(channelId, Number(raw));
@@ -235,7 +243,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
 
 	/**
      새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
-     `eventId`(메시지 ID)를 주면 `unread:applied-chunks:{eventId}` 비트맵으로 (eventId, 수신자)당 한 번만 반영해,
+     `eventId`(메시지 ID)를 주면 `unread:applied-chunks:v3:{eventId}` 비트맵으로 (eventId, 수신자)당 한 번만 반영해,
      outbox 재처리가 같은 메시지로 안읽음 수를 다시 올리지 않는다. 비트맵 TTL은 처리할 때마다 캐시와 같은 TTL로
      다시 늘어나므로, 기록이 사라진 뒤 재처리되는 경우는 처리 사이 간격이 TTL을 넘는 장애뿐이다.
      필드가 없는(캐시 미스 상태인) 유저는 건드리지 않는다 — 다음 조회의 캐시미스 폴백이 처리한다.
@@ -244,7 +252,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
      재처리 때 같은 청크 번호가 같은 수신자를 가리키도록 유저 ID를 정렬해 자른다.
      */
-	async incrementIfPresent(channelId: number, userIds: number[], eventId?: string): Promise<void> {
+	async incrementIfPresent(channelId: number, userIds: number[], createdAt: Date, eventId?: string): Promise<void> {
 		if (userIds.length === 0) {
 			return;
 		}
@@ -257,7 +265,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
 			const keys = userIds.toSorted((a, b) => a - b).map(userId => this.key(userId));
 			const pipeline = this.client.pipeline() as UnreadCounterPipeline;
 			for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
-				pipeline.incrementIfPresentScript(field, appliedKey, TTL_SECONDS, i / INCREMENT_CHUNK_SIZE, ...keys.slice(i, i + INCREMENT_CHUNK_SIZE));
+				pipeline.incrementIfPresentScript(field, appliedKey, TTL_SECONDS, i / INCREMENT_CHUNK_SIZE, createdAt.getTime(), ...keys.slice(i, i + INCREMENT_CHUNK_SIZE));
 			}
 
 			await pipeline.exec();
