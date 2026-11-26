@@ -15,6 +15,7 @@ import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard.js';
 
 describe('GithubWebhookController', () => {
 	let controller: GithubWebhookController;
+	let backfill: {enqueue: jest.Mock};
 	let producer: {send: jest.Mock};
 	let repoEventProducer: {send: jest.Mock};
 	let readModelProducers: {
@@ -30,6 +31,7 @@ describe('GithubWebhookController', () => {
 	let projectBoardWebhookHandler: {handleProjectItem: jest.Mock; handleProject: jest.Mock; handleContentChanged: jest.Mock};
 
 	beforeEach(async () => {
+		backfill = {enqueue: jest.fn()};
 		producer = {send: jest.fn()};
 		repoEventProducer = {send: jest.fn()};
 		readModelProducers = {
@@ -54,7 +56,7 @@ describe('GithubWebhookController', () => {
 		const module: TestingModule = await Test.createTestingModule({
 			controllers: [GithubWebhookController],
 			providers: [
-				{provide: GithubBackfillService, useValue: {enqueue: jest.fn()}},
+				{provide: GithubBackfillService, useValue: backfill},
 				{provide: TeamGithubProducer, useValue: producer},
 				{provide: RepoEventProducer, useValue: repoEventProducer},
 				{provide: GithubReadModelEventProducers, useValue: readModelProducers},
@@ -153,6 +155,9 @@ describe('GithubWebhookController', () => {
         '🔀 PR #7 opened: Add feature (https://github.com/my-org/my-repo/pull/7)',
 		});
 		expect(pullRequestService.listPullRequestFiles).toHaveBeenCalledWith('my-org', 'my-repo', 7);
+		expect(backfill.enqueue).toHaveBeenCalledWith({
+			type: 'TIMELINE', owner: 'my-org', repo: 'my-repo', number: 7,
+		});
 		expect(readModelProducers.pullRequest.send).toHaveBeenCalledWith(expect.objectContaining({
 			owner: 'my-org',
 			repo: 'my-repo',
@@ -164,6 +169,15 @@ describe('GithubWebhookController', () => {
 			baseRef: 'main',
 			files: [],
 		}));
+	});
+
+	it.each(['pull_request_review', 'pull_request_review_comment'])('%s 이벤트가 오면 해당 PR의 활동 이력을 갱신한다', async eventName => {
+		await controller.handle(eventName, {
+			repository: {[githubField.fullName]: 'my-org/my-repo'}, [githubField.pullRequest]: {number: 12},
+		});
+		expect(backfill.enqueue).toHaveBeenCalledWith({
+			type: 'TIMELINE', owner: 'my-org', repo: 'my-repo', number: 12,
+		});
 	});
 
 	it('PR state 발행이 실패하면 예외가 전파된다(재시도 대상이 되도록)', async () => {

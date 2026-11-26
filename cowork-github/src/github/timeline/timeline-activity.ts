@@ -57,49 +57,52 @@ export function toTimelineActivity(event: TimelineEvent, appId: string): Timelin
 		throw new Error(`Missing GitHub timeline identity or timestamp for ${type}`);
 	}
 
-	const activity: TimelineActivity = {
+	return {
 		id: `${type}:${id}`, type, occurredAt: new Date(date).toISOString(),
-		actor: event.actor?.login, htmlUrl: event.html_url,
+		actor: event.actor?.login, htmlUrl: event.html_url, ...activityDetails(event, appId),
 	};
+}
 
-	switch (type) {
+function activityDetails(event: TimelineEvent, appId: string): Partial<TimelineActivity> {
+	const commitSha = event.commit_id ?? undefined;
+	switch (event.event) {
 		case 'commented': {
 			const {author, body} = readCommentAuthor(event, appId);
 			return {
-				...activity, actor: author, body, commentId: event.id,
+				actor: author, body, commentId: event.id,
 			};
 		}
 
 		case 'committed': {
 			return {
-				...activity, actor: event.author?.name ?? event.committer?.name, body: event.message, commitSha: event.sha,
+				actor: event.author?.name ?? event.committer?.name, body: event.message, commitSha: event.sha,
 			};
 		}
 
 		case 'review_commented': {
 			return {
-				...activity, actor: event.user?.login, body: event.body, commitSha: event.commit_id ?? undefined,
+				actor: event.user?.login, body: event.body, commitSha,
 				commentId: event.id, reviewId: event.pull_request_review_id, path: event.path, line: event.line ?? event.original_line ?? undefined,
 			};
 		}
 
 		case 'reviewed': {
 			return {
-				...activity, actor: event.user?.login, body: event.body, reviewId: event.id, reviewState: event.state, commitSha: event.commit_id ?? undefined,
+				actor: event.user?.login, body: event.body, reviewId: event.id, reviewState: event.state, commitSha,
 			};
 		}
 
 		case 'review_dismissed': {
-			return {...activity, body: event.dismissed_review?.dismissal_message};
+			return {body: event.dismissed_review?.dismissal_message};
 		}
 
 		case 'labeled':
 		case 'unlabeled': {
-			return {...activity, labelName: event.label?.name, labelColor: event.label?.color};
+			return {labelName: event.label?.name, labelColor: event.label?.color};
 		}
 
 		default: {
-			return {...activity, commitSha: event.commit_id ?? undefined};
+			return {commitSha};
 		}
 	}
 }
