@@ -107,7 +107,7 @@ class SecurityConfig(
                         "/api/authorization/auth/authorize",
                         "/api/authorization/auth/callback",
                         "/api/authorization/auth/refresh",
-                        // 에이전트 토큰 원문을 본문으로 받아 검증하므로 Cowork JWT가 없다.
+                        // 에이전트 토큰 원문을 X-Cowork-Agent-Token 헤더로 받아 검증하므로 Cowork JWT가 없다.
                         "/api/authorization/auth/agent-tokens/exchange",
                     ).permitAll()
                     // 파일 요청은 S3 서명으로 인증하고 공개 아이콘은 익명 읽기를 허용한다.
