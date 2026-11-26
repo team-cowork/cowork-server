@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {setInterval, setTimeout as delay} from 'node:timers/promises';
 import {type Logger} from '@nestjs/common';
 import {type Consumer, ListOffsetTimestamps, protocolErrors} from '@platformatic/kafka';
-import {type FetchPosition, PartitionFetcher} from './partition-fetcher.js';
+import {createCommittedFetcher, type FetchPosition, PartitionFetcher} from './partition-fetcher.js';
 
 const topic = 'test.topic';
 const topicId = 'test-topic-uuid';
@@ -16,6 +16,13 @@ class FakeConsumer {
 	readonly logs = new Map<number, string[]>([[0, []], [1, []]]);
 	readonly logStart = new Map<number, number>();
 	readonly fetchOffsets: Array<[number, bigint]> = [];
+	readonly committed = new Map<number, bigint>();
+	readonly commits: bigint[] = [];
+	/**
+	 비우지 않으면 커밋 offset 조회가 이 promise를 하나씩 꺼내 기다린다.
+	 */
+	readonly lookupGates: Array<Promise<void>> = [];
+	generationId?: number;
 	leaders = [1, 1];
 	failingNode?: number;
 
@@ -52,6 +59,20 @@ class FakeConsumer {
 		return new Map([[topic, offsets]]);
 	}
 
+	async listCommittedOffsets({topics}: {topics: Array<{partitions: number[]}>}) {
+		const offsets: bigint[] = [];
+		for (const partition of topics[0].partitions) {
+			offsets[partition] = this.committed.get(partition) ?? -1n;
+		}
+
+		await this.lookupGates.shift();
+		return new Map([[topic, offsets]]);
+	}
+
+	async commit({offsets}: {offsets: Array<{offset: bigint}>}): Promise<void> {
+		this.commits.push(...offsets.map(({offset}) => offset));
+	}
+
 	async fetch({node, topics}: {node: number; topics: Array<{topicId: string; partitions: Array<{partition: number; fetchOffset: bigint}>}>}) {
 		await delay(5);
 		if (node === this.failingNode) {
@@ -86,6 +107,7 @@ class FakeConsumer {
 	}
 
 	assign(partitions: number[], generationId = 1): void {
+		this.generationId = generationId;
 		this.emit('consumer:group:join', {
 			groupId: 'group', memberId: 'member', generationId, assignments: [{topic, partitions}],
 		});
@@ -328,5 +350,66 @@ describe('PartitionFetcher', () => {
 		await waitFor(() => handled.length === 2);
 		expect(maxInFlight).toBe(1);
 		expect(handled).toEqual(['a', 'b']);
+	});
+});
+
+describe('createCommittedFetcher', () => {
+	const fetchers: PartitionFetcher[] = [];
+	afterEach(async () => {
+		await Promise.all(fetchers.splice(0).map(async fetcher => fetcher.close()));
+	});
+
+	async function start(isFromBeginning: boolean) {
+		const consumer = new FakeConsumer();
+		const handled: string[] = [];
+		const fetcher = createCommittedFetcher(consumer as unknown as Consumer, {
+			logger,
+			topic,
+			fromBeginning: isFromBeginning,
+			async handle(record) {
+				handled.push(record.value!);
+			},
+		});
+		fetchers.push(fetcher);
+		await fetcher.start();
+		return {consumer, handled};
+	}
+
+	it('배정되면 group에 커밋된 offset부터 처리하고, 처리한 다음 offset을 커밋한다', async () => {
+		const {consumer, handled} = await start(true);
+		consumer.logs.set(0, ['a', 'b', 'c']);
+		consumer.committed.set(0, 1n);
+		consumer.assign([0]);
+		await waitFor(() => handled.length === 2);
+		expect(handled).toEqual(['b', 'c']);
+		await waitFor(() => consumer.commits.at(-1) === 3n);
+	});
+
+	it('커밋된 offset이 없으면 fromBeginning에 따른 위치부터 처리한다', async () => {
+		const {consumer, handled} = await start(false);
+		consumer.logs.set(0, ['a', 'b']);
+		consumer.assign([0]);
+		await waitFor(() => consumer.fetchOffsets.length > 0);
+		consumer.logs.get(0)!.push('c');
+		await waitFor(() => handled.length === 1);
+		expect(handled).toEqual(['c']);
+	});
+
+	it('조회하는 사이 generation이 바뀌면 이전 조회 결과로 시작하지 않는다', async () => {
+		const {consumer, handled} = await start(true);
+		const stale = Promise.withResolvers<void>();
+		const current = Promise.withResolvers<void>();
+		consumer.lookupGates.push(stale.promise, current.promise);
+		consumer.logs.set(0, ['a', 'b', 'c']);
+		consumer.assign([0], 1);
+		consumer.committed.set(0, 2n);
+		consumer.assign([0], 2);
+		stale.resolve();
+		await delay(50);
+		expect(consumer.fetchOffsets).toEqual([]);
+
+		current.resolve();
+		await waitFor(() => handled.length === 1);
+		expect(handled).toEqual(['c']);
 	});
 });

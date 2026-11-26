@@ -480,15 +480,8 @@ export function createGroupConsumer(configService: ConfigService, clientId: stri
 	});
 }
 
-/**
- Broker group offset을 기준으로 소비한다. `handle`이 끝나면 offset을 커밋하고, 예외를 던지면 커밋하지 않고
- backoff 뒤 같은 record부터 다시 fetch한다. 파티션 안의 순서는 항상 유지한다.
- */
-export async function startCommittedConsumer(input: {
+type CommittedConsumerInput = {
 	logger: Logger;
-	configService: ConfigService;
-	clientId: string;
-	groupId: string;
 	topic: string;
 	/**
 	 커밋된 offset이 없을 때의 시작 위치이자, 커밋된 offset이 보존 범위를 벗어났을 때 되돌아갈 위치.
@@ -499,9 +492,29 @@ export async function startCommittedConsumer(input: {
 	 */
 	concurrency?: number;
 	handle(record: ConsumedRecord): Promise<void>;
+};
+
+/**
+ Broker group offset을 기준으로 소비한다. `handle`이 끝나면 offset을 커밋하고, 예외를 던지면 커밋하지 않고
+ backoff 뒤 같은 record부터 다시 fetch한다. 파티션 안의 순서는 항상 유지한다.
+ */
+export async function startCommittedConsumer(input: CommittedConsumerInput & {
+	configService: ConfigService;
+	clientId: string;
+	groupId: string;
 }): Promise<KafkaConsumerHandle> {
 	const {logger, topic} = input;
-	const consumer = createGroupConsumer(input.configService, input.clientId, input.groupId);
+	const fetcher = createCommittedFetcher(createGroupConsumer(input.configService, input.clientId, input.groupId), input);
+	await connectWithRetry(logger, `Kafka consumer startup: ${topic}`, async () => fetcher.start());
+	logger.log(`Kafka consumer started: ${topic}`);
+	return fetcher;
+}
+
+/**
+ Group에 배정될 때마다 커밋된 offset부터 읽고, 처리해 전진한 위치를 커밋하는 fetcher를 만든다.
+ */
+export function createCommittedFetcher(consumer: Consumer, input: CommittedConsumerInput): PartitionFetcher {
+	const {logger, topic} = input;
 	const resetTo = input.fromBeginning ? 'earliest' : 'latest';
 	const fetcher = new PartitionFetcher({
 		logger,
@@ -531,8 +544,6 @@ export async function startCommittedConsumer(input: {
 			throw error;
 		});
 	});
-	await connectWithRetry(logger, `Kafka consumer startup: ${topic}`, async () => fetcher.start());
-	logger.log(`Kafka consumer started: ${topic}`);
 	return fetcher;
 }
 
