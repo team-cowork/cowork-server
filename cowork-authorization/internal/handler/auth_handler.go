@@ -57,7 +57,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	session, _ := c.Cookie(loginCookieName(req.State))
 	setLoginCookie(c, req.State, "", -1)
 	callback := url.Values{"state": {req.State}, "code": {req.Code}, "error": {req.Error}}
-	pair, err := h.authSvc.CompleteLogin(c.Request.Context(), session, callback)
+	result, err := h.authSvc.CompleteLogin(c.Request.Context(), session, callback, req.DataGSMRedirectURI)
 	if err != nil {
 		// Provider/DB errors can contain identity or unique-index values.
 		slog.Warn("token exchange failed")
@@ -65,8 +65,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	setWsCookie(c, pair)
-	c.JSON(http.StatusOK, pair)
+	if result.AuthorizationURL != "" {
+		writeAuthorizationURL(c, http.StatusAccepted, result.AuthorizationURL, result.Session)
+		return
+	}
+	setWsCookie(c, result.Tokens)
+	c.JSON(http.StatusOK, result.Tokens)
 }
 
 func (h *AuthHandler) DevSignIn(c *gin.Context) {
@@ -98,14 +102,15 @@ func (h *AuthHandler) DevSignIn(c *gin.Context) {
 }
 
 type LoginCallbackRequest struct {
-	State string `json:"state" binding:"required"`
-	Code  string `json:"code"`
-	Error string `json:"error"`
+	State              string `json:"state" binding:"required"`
+	Code               string `json:"code"`
+	Error              string `json:"error"`
+	DataGSMRedirectURI string `json:"datagsm_redirect_uri"`
 }
 
 type LoginStartRequest struct {
 	RedirectURI string `json:"redirect_uri" binding:"required"`
-	// Provider is DATAGSM when omitted.
+	// Defaults to GitHub when configured.
 	Provider string `json:"provider"`
 }
 
@@ -140,13 +145,17 @@ func (h *AuthHandler) startAttempt(c *gin.Context, begin func(LoginStartRequest)
 		loginError(c, err)
 		return
 	}
+	writeAuthorizationURL(c, http.StatusOK, authorizationURL, session)
+}
+
+func writeAuthorizationURL(c *gin.Context, status int, authorizationURL, session string) {
 	location, err := url.Parse(authorizationURL)
 	if err != nil || location.Query().Get("state") == "" {
 		loginError(c, service.ErrAuthenticationUnavailable)
 		return
 	}
 	setLoginCookie(c, location.Query().Get("state"), session, int(service.LoginAttemptTTL.Seconds()))
-	c.JSON(http.StatusOK, LoginStartResponse{AuthorizationURL: authorizationURL})
+	c.JSON(status, LoginStartResponse{AuthorizationURL: authorizationURL})
 }
 
 // LinkCallback completes a link attempt. The attempt must belong to the user that Gateway authenticated.
@@ -210,8 +219,6 @@ func loginError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "login method is not linked to the existing account"})
 	case errors.Is(err, service.ErrIdentityAlreadyLinked):
 		c.JSON(http.StatusConflict, gin.H{"error": "login method is already linked"})
-	case errors.Is(err, service.ErrDataGSMLoginRequired):
-		c.JSON(http.StatusConflict, gin.H{"error": "datagsm login required"})
 	case errors.Is(err, service.ErrGitHubLoginRequired):
 		c.JSON(http.StatusConflict, gin.H{"error": "github login required"})
 	case errors.Is(err, service.ErrAuthenticationUnavailable):

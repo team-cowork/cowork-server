@@ -17,18 +17,19 @@ import (
 const githubCallback = "https://app.example/auth/github/callback"
 
 type githubFixture struct {
-	svc          *AuthService
-	store        *memoryLoginAttempts
-	identity     *fakeIdentityCoordinator
-	now          time.Time
-	calls        int
-	tokenForm    url.Values
-	tokenBody    string
-	tokenStatus  int
-	userBody     string
-	emailsBody   string
-	emailsStatus int
-	emailsHeader http.Header
+	svc              *AuthService
+	store            *memoryLoginAttempts
+	identity         *fakeIdentityCoordinator
+	now              time.Time
+	calls            int
+	tokenForm        url.Values
+	tokenBody        string
+	tokenStatus      int
+	userBody         string
+	secondEmailsPage string
+	emailsBody       string
+	emailsStatus     int
+	emailsHeader     http.Header
 }
 
 func newGitHubFixture(t *testing.T) *githubFixture {
@@ -64,6 +65,14 @@ func newGitHubFixture(t *testing.T) *githubFixture {
 			}
 			return jsonResponse(200, f.userBody), nil
 		case "api.github.com/user/emails":
+			if f.secondEmailsPage != "" {
+				if r.URL.Query().Get("page") == "2" {
+					return jsonResponse(200, f.secondEmailsPage), nil
+				}
+				response := jsonResponse(200, f.emailsBody)
+				response.Header.Set("Link", `<https://api.github.com/user/emails?page=2>; rel="next"`)
+				return response, nil
+			}
 			response := jsonResponse(f.emailsStatus, f.emailsBody)
 			for name, values := range f.emailsHeader {
 				response.Header[name] = values
@@ -127,7 +136,7 @@ func TestGitHubLoginUsesTheNumericIDAndVerifiedPrimaryEmail(t *testing.T) {
 	session, callback := f.beginLogin(t)
 	attempt := f.store.attempts[HashToken(session)]
 
-	pair, err := f.svc.CompleteLogin(context.Background(), session, callback)
+	pair, err := f.svc.CompleteLogin(context.Background(), session, callback, "")
 	if err != nil || pair == nil {
 		t.Fatalf("pair=%v err=%v", pair, err)
 	}
@@ -144,7 +153,7 @@ func TestGitHubLoginUsesTheNumericIDAndVerifiedPrimaryEmail(t *testing.T) {
 	}
 
 	before := f.calls
-	if _, err := f.svc.CompleteLogin(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != before {
+	if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); !errors.Is(err, ErrAuthenticationRejected) || f.calls != before {
 		t.Fatal("a reused callback reached GitHub")
 	}
 }
@@ -164,7 +173,7 @@ func TestGitHubLoginReportsAVerifiedSchoolEmailInAnyPosition(t *testing.T) {
 			f := newGitHubFixture(t)
 			f.emailsBody = tc.emails
 			session, callback := f.beginLogin(t)
-			if _, err := f.svc.CompleteLogin(context.Background(), session, callback); err != nil {
+			if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); err != nil {
 				t.Fatal(err)
 			}
 			if got := f.identity.command.GSMEmailVerified; got == nil || *got != tc.want {
@@ -191,7 +200,7 @@ func TestGitHubLoginRejectsUnverifiedAccounts(t *testing.T) {
 			f := newGitHubFixture(t)
 			session, callback := f.beginLogin(t)
 			mutate(f)
-			if _, err := f.svc.CompleteLogin(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.identity.calls != 0 {
+			if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); !errors.Is(err, ErrAuthenticationRejected) || f.identity.calls != 0 {
 				t.Fatalf("err=%v identity calls=%d", err, f.identity.calls)
 			}
 		})
@@ -203,7 +212,7 @@ func TestGitHubProviderFailuresAreNotAuthenticationFailures(t *testing.T) {
 	session, callback := f.beginLogin(t)
 	f.tokenStatus = http.StatusTooManyRequests
 	var limited *ProviderRateLimitError
-	if _, err := f.svc.CompleteLogin(context.Background(), session, callback); !errors.As(err, &limited) {
+	if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); !errors.As(err, &limited) {
 		t.Fatalf("err=%v, want rate limit", err)
 	}
 
@@ -212,14 +221,14 @@ func TestGitHubProviderFailuresAreNotAuthenticationFailures(t *testing.T) {
 	f.emailsStatus, f.emailsBody = http.StatusForbidden, `{"message":"API rate limit exceeded"}`
 	f.emailsHeader = http.Header{"X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {strconv.FormatInt(time.Now().Add(time.Minute).Unix(), 10)}}
 	limited = nil
-	if _, err := f.svc.CompleteLogin(context.Background(), session, callback); !errors.As(err, &limited) || limited.RetryAfter == "" {
+	if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); !errors.As(err, &limited) || limited.RetryAfter == "" {
 		t.Fatalf("err=%v, want rate limit with Retry-After", err)
 	}
 
 	f = newGitHubFixture(t)
 	session, callback = f.beginLogin(t)
 	f.tokenBody = `{"error":"incorrect_client_credentials"}`
-	if _, err := f.svc.CompleteLogin(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationUnavailable) {
+	if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); !errors.Is(err, ErrAuthenticationUnavailable) {
 		t.Fatalf("err=%v, want unavailable", err)
 	}
 }
@@ -252,7 +261,7 @@ func TestGitHubLinkIsBoundToTheUserWhoStartedIt(t *testing.T) {
 	}
 
 	session, callback = f.beginLink(t, 7)
-	if _, err := f.svc.CompleteLogin(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+	if _, err := f.svc.CompleteLogin(context.Background(), session, callback, ""); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
 		t.Fatalf("a link attempt signed in: err=%v calls=%d", err, f.calls)
 	}
 
@@ -297,5 +306,104 @@ func TestGitHubDisplayName(t *testing.T) {
 		if got := githubDisplayName(tc.name, "octocat"); got != tc.want {
 			t.Fatalf("githubDisplayName()=%q, want %q", got, tc.want)
 		}
+	}
+}
+
+func TestSchoolLoginVerifiesBothProvidersBeforeIssuingTokens(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		callbackCode    string
+		accountConflict bool
+	}{
+		{name: "linked", callbackCode: "school-code"},
+		{name: "cancelled"},
+		{name: "different owners", callbackCode: "school-code", accountConflict: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			gh := newGitHubFixture(t)
+			school := newLoginFixture(t)
+			school.login.attempts = gh.store
+			school.now = gh.now
+			gh.svc.login = school.login
+			gh.emailsBody = `[{"email":"octo@example.com","verified":true,"primary":true},{"email":"student@gsm.hs.kr","verified":true}]`
+			gh.identity.err = ErrDataGSMLoginRequired
+			raw, session, err := gh.svc.BeginLogin(ctx, "", githubCallback)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first := gh.callback(t, raw)
+			next, err := gh.svc.CompleteLogin(ctx, session, first, "https://app.example/callback")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if next.Tokens != nil || next.Session == "" || next.Session == session ||
+				gh.svc.refreshTokenRepo.(*fakeRefreshTokenStore).createdToken != nil {
+				t.Fatal("expected an independent DataGSM attempt without tokens")
+			}
+			u, err := url.Parse(next.AuthorizationURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			school.nonce = u.Query().Get("nonce")
+			state := u.Query().Get("state")
+			if state == first.Get("state") || state == "" || school.nonce == "" {
+				t.Fatal("expected a fresh DataGSM state and nonce")
+			}
+			githubCalls := gh.calls
+			values := url.Values{"state": {state}, "code": {tc.callbackCode}}
+			if tc.callbackCode == "" {
+				values.Set("error", "access_denied")
+			}
+			gh.identity.err = nil
+			if tc.accountConflict {
+				gh.identity.err = ErrIdentityAlreadyLinked
+			}
+			result, err := gh.svc.CompleteLogin(ctx, next.Session, values, "")
+			if tc.accountConflict || tc.callbackCode == "" {
+				if err == nil || result != nil || gh.svc.refreshTokenRepo.(*fakeRefreshTokenStore).createdToken != nil {
+					t.Fatal("failed second step issued tokens")
+				}
+				if tc.callbackCode == "" && gh.identity.calls != 1 {
+					t.Fatal("cancelled attempt reached the identity owner")
+				}
+			} else {
+				if err != nil || result.Tokens == nil {
+					t.Fatalf("missing session: %v", err)
+				}
+				cmd := gh.identity.command
+				if cmd.CommandType != domain.UserIdentityCommandSchoolLogin || cmd.ProviderSubject != "99" || cmd.GitHubIdentity == nil ||
+					cmd.GitHubIdentity.ID != 583231 || cmd.GitHubIdentity.Email != "octo@example.com" || cmd.Student == nil {
+					t.Fatalf("unexpected identity command: %+v", cmd)
+				}
+			}
+			if gh.calls != githubCalls {
+				t.Fatal("second step contacted GitHub again")
+			}
+			if _, err := gh.svc.CompleteLogin(ctx, next.Session, values, ""); !errors.Is(err, ErrAuthenticationRejected) {
+				t.Fatalf("reused callback: %v", err)
+			}
+		})
+	}
+}
+
+func TestSchoolLoginRejectsAnUnregisteredDataGSMCallback(t *testing.T) {
+	f := newGitHubFixture(t)
+	f.emailsBody = `[{"email":"student@gsm.hs.kr","verified":true,"primary":true}]`
+	f.identity.err = ErrDataGSMLoginRequired
+	session, callback := f.beginLogin(t)
+	result, err := f.svc.CompleteLogin(context.Background(), session, callback, "https://other.example/callback")
+	if !errors.Is(err, ErrInvalidLoginRequest) || result != nil || len(f.store.attempts) != 0 {
+		t.Fatalf("unexpected continuation: %+v, %v", result, err)
+	}
+}
+
+func TestGitHubLoginFindsSchoolEmailOnALaterPage(t *testing.T) {
+	f := newGitHubFixture(t)
+	f.secondEmailsPage = `[{"email":"student@gsm.hs.kr","verified":true}]`
+	session, callback := f.beginLogin(t)
+	result, err := f.svc.CompleteLogin(context.Background(), session, callback, "")
+	if err != nil || result.Tokens == nil || !*f.identity.command.GSMEmailVerified {
+		t.Fatalf("school email on second page: %v", err)
 	}
 }

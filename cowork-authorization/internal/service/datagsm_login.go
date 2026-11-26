@@ -14,6 +14,7 @@ import (
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
 
 	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/monitoring"
 )
 
@@ -33,8 +34,9 @@ type ProviderRateLimitError struct{ RetryAfter string }
 func (*ProviderRateLimitError) Error() string { return "authentication rate limit exceeded" }
 
 const (
-	ProviderDataGSM = "DATAGSM"
-	ProviderGitHub  = "GITHUB"
+	ProviderDataGSM     = "DATAGSM"
+	ProviderGitHub      = "GITHUB"
+	providerSchoolLogin = "GITHUB_DATAGSM"
 )
 
 type LoginAttempt struct {
@@ -45,8 +47,9 @@ type LoginAttempt struct {
 	Authorization oauth.Authorization `json:"authorization"`
 	RedirectURI   string              `json:"redirect_uri"`
 	ExpiresAt     time.Time           `json:"expires_at"`
-	// LinkUserID binds a link attempt to the signed-in Cowork user. Login attempts leave it zero.
-	LinkUserID int64 `json:"link_user_id,omitempty"`
+	// LinkUserID binds a link attempt to the signed-in cowork user. Login attempts leave it zero.
+	LinkUserID     int64                  `json:"link_user_id,omitempty"`
+	GitHubIdentity *domain.GitHubIdentity `json:"github_identity,omitempty"`
 }
 
 func (a LoginAttempt) provider() string {
@@ -121,8 +124,12 @@ func (s *DataGSMLogin) AllowsOrigin(origin string) bool {
 	return false
 }
 
-// Begin creates a login attempt. A positive linkUserID makes it a link attempt for that Cowork user.
+// Begin creates a login attempt. A positive linkUserID makes it a link attempt for that cowork user.
 func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string, linkUserID int64) (string, string, error) {
+	return s.begin(ctx, redirectURI, LoginAttempt{Provider: ProviderDataGSM, LinkUserID: linkUserID})
+}
+
+func (s *DataGSMLogin) begin(ctx context.Context, redirectURI string, loginAttempt LoginAttempt) (string, string, error) {
 	client := s.clients[redirectURI]
 	if client == nil {
 		return "", "", loginFailure("redirect_uri", ErrInvalidLoginRequest)
@@ -131,8 +138,8 @@ func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string, linkUserID
 	if err != nil {
 		return "", "", loginFailure("authorization", ErrAuthenticationUnavailable)
 	}
-	session, err := saveLoginAttempt(ctx, s.attempts, LoginAttempt{Provider: ProviderDataGSM, Authorization: *attempt,
-		RedirectURI: redirectURI, ExpiresAt: s.now().Add(LoginAttemptTTL), LinkUserID: linkUserID})
+	loginAttempt.Authorization, loginAttempt.RedirectURI, loginAttempt.ExpiresAt = *attempt, redirectURI, s.now().Add(LoginAttemptTTL)
+	session, err := saveLoginAttempt(ctx, s.attempts, loginAttempt)
 	if err != nil {
 		return "", "", err
 	}
@@ -177,7 +184,7 @@ func (s *DataGSMLogin) take(ctx context.Context, session string) (LoginAttempt, 
 
 func (s *DataGSMLogin) CompleteAttempt(ctx context.Context, attempt LoginAttempt, callback url.Values) (*oauth.UserInfo, error) {
 	client := s.clients[attempt.RedirectURI]
-	if client == nil || attempt.provider() != ProviderDataGSM {
+	if client == nil || (attempt.provider() != ProviderDataGSM && attempt.provider() != providerSchoolLogin) {
 		return nil, loginFailure("attempt_purpose", ErrAuthenticationRejected)
 	}
 	code, err := attempt.Authorization.Code(callback)
