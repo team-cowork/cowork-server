@@ -123,7 +123,7 @@ public static partial class Accounts
 
         var found = fresh.Select(d => d.Id).ToHashSet();
         await PersistCacheAsync(
-            fresh.Select(d => (d.Id, JsonSerializer.Serialize(new { name = d.Name, nickname = d.Nickname }, Json.Event), DisplayNameCacheTtlSeconds))
+            fresh.Select(d => (d.Id, Json.Encode(new { name = d.Name, nickname = d.Nickname }), DisplayNameCacheTtlSeconds))
                 .Concat(missing.Where(id => !found.Contains(id)).Select(id => (id, NotFoundMarker, DisplayNameNotFoundTtlSeconds))));
 
         return cached.Values.OfType<DisplayName>().Concat(fresh).ToList();

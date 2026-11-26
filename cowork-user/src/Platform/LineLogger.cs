@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
 
@@ -59,7 +58,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
     }
 
     static string Format(string level, string module, string message, string? requestId) =>
-        JsonSerializer.Serialize(new Entry(DateTime.UtcNow.ToString("O"), level, "cowork-user", module, message, requestId), Json.Event);
+        Json.Encode(new Entry(DateTime.UtcNow.ToString("O"), level, "cowork-user", module, message, requestId));
 
     void Write(LogLevel level, string module, string message, string? requestId)
     {
