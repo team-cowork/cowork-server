@@ -26,6 +26,8 @@ type TeamMemberEvent = {
 	role: string;
 	teamName: string;
 	nickname?: Nullable<string>;
+	// 이 필드를 추가하기 전에 발행된 레코드에는 없다.
+	joinedAt?: Nullable<string>;
 	occurredAt: string;
 	authorizationVersion: string;
 	snapshot?: boolean;
@@ -88,6 +90,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 				role: payload.role,
 				teamName: payload.teamName,
 				nickname: payload.nickname ?? null,
+				joinedAt: payload.joinedAt ? parseEventTime(payload.joinedAt)!.occurredAt : null,
 				occurredAt,
 				sourceVersion,
 				authorizationVersion,
@@ -135,7 +138,8 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 		return typeof event.role === 'string' && event.role.length > 0
 			&& typeof event.teamName === 'string' && event.teamName.length > 0
-			&& (event.nickname === undefined || event.nickname === null || typeof event.nickname === 'string');
+			&& (event.nickname === undefined || event.nickname === null || typeof event.nickname === 'string')
+			&& (event.joinedAt === undefined || event.joinedAt === null || parseEventTime(event.joinedAt) !== null);
 	}
 
 	setSocketServer(io: Server): void {

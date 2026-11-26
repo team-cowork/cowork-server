@@ -87,6 +87,7 @@ const mockChannelProjectionRepository = {
 
 const mockTeamMemberRepository = {
 	exists: jest.fn(),
+	findJoinedAt: jest.fn(),
 };
 
 const mockChannelMessageReadAccess = {
@@ -209,6 +210,7 @@ describe('ChatService', () => {
 		jest.clearAllMocks();
 		mockProjectionReadiness.areReady.mockReturnValue(true);
 		mockTeamMemberRepository.exists.mockResolvedValue(true);
+		mockTeamMemberRepository.findJoinedAt.mockResolvedValue(null);
 		mockReadStateRepository.findForChannels.mockImplementation(async (ids: number[]) =>
 			ids.map(channelId => ({channelId, lastReadMessageId: null})));
 		mockChannelMessageReadAccess.findReadableUsersByChannel.mockResolvedValue(new Map());
@@ -1403,6 +1405,37 @@ describe('ChatService', () => {
 
 			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([{channelId: 3, lastReadMessageId: null, shouldExcludeSystem: false}]);
 			expect(result).toEqual([{channelId: 3, unreadCount: 10}]);
+		});
+
+		it('팀 가입 시각이 있으면 가입 전 메시지를 세지 않고, 가입 뒤 읽음 위치는 그대로 쓴다', async () => {
+			const joinedAt = new Date('2026-11-01T00:00:00.500Z');
+			const joinSeconds = Math.floor(joinedAt.getTime() / 1000);
+			const joinCursor = Types.ObjectId.createFromTime(joinSeconds);
+			const beforeJoin = Types.ObjectId.createFromTime(joinSeconds - 60);
+			const afterJoin = Types.ObjectId.createFromTime(joinSeconds + 60);
+			mockTeamMemberRepository.findJoinedAt.mockResolvedValue(joinedAt);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 2, 3]);
+			mockReadStateRepository.findForChannels.mockResolvedValue([
+				{channelId: 1, lastReadMessageId: null},
+				{channelId: 2, lastReadMessageId: beforeJoin},
+				{channelId: 3, lastReadMessageId: afterJoin},
+			]);
+			mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[1, 1]]));
+
+			await service.getTeamUnread(10, 42);
+
+			expect(mockTeamMemberRepository.findJoinedAt).toHaveBeenCalledWith(10, 42);
+			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
+				{channelId: 1, lastReadMessageId: joinCursor, shouldExcludeSystem: false},
+				{channelId: 2, lastReadMessageId: joinCursor, shouldExcludeSystem: false},
+				{channelId: 3, lastReadMessageId: afterJoin, shouldExcludeSystem: false},
+			]);
+			// 캐시에는 실제 읽음 위치를 남겨, 뒤이은 읽음 처리가 오래된 값으로 거부되지 않게 한다.
+			expect(mockUnreadCounterService.setMany).toHaveBeenCalledWith(42, new Map([
+				[1, {count: 1, readCursor: null}],
+				[2, {count: 0, readCursor: beforeJoin.toHexString()}],
+				[3, {count: 0, readCursor: afterJoin.toHexString()}],
+			]));
 		});
 	});
 
