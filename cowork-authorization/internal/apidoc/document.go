@@ -14,6 +14,7 @@ func Document() *openapi3.T {
 		Servers: openapi3.Servers{{URL: "/api/authorization", Description: "Gateway"}},
 		Tags: openapi3.Tags{
 			{Name: "auth", Description: "로그인, 로그인 수단 연결, 토큰 발급, 갱신, 로그아웃을 처리합니다."},
+			{Name: "agent-tokens", Description: "AI 코딩 에이전트 전용 토큰을 발급, 조회, 폐기하고 액세스 토큰으로 교환합니다."},
 			{Name: "events", Description: "DataGSM의 사용자 변경 이벤트를 수신합니다."},
 		},
 		Components: &openapi3.Components{

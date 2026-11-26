@@ -21,6 +21,24 @@ func schemas() openapi3.Schemas {
 			"token_type":    &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
+		"github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_IssuedAgentToken":   successSchema(schemaRef("github_com_cowork_authorization_internal_service.IssuedAgentToken")),
+		"github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentTokenInfoList": successSchema(&openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"array"}, Items: schemaRef("github_com_cowork_authorization_internal_service.AgentTokenInfo")}}),
+		"github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentAccessToken":   successSchema(schemaRef("github_com_cowork_authorization_internal_service.AgentAccessToken")),
+		"github_com_cowork_authorization_internal_service.AgentTokenInfo":                                                             agentTokenInfoSchema(false),
+		"github_com_cowork_authorization_internal_service.IssuedAgentToken":                                                           agentTokenInfoSchema(true),
+		"github_com_cowork_authorization_internal_service.AgentAccessToken": &openapi3.SchemaRef{Value: openapi3.NewObjectSchema().
+			WithProperty("access_token", &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "jwt", Description: "token_use 클레임은 agent이고 scope 클레임은 공백으로 구분한 scope 목록입니다."}).
+			WithProperty("token_type", openapi3.NewStringSchema().WithEnum("Bearer")).
+			WithProperty("expires_in", openapi3.NewIntegerSchema()).
+			WithRequired([]string{"access_token", "token_type", "expires_in"})},
+		"internal_handler.CreateAgentTokenRequest": &openapi3.SchemaRef{Value: openapi3.NewObjectSchema().
+			WithProperty("name", openapi3.NewStringSchema().WithMaxLength(100)).
+			WithProperty("scopes", openapi3.NewArraySchema().WithMinItems(1).WithItems(agentScopeSchema())).
+			WithProperty("expires_in_days", openapi3.NewIntegerSchema().WithMin(1).WithMax(365)).
+			WithRequired([]string{"name", "scopes", "expires_in_days"})},
+		"internal_handler.ExchangeAgentTokenRequest": &openapi3.SchemaRef{Value: openapi3.NewObjectSchema().
+			WithProperty("token", &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "password", WriteOnly: true}).
+			WithRequired([]string{"token"})},
 		"internal_handler.LoginCallbackRequest": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"code":  &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
 			"error": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
@@ -52,6 +70,29 @@ func schemas() openapi3.Schemas {
 			Required: []string{"status"},
 			Type:     &openapi3.Types{"object"}}},
 	}
+}
+
+func agentScopeSchema() *openapi3.Schema {
+	schema := openapi3.NewStringSchema().WithEnum("chat:read", "chat:write")
+	schema.Description = "chat:read는 채널 메시지 조회, chat:write는 스레드 메시지 전송을 허용합니다."
+	return schema
+}
+
+func agentTokenInfoSchema(issued bool) *openapi3.SchemaRef {
+	schema := openapi3.NewObjectSchema().
+		WithProperty("id", openapi3.NewInt64Schema()).
+		WithProperty("name", openapi3.NewStringSchema()).
+		WithProperty("scopes", openapi3.NewArraySchema().WithItems(agentScopeSchema())).
+		WithProperty("expires_at", openapi3.NewDateTimeSchema()).
+		WithProperty("last_used_at", openapi3.NewDateTimeSchema().WithNullable()).
+		WithProperty("revoked_at", openapi3.NewDateTimeSchema().WithNullable()).
+		WithProperty("created_at", openapi3.NewDateTimeSchema())
+	required := []string{"id", "name", "scopes", "expires_at", "last_used_at", "revoked_at", "created_at"}
+	if issued {
+		schema = schema.WithProperty("token", &openapi3.Schema{Type: &openapi3.Types{"string"}, Description: "토큰 원문입니다. 다시 조회할 수 없습니다."})
+		required = append(required, "token")
+	}
+	return &openapi3.SchemaRef{Value: schema.WithRequired(required)}
 }
 
 func schemaRef(name string) *openapi3.SchemaRef {

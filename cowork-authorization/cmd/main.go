@@ -156,6 +156,9 @@ func main() {
 	}()
 
 	authHandler := handler.NewAuthHandler(authSvc)
+	agentTokenHandler := handler.NewAgentTokenHandler(
+		service.NewAgentTokenService(repository.NewAgentTokenRepository(db), tokenSvc),
+	)
 	eventHandler := handler.NewEventHandler(eventSvc)
 
 	router := gin.New()
@@ -179,6 +182,10 @@ func main() {
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
 		auth.POST("/link/authorize", handler.RequireUserID(), authHandler.LinkAuthorize)
 		auth.POST("/link/callback", handler.RequireUserID(), authHandler.LinkCallback)
+		auth.POST("/agent-tokens", handler.RequireUserID(), agentTokenHandler.Create)
+		auth.GET("/agent-tokens", handler.RequireUserID(), agentTokenHandler.List)
+		auth.DELETE("/agent-tokens/:id", handler.RequireUserID(), agentTokenHandler.Revoke)
+		auth.POST("/agent-tokens/exchange", agentTokenHandler.Exchange)
 	}
 
 	events := router.Group("/events")

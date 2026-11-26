@@ -148,6 +148,77 @@ func paths() *openapi3.Paths {
 			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),
 	}})
+	paths.Set("/auth/agent-tokens", &openapi3.PathItem{
+		Post: &openapi3.Operation{
+			Summary:     "에이전트 토큰 발급",
+			Description: "AI 코딩 에이전트에 줄 토큰을 발급합니다. 토큰 원문은 이 응답에서만 반환합니다. 로그인 액세스 토큰으로만 호출할 수 있습니다.",
+			Tags:        []string{"agent-tokens"},
+			Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+			RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+				Required: true,
+				Content: openapi3.Content{
+					"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.CreateAgentTokenRequest")},
+				},
+			}},
+			Responses: openapi3.NewResponses(
+				openapi3.WithName("200", jsonResponse("발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_IssuedAgentToken")),
+				openapi3.WithName("400", jsonResponse("이름, scope 또는 유효기간이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			),
+		},
+		Get: &openapi3.Operation{
+			Summary:     "에이전트 토큰 목록",
+			Description: "내가 발급한 토큰을 최근 발급 순으로 반환합니다. 폐기한 토큰도 포함합니다. 토큰 원문은 반환하지 않습니다.",
+			Tags:        []string{"agent-tokens"},
+			Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+			Responses: openapi3.NewResponses(
+				openapi3.WithName("200", jsonResponse("조회 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentTokenInfoList")),
+				openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			),
+		},
+	})
+	paths.Set("/auth/agent-tokens/{id}", &openapi3.PathItem{Delete: &openapi3.Operation{
+		Summary:     "에이전트 토큰 폐기",
+		Description: "폐기한 토큰은 더 이상 교환할 수 없습니다. 이미 교환한 액세스 토큰은 만료될 때까지 유효합니다.",
+		Tags:        []string{"agent-tokens"},
+		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+		Parameters: openapi3.Parameters{
+			{Value: openapi3.NewPathParameter("id").WithSchema(openapi3.NewInt64Schema().WithMin(1))},
+		},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("204", openapi3.NewResponse().WithDescription("폐기 완료. 응답 본문은 없습니다.")),
+			openapi3.WithName("400", jsonResponse("잘못된 토큰 ID", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("404", jsonResponse("내 토큰이 아니거나 이미 폐기한 토큰", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
+	paths.Set("/auth/agent-tokens/exchange", &openapi3.PathItem{Post: &openapi3.Operation{
+		Summary:     "에이전트 토큰 교환",
+		Description: "에이전트 토큰을 액세스 토큰으로 교환합니다. 받은 액세스 토큰은 토큰의 scope에 허용된 API만 호출할 수 있고 에이전트 토큰의 만료 시각을 넘지 않습니다. Authorization 헤더 없이 호출합니다.",
+		Tags:        []string{"agent-tokens"},
+		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+			Required: true,
+			Content: openapi3.Content{
+				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.ExchangeAgentTokenRequest")},
+			},
+		}},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("200", jsonResponse("교환 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentAccessToken")),
+			openapi3.WithName("400", jsonResponse("필수 요청 값이 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("유효하지 않거나 만료되었거나 폐기한 토큰", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
 	paths.Set("/events/datagsm", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "DataGSM 웹훅 접수",
 		Description: "서명한 이벤트 본문을 전송합니다(최대 1 MiB). 200은 접수를 뜻하며 학생 정보는 나중에 반영됩니다. 같은 ID와 내용은 중복으로 처리하고 내용이 다르면 충돌로 처리합니다. 발생한 지 30일 이상 지났거나 현재보다 5분을 초과해 앞선 이벤트는 처리하지 않습니다.",
