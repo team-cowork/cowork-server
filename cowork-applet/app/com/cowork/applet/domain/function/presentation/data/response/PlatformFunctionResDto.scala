@@ -27,7 +27,8 @@ final case class PlatformFunctionResDto(
     category: String,
     description: String,
     parameters: Seq[FunctionParameterResDto],
-    returns: String
+    returns: String,
+    permission: Option[String]
 )
 
 object PlatformFunctionResDto:
@@ -38,5 +39,6 @@ object PlatformFunctionResDto:
     function.category,
     function.description,
     function.parameters.map(FunctionParameterResDto.from),
-    function.returns
+    function.returns,
+    function.permission
   )

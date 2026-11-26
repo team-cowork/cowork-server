@@ -4,9 +4,9 @@ import play.api.libs.json.{Format, JsError, JsString, JsSuccess, Reads, Writes}
 import scala.util.Try
 
 enum StorageScope:
-  // Entries visible only to the calling user.
+  // Entries visible only to the calling user in the team.
   case USER
-  // Entries shared by every user of the applet. Any user who can run the applet can change them.
+  // Entries shared by every user of the applet in the team. Any of them can change them.
   case APPLET
 
 object StorageScope:

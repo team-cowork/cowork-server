@@ -5,7 +5,13 @@ import com.cowork.applet.domain.installation.model.InstalledApplet
 import java.time.Instant
 import play.api.libs.json.{Json, OWrites}
 
-final case class InstalledAppletResDto(teamId: Long, installedBy: String, installedAt: Instant, applet: AppletResDto)
+final case class InstalledAppletResDto(
+    teamId: Long,
+    installedBy: String,
+    installedAt: Instant,
+    grantedPermissions: Seq[String],
+    applet: AppletResDto
+)
 
 object InstalledAppletResDto:
   given OWrites[InstalledAppletResDto] = Json.writes[InstalledAppletResDto]
@@ -14,5 +20,6 @@ object InstalledAppletResDto:
     installed.installation.teamId,
     installed.installation.installedBy,
     installed.installation.installedAt,
+    installed.installation.grantedPermissions,
     AppletResDto.from(installed.applet)
   )

@@ -7,4 +7,4 @@ import scala.concurrent.Future
 
 @ImplementedBy(classOf[InvokePlatformFunctionServiceImpl])
 trait InvokePlatformFunctionService:
-  def execute(userId: String, appletId: String, functionName: String, arguments: JsObject): Future[JsValue]
+  def execute(userId: String, teamId: Long, appletId: String, functionName: String, arguments: JsObject): Future[JsValue]

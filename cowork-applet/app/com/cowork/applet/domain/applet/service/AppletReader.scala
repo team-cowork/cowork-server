@@ -7,7 +7,8 @@ import javax.inject.{Inject, Singleton}
 import play.api.http.Status.{FORBIDDEN, NOT_FOUND}
 import scala.concurrent.{ExecutionContext, Future}
 
-// Owners manage their applets. Other users can see and run an applet only after a version is published.
+// Owners manage their applets. Other users can see an applet only after a version is published.
+// Running it needs a team installation; see InstalledAppletAccess.
 @Singleton
 class AppletReader @Inject() (appletRepository: AppletRepository)(using ExecutionContext):
 

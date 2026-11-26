@@ -7,4 +7,4 @@ import scala.concurrent.Future
 
 @ImplementedBy(classOf[LaunchAppletServiceImpl])
 trait LaunchAppletService:
-  def execute(userId: String, appletId: String): Future[AppletLaunch]
+  def execute(userId: String, teamId: Long, appletId: String): Future[AppletLaunch]

@@ -1,18 +1,16 @@
 package com.cowork.applet.domain.function.service
 
-import com.cowork.applet.domain.applet.service.AppletReader
 import com.cowork.applet.domain.environment.model.AppletSecret
 import com.cowork.applet.domain.function.service.handler.{HttpFetchRateLimiter, HttpFunctions, StorageFunctions}
-import com.cowork.applet.domain.function.service.impl.InvokePlatformFunctionServiceImpl
 import com.cowork.applet.domain.network.model.AppletHttpTarget
 import com.cowork.applet.global.crypto.SecretCipher
 import com.cowork.applet.global.error.ExpectedException
 import com.cowork.applet.global.outbound.{BlockedAddressException, OutboundRequest, OutboundResponse}
 import com.cowork.applet.support.{
+  AppletRuntime,
   FakeOutboundHttpClient,
   Fixtures,
   InMemoryAppletHttpTargetRepository,
-  InMemoryAppletRepository,
   InMemoryAppletSecretRepository,
   InMemoryAppletStorageRepository
 }
@@ -47,10 +45,9 @@ class HttpFetchInvocationTest extends munit.FunSuite:
       StorageFunctions(InMemoryAppletStorageRepository()),
       HttpFunctions(targets, secrets, cipher, client, rateLimiter)
     )
-    val service =
-      InvokePlatformFunctionServiceImpl(AppletReader(InMemoryAppletRepository(Fixtures.applet(published = true))), registry)
+    val service = AppletRuntime(registry).invoke
 
-    def fetch(url: String) = service.execute(Fixtures.Other, "applet-1", "http.fetch", Json.obj("url" -> url))
+    def fetch(url: String) = service.execute(Fixtures.Other, Fixtures.TeamA, "applet-1", "http.fetch", Json.obj("url" -> url))
 
   private def status(result: Future[?]): Future[Int] = result.failed.map(_.asInstanceOf[ExpectedException].status)
 
@@ -126,7 +123,8 @@ class HttpFetchInvocationTest extends munit.FunSuite:
     // When
     for
       blocked <- status(context.fetch("https://api.example.com/"))
-      allowed <- context.service.execute(Fixtures.Owner, "applet-1", "http.fetch", Json.obj("url" -> "https://api.example.com/"))
+      allowed <- context.service
+        .execute(Fixtures.Owner, Fixtures.TeamA, "applet-1", "http.fetch", Json.obj("url" -> "https://api.example.com/"))
     yield
       // Then
       assertEquals(blocked, 429)

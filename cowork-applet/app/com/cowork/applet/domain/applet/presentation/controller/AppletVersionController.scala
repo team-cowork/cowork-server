@@ -39,7 +39,7 @@ class AppletVersionController @Inject() (
       BundleFile(file.path, file.content, encoding.getOrElse(throw ExpectedException(BAD_REQUEST, "파일 인코딩은 utf8 또는 base64로 입력하십시오.")))
     }
     submitAppletVersionService
-      .execute(RequestUser.id(request), appletId, files)
+      .execute(RequestUser.id(request), appletId, files, body.permissions.getOrElse(Nil))
       .map(version => Created(Json.toJson(AppletVersionResDto.from(version))))
   }
 

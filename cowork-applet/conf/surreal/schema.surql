@@ -13,7 +13,8 @@ DEFINE TABLE IF NOT EXISTS applet_secret SCHEMALESS;
 DEFINE INDEX IF NOT EXISTS uq_applet_secret_name ON TABLE applet_secret FIELDS appletId, name UNIQUE;
 
 DEFINE TABLE IF NOT EXISTS applet_storage SCHEMALESS;
-DEFINE INDEX IF NOT EXISTS uq_applet_storage_key ON TABLE applet_storage FIELDS appletId, scope, ownerId, `key` UNIQUE;
+REMOVE INDEX IF EXISTS uq_applet_storage_key ON TABLE applet_storage;
+DEFINE INDEX IF NOT EXISTS uq_applet_storage_team_key ON TABLE applet_storage FIELDS appletId, teamId, scope, ownerId, `key` UNIQUE;
 
 DEFINE TABLE IF NOT EXISTS applet_http_target SCHEMALESS;
 DEFINE INDEX IF NOT EXISTS uq_applet_http_target_host ON TABLE applet_http_target FIELDS appletId, host UNIQUE;
