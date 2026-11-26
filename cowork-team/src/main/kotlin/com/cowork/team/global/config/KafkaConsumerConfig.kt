@@ -151,6 +151,9 @@ class KafkaConsumerConfig(
         )
 
     @Bean
+    fun teamAccessListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.teamAccess)
+
+    @Bean
     fun preferenceTeamRoleChangedListenerContainerFactory() =
         projectionListenerContainerFactory(projectionStreams.teamRole)
 

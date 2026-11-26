@@ -16,9 +16,10 @@ class AccountPermissionGuard(
     @Transactional(readOnly = true)
     fun requireCreateTeam(accountId: Long) {
         projectionReadinessGate.requireReady()
-        val policies =
-            accountPolicyProjection.findAccountPolicies(accountId) + accountPolicyProjection.findTeamPolicies(accountId)
-        if (!RolePolicy.allows(policies, PermissionKeys.CREATE_TEAM)) {
+        val accountAllows = accountPolicyProjection.findAccountPolicies(accountId).any {
+            it[PermissionKeys.CREATE_TEAM] == true
+        }
+        if (!accountAllows && !accountPolicyProjection.teamAllowsCreation(accountId)) {
             throw ExpectedException("팀을 생성할 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
     }

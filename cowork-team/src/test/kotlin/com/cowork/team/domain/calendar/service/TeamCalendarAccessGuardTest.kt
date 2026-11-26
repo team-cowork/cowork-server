@@ -21,20 +21,20 @@ class TeamCalendarAccessGuardTest :
         val teamDirectory = mockk<TeamDirectory>()
         val permissionGuard = mockk<TeamPermissionGuard>()
         val members = mockk<MembershipDirectory>()
-        val roles = policyReader(
+        val access = policyReader(
             3L,
             mapOf(
                 8L to mapOf("calendar_event_update" to true, "calendar_event_delete" to false),
-                9L to mapOf("administrator" to true),
+                9L to mapOf("calendar_event_delete" to true, "calendar_event_create" to true),
             ),
         )
-        val guard = TeamCalendarAccessGuard(teamDirectory, permissionGuard, members, roles)
+        val guard = TeamCalendarAccessGuard(teamDirectory, permissionGuard, members, access)
 
         describe("다른 사람의 일정 수정과 삭제") {
             it("작성자는 팀 권한을 확인하지 않는다") {
                 guard.requireOwnerOrPermission(3L, createdBy = 7L, userId = 7L, CalendarAction.DELETE)
 
-                verify(exactly = 0) { roles.getMemberRoles(3L, 7L) }
+                verify(exactly = 0) { access.permissions(3L, 7L) }
             }
 
             it("수정은 calendar_event_update, 삭제는 calendar_event_delete를 확인한다") {
@@ -64,7 +64,7 @@ class TeamCalendarAccessGuardTest :
                     ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
 
                 shouldThrow<ExpectedException> { guard.requireCreator(3L, 10L) }
-                verify(exactly = 0) { roles.getMemberRoles(3L, 10L) }
+                verify(exactly = 0) { access.permissions(3L, 10L) }
             }
         }
 

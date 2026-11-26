@@ -36,7 +36,11 @@ class InviteTeamMembersServiceImplTest :
                 memberRepository,
                 mockk<NotificationPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamPermissionGuard(memberRepository, policyReader(1, mapOf(10L to mapOf("manage_invites" to true)))),
+                TeamPermissionGuard(
+                    memberRepository,
+                    policyReader(1, mapOf(10L to mapOf("manage_invites" to true))),
+                    mockk(),
+                ),
                 JpaTeamDirectory(teamRepository),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team

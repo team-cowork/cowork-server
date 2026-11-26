@@ -12,6 +12,7 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.global.policy.PermissionKeys
+import com.cowork.team.global.policy.TeamAccessProjection
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -25,6 +26,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
+        lateinit var access: TeamAccessProjection
         lateinit var roleReader: TeamRoleProjectionReader
         lateinit var eventPublisher: TeamMemberEventPublisher
         lateinit var service: UpdateTeamMemberNicknameServiceImpl
@@ -34,13 +36,15 @@ class UpdateTeamMemberNicknameServiceImplTest :
         beforeEach {
             teamRepository = mockk()
             memberRepository = mockk()
+            access = mockk()
+            every { access.permissions(any(), any()) } returns emptySet()
             roleReader = mockk()
             eventPublisher = mockk(relaxed = true)
             service = UpdateTeamMemberNicknameServiceImpl(
                 memberRepository,
                 eventPublisher,
                 JpaTeamDirectory(teamRepository),
-                TeamPermissionGuard(memberRepository, roleReader),
+                TeamPermissionGuard(memberRepository, access, roleReader),
                 roleReader,
             )
             every { teamRepository.findByIdForUpdate(5L) } returns team
@@ -114,6 +118,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
                     val target = TeamMember(teamId = team.id, userId = 8L)
                     stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
+                    every { access.permissions(5L, 7L) } returns setOf("manage_nicknames")
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
                     every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(priority = 3))
@@ -129,6 +134,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
                     val target = TeamMember(teamId = team.id, userId = 8L)
                     stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
+                    every { access.permissions(5L, 7L) } returns setOf("manage_nicknames")
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
                     every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(priority = 10))
@@ -147,6 +153,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
                     val target = TeamMember(teamId = team.id, userId = 8L, role = TeamRole.ADMIN)
                     stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
+                    every { access.permissions(5L, 7L) } returns setOf("manage_nicknames")
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
                     every { roleReader.getMemberRoles(5L, 8L) } returns
@@ -164,6 +171,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
                 it("자신보다 낮은 역할의 닉네임을 변경한다") {
                     val target = TeamMember(teamId = team.id, userId = 8L)
                     stubActor(TeamMember(teamId = team.id, userId = 7L, role = TeamRole.ADMIN))
+                    every { access.permissions(5L, 7L) } returns setOf("manage_nicknames")
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
                     every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(10))
@@ -180,6 +188,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
                 it("FORBIDDEN으로 거부한다") {
                     val owner = TeamMember(teamId = team.id, userId = 1L, role = TeamRole.OWNER)
                     stubActor(TeamMember(teamId = team.id, userId = 7L, role = TeamRole.ADMIN))
+                    every { access.permissions(5L, 7L) } returns setOf("manage_nicknames")
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
                     every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(10))
