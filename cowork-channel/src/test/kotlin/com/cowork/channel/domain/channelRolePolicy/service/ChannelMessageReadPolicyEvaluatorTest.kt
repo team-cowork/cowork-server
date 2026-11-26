@@ -16,6 +16,7 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
+import com.cowork.channel.global.policy.TeamAccessProjection
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import io.mockk.every
 import io.mockk.mockk
@@ -37,6 +38,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
     private val roleRepository = mockk<TeamRoleProjectionRepository>()
     private val policyRepository = mockk<ChannelRolePolicyProjectionRepository>()
     private val accessRepository = mockk<ChannelAccessProjectionRepository>()
+    private val teamAccess = mockk<TeamAccessProjection>()
     private val objectMapper = jacksonObjectMapper()
     private val evaluator = ChannelMessageReadPolicyEvaluator(
         membershipRepository,
@@ -47,6 +49,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
         accessRepository,
         mockk<ProjectionReadinessGate>(relaxed = true),
         objectMapper,
+        teamAccess,
     )
     private val occurredAt = Instant.parse("2026-10-25T00:00:00Z")
 
@@ -61,6 +64,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
         every {
             policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, any(), any())
         } returns emptyList()
+        teamPermissions()
         decisions()
     }
 
@@ -140,10 +144,10 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
-    fun `채널 생성 권한은 기본 역할과 개별 역할의 합집합으로 확인한다`() {
-        roles(role(1L, "manage_channels" to true, default = true))
+    fun `채널 생성 권한은 팀 권한 판정 결과를 따른다`() {
+        teamPermissions("manage_channels")
         evaluator.requireTeamPermission(10L, 7L, "manage_channels")
-        roles(role(1L, "manage_channels" to false, default = true))
+        teamPermissions()
         assertThrows(ExpectedException::class.java) { evaluator.requireTeamPermission(10L, 7L, "manage_channels") }
     }
 
@@ -164,6 +168,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `일반 채널 관리자는 초기 역할 정책으로 비공개 채널에 접근할 수 있다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
         val overwrites = listOf(
             InitialChannelRoleOverwrite(1L, mapOf("message_read" to false)),
@@ -180,6 +185,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `닉네임 변경 후 초기 정책도 원본 버전과 안정적인 권한 버전을 따로 보존한다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
         val membership = member().apply { authorizationVersion = occurredAt }
         membership.applyUpsert("MEMBER", occurredAt.plusSeconds(1), occurredAt)
@@ -195,6 +201,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `초기 역할 정책이 없거나 생성자의 역할을 허용하지 않으면 비공개 생성을 거절한다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true), role(3L))
         every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns
             listOf(assignment(2L))
@@ -212,6 +219,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `초기 정책의 허용과 거부 모두 보유한 팀 권한 안에서만 지정할 수 있다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, "manage_channels" to true))
         for (allowed in listOf(true, false)) {
             val ex = assertThrows(ExpectedException::class.java) {
@@ -228,6 +236,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `다른 팀이나 삭제된 역할 및 중복 역할의 초기 정책은 거절한다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, "manage_channels" to true))
         val overwrite = InitialChannelRoleOverwrite(1L, mapOf("message_read" to true))
         for (overwrites in listOf(listOf(overwrite, overwrite), listOf(overwrite.copy(roleId = 99L)))) {
@@ -240,6 +249,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `비공개 음성 채널 생성은 초기 voice_connect 허용이 필요하다`() {
+        teamPermissions("voice_connect", "message_read", "manage_channels")
         roles(role(1L, "voice_connect" to true, "message_read" to true, "manage_channels" to true))
         val voice = channel(type = ChannelType.VOICE).apply { isPrivate = true }
         assertThrows(ExpectedException::class.java) {
@@ -260,6 +270,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `활성 관리자는 초기 정책 없이도 비공개 채널에 접근한다`() {
+        teamPermissions("administrator", "manage_channels")
         roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN")
         assertNull(evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, emptyList()))
@@ -271,6 +282,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `권한 버전이 없으면 멤버십 시각으로 초기 정책을 승인하지 않는다`() {
+        teamPermissions("administrator", "manage_channels")
         roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
             authorizationVersion = null
@@ -289,6 +301,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `멤버십 버전이 확인되지 않으면 초기 정책 생성을 보류한다`() {
+        teamPermissions("administrator", "manage_channels")
         roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
             sourceOccurredAt = Instant.EPOCH
@@ -309,6 +322,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
     @Test
     fun `채널 overwrite는 manage_roles와 역할 서열 및 보유 권한을 검사한다`() {
         decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         val target = role(2L)
         every { roleRepository.findById(2L) } returns Optional.of(target)
@@ -325,6 +339,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
     @Test
     fun `거부 overwrite만 추가할 때 변경하지 않는 기본 허용 권한은 요구하지 않는다`() {
         decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
 
@@ -334,6 +349,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
     @Test
     fun `기존 거부를 유지하면 보유하지 않은 권한도 거부 상태로 저장할 수 있다`() {
         decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
         policies(policy(2L, "message_manage" to false))
@@ -350,6 +366,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
     @Test
     fun `기존 거부를 누락하거나 삭제하여 다른 역할의 권한을 복원할 수 없다`() {
         decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L))
         policies(policy(2L, "message_manage" to false))
@@ -365,11 +382,16 @@ class ChannelMessageReadPolicyEvaluatorTest {
     @Test
     fun `overwrite 삭제로 보유하지 않은 기본 권한을 복원할 수 없다`() {
         decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
         assertThrows(ExpectedException::class.java) {
             evaluator.requireRolePolicyManagement(10L, 7L, channel(), 2L, null)
         }
+    }
+
+    private fun teamPermissions(vararg keys: String) {
+        every { teamAccess.permissions(10L, 7L) } returns keys.toSet()
     }
 
     private fun roles(vararg roles: TeamRoleProjection) {
