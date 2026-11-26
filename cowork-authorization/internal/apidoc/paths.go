@@ -162,7 +162,7 @@ func paths() *openapi3.Paths {
 			}},
 			Responses: openapi3.NewResponses(
 				openapi3.WithName("200", jsonResponse("발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_IssuedAgentToken")),
-				openapi3.WithName("400", jsonResponse("이름, scope 또는 유효기간이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("400", jsonResponse("이름, scope 또는 유효기간이 잘못되었거나 사용 중인 토큰이 이미 20개임", "github_com_cowork_authorization_internal_apidoc.Error")),
 				openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
 				openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
 				openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),

@@ -45,6 +45,10 @@ func (h *AgentTokenHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent token request"})
 		return
 	}
+	if errors.Is(err, service.ErrAgentTokenLimitExceeded) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "too many active agent tokens; revoke one first"})
+		return
+	}
 	if err != nil {
 		slog.Error("Issue agent token", "err", err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})

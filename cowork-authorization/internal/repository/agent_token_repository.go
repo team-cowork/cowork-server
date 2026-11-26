@@ -27,6 +27,15 @@ func (r *AgentTokenRepository) ListByUser(ctx context.Context, userID int64) ([]
 	return tokens, err
 }
 
+// CountActiveByUser counts the user's tokens that are unrevoked and unexpired at the given time.
+func (r *AgentTokenRepository) CountActiveByUser(ctx context.Context, userID int64, at time.Time) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&domain.AgentToken{}).
+		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userID, at).
+		Count(&count).Error
+	return count, err
+}
+
 // FindByHash returns gorm.ErrRecordNotFound when no token has the hash.
 func (r *AgentTokenRepository) FindByHash(ctx context.Context, hash string) (*domain.AgentToken, error) {
 	var token domain.AgentToken

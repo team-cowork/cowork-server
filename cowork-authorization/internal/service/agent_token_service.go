@@ -17,17 +17,21 @@ const (
 	AgentTokenPrefix           = "cwa_"
 	MaxAgentTokenLifetimeDays  = 365
 	maxAgentTokenNameRuneCount = 100
+	// MaxActiveAgentTokensPerUser bounds how many usable tokens one user can hold at a time.
+	MaxActiveAgentTokensPerUser = 20
 )
 
 var (
 	ErrInvalidAgentTokenRequest = errors.New("invalid agent token request")
 	ErrAgentTokenNotFound       = errors.New("agent token not found")
 	ErrAgentTokenRejected       = errors.New("agent token is invalid, expired or revoked")
+	ErrAgentTokenLimitExceeded  = errors.New("agent token limit exceeded")
 )
 
 type AgentTokenStore interface {
 	Create(ctx context.Context, token *domain.AgentToken) error
 	ListByUser(ctx context.Context, userID int64) ([]domain.AgentToken, error)
+	CountActiveByUser(ctx context.Context, userID int64, at time.Time) (int64, error)
 	FindByHash(ctx context.Context, hash string) (*domain.AgentToken, error)
 	Revoke(ctx context.Context, id, userID int64, at time.Time) (bool, error)
 	MarkUsed(ctx context.Context, id int64, at time.Time) (bool, error)
@@ -81,12 +85,21 @@ func (s *AgentTokenService) Issue(
 	if err != nil {
 		return nil, ErrInvalidAgentTokenRequest
 	}
+	now := s.now().UTC().Truncate(time.Microsecond)
+	// shortcut: concurrent issues can pass the count together and exceed the limit by a few;
+	// lock the user's rows in a transaction if that matters.
+	active, err := s.store.CountActiveByUser(ctx, userID, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count agent tokens: %w", err)
+	}
+	if active >= MaxActiveAgentTokensPerUser {
+		return nil, ErrAgentTokenLimitExceeded
+	}
 	raw, hash, err := s.tokenSvc.GenerateAgentToken()
 	if err != nil {
 		return nil, err
 	}
 
-	now := s.now().UTC().Truncate(time.Microsecond)
 	token := &domain.AgentToken{
 		UserID:    userID,
 		Name:      name,

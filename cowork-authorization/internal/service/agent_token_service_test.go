@@ -30,6 +30,17 @@ func (s *fakeAgentTokenStore) ListByUser(context.Context, int64) ([]domain.Agent
 	return nil, nil
 }
 
+// CountActiveByUser applies the same revoked_at and expires_at conditions as the repository query.
+func (s *fakeAgentTokenStore) CountActiveByUser(_ context.Context, userID int64, at time.Time) (int64, error) {
+	var count int64
+	for _, token := range s.tokens {
+		if token.UserID == userID && token.Exchangeable(at) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (s *fakeAgentTokenStore) FindByHash(_ context.Context, hash string) (*domain.AgentToken, error) {
 	token, ok := s.tokens[hash]
 	if !ok {
@@ -117,6 +128,35 @@ func TestIssueAgentTokenRejectsInvalidRequests(t *testing.T) {
 	}
 	if len(store.tokens) != 0 {
 		t.Fatalf("store has %d tokens, want 0", len(store.tokens))
+	}
+}
+
+func TestIssueAgentTokenRejectsUserAtActiveLimit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 26, 1, 0, 0, 0, time.UTC)
+	svc, store := newUnitAgentTokenService(now)
+	for range MaxActiveAgentTokensPerUser {
+		if _, err := svc.Issue(context.Background(), 7, "agent", []string{"chat:read"}, 1); err != nil {
+			t.Fatalf("Issue() error = %v", err)
+		}
+	}
+	if _, err := svc.Issue(context.Background(), 7, "agent", []string{"chat:read"}, 1); !errors.Is(err, ErrAgentTokenLimitExceeded) {
+		t.Fatalf("Issue() over limit error = %v, want ErrAgentTokenLimitExceeded", err)
+	}
+	if _, err := svc.Issue(context.Background(), 8, "agent", []string{"chat:read"}, 1); err != nil {
+		t.Fatalf("Issue() for another user error = %v", err)
+	}
+
+	revokedAt := now
+	for _, token := range store.tokens {
+		if token.UserID == 7 {
+			token.RevokedAt = &revokedAt
+			break
+		}
+	}
+	if _, err := svc.Issue(context.Background(), 7, "agent", []string{"chat:read"}, 1); err != nil {
+		t.Fatalf("Issue() after a revocation error = %v", err)
 	}
 }
 
