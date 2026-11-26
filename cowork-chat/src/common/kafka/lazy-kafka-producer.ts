@@ -3,6 +3,7 @@ import {type ConfigService} from '@nestjs/config';
 import {
 	compatibilityPartitioner,
 	type MessageToProduce,
+	type Partitioner,
 	Producer,
 	stringSerializers,
 } from '@platformatic/kafka';
@@ -15,17 +16,21 @@ type StringProducer = Producer<string, string, string, string>;
  Keyed messages use `compatibilityPartitioner`, the Java client's partitioner (murmur2 & 0x7fffffff), so each key
  keeps its partition; platformatic's default partitioner differs for negative hashes.
  A custom partitioner also receives keyless messages, and `compatibilityPartitioner` sends them all to
- partition 0, so keyless messages round-robin here.
+ partition 0, so keyless messages round-robin here. The producer takes the result modulo the partition count.
  */
-export function createKafkaProducer(configService: ConfigService, clientId: string): StringProducer {
+export function createPartitioner(): Partitioner<string, string, string, string> {
 	let keylessCount = 0;
+	return (message, key) => key === undefined ? keylessCount++ : compatibilityPartitioner(message, key);
+}
+
+export function createKafkaProducer(configService: ConfigService, clientId: string): StringProducer {
 	return new Producer({
 		clientId,
 		...getKafkaClientConfig(configService),
 		idempotent: true,
 		// Idempotent producers otherwise retry forever, so a down broker would never reject publish().
 		retries: 5,
-		partitioner: (message, key) => key === undefined ? keylessCount++ : compatibilityPartitioner(message, key),
+		partitioner: createPartitioner(),
 		serializers: stringSerializers,
 	});
 }
