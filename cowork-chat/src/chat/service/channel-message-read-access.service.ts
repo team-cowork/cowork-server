@@ -17,6 +17,7 @@ import {
 	type TeamMemberProjectionView,
 } from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
+import {resolveMessageScope} from './message-scope.js';
 
 export type ChannelReadAccessRequest = {
 	channelId: number;
@@ -330,6 +331,29 @@ export class ChannelMessageReadAccessService {
 	async canReadChannel(channelId: number, userId: number): Promise<boolean> {
 		const result = await this.evaluateMany([{channelId, userId}]);
 		return result.get(accessKey(channelId, userId)) ?? false;
+	}
+
+	async requireChannelJoinedAt(channelId: number, userId: number): Promise<Date | undefined> {
+		const channel = await this.channelRepository.findById(channelId);
+		const scope = channel && resolveMessageScope(channel);
+		if (!scope) {
+			throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다.');
+		}
+
+		return scope.teamId === null ? undefined : this.requireTeamJoinedAt(scope.teamId, userId);
+	}
+
+	async requireTeamJoinedAt(teamId: number, userId: number): Promise<Date> {
+		const member = await this.whileProjectionsReady(async () => this.teamMemberRepository.findMembership(teamId, userId));
+		if (!member) {
+			throw new ForbiddenException('팀 접근 권한이 없습니다');
+		}
+
+		if (!member.joinedAt) {
+			throw new ServiceUnavailableException('팀 가입 시각이 아직 동기화되지 않았습니다.');
+		}
+
+		return member.joinedAt;
 	}
 
 	async requireCanRead(channelId: number, userId: number): Promise<void> {

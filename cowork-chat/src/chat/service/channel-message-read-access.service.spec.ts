@@ -65,9 +65,11 @@ describe('isChannelAccessAllowed', () => {
 });
 
 describe('ChannelMessageReadAccessService', () => {
-	const channelRepository = {findByIds: jest.fn(), findIdsByTeamId: jest.fn(), findIdsByProjectId: jest.fn()};
+	const channelRepository = {
+		findById: jest.fn(), findByIds: jest.fn(), findIdsByTeamId: jest.fn(), findIdsByProjectId: jest.fn(),
+	};
 	const dmParticipantRepository = {findByChannelIdsAndUserIds: jest.fn(), findByChannelIds: jest.fn()};
-	const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn(), findByTeamIds: jest.fn()};
+	const teamMemberRepository = {findMembership: jest.fn(), findByTeamIdsAndUserIds: jest.fn(), findByTeamIds: jest.fn()};
 	const channelAccessRepository = {findByChannelIdsAndUserIds: jest.fn()};
 	const projectionReadiness = {areReady: jest.fn()};
 	// 브로드캐스트 판정 캐시가 인스턴스에 상태로 남으므로, 테스트 간 오염을 막기 위해
@@ -133,6 +135,24 @@ describe('ChannelMessageReadAccessService', () => {
 			privateDecision(20, 5, ['message_read']),
 			decision(10, 6, ['message_read']),
 		]);
+	});
+
+	it('DM 읽음 처리에는 팀 가입 시각을 적용하지 않는다', async () => {
+		channelRepository.findById.mockResolvedValue({type: 'DM', teamId: null});
+		await expect(service.requireChannelJoinedAt(10, 2)).resolves.toBeUndefined();
+		expect(teamMemberRepository.findMembership).not.toHaveBeenCalled();
+	});
+
+	it('팀원이 아니면 접근을 거부하고 가입 시각 동기화 전에는 집계를 보류한다', async () => {
+		teamMemberRepository.findMembership.mockResolvedValue(null);
+		await expect(service.requireTeamJoinedAt(1, 2)).rejects.toThrow(ForbiddenException);
+
+		teamMemberRepository.findMembership.mockResolvedValue({});
+		await expect(service.requireTeamJoinedAt(1, 2)).rejects.toThrow(ServiceUnavailableException);
+
+		const joinedAt = new Date('2026-11-25T10:00:00Z');
+		teamMemberRepository.findMembership.mockResolvedValue({joinedAt});
+		await expect(service.requireTeamJoinedAt(1, 2)).resolves.toEqual(joinedAt);
 	});
 
 	describe('판정 결과 조회', () => {

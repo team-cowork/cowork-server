@@ -22,6 +22,7 @@ export type TeamMemberProjectionView = {
 
 export type VersionedTeamMemberProjectionView = {
 	nickname: Nullable<string>;
+	joinedAt: Nullable<Date>;
 	occurredAt: Date;
 	sourceVersion: mongo.Long;
 } & TeamMemberProjectionView;
@@ -36,6 +37,10 @@ export class TeamMemberProjectionRepository {
 
 	async exists(teamId: number, userId: number): Promise<boolean> {
 		return (await this.model.exists({teamId, userId, deleted: {$ne: true}})) !== null;
+	}
+
+	async findMembership(teamId: number, userId: number): Promise<Nullable<Pick<TeamMemberProjection, 'joinedAt'>>> {
+		return this.model.findOne({teamId, userId, deleted: {$ne: true}}, {_id: 0, joinedAt: 1}).lean();
 	}
 
 	async findByTeamIdsAndUserIds(
@@ -91,6 +96,11 @@ export class TeamMemberProjectionRepository {
 					},
 					nickname: {
 						$cond: [applyCondition, {$literal: member.nickname}, {$ifNull: ['$nickname', null]}],
+					},
+					joinedAt: {
+						$cond: [
+							applyCondition, member.joinedAt ?? {$cond: [newer, null, '$joinedAt']}, '$joinedAt',
+						],
 					},
 					deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
 					sourceOccurredAt: {

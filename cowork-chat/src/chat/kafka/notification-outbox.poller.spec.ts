@@ -62,7 +62,7 @@ describe('NotificationOutboxPoller 실패 처리', () => {
 
 		await runCycle();
 
-		expect(incrementIfPresent()).toHaveBeenCalledWith(1, [7], expect.any(String));
+		expect(incrementIfPresent()).toHaveBeenCalledWith(1, [7], expect.any(Date), expect.any(String));
 	});
 
 	it('스레드 메시지는 안읽음 수 캐시를 올리지 않는다', async () => {

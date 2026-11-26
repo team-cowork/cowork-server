@@ -26,6 +26,7 @@ type TeamMemberEvent = {
 	role: string;
 	teamName: string;
 	nickname?: Nullable<string>;
+	joinedAt?: Nullable<string>;
 	occurredAt: string;
 	authorizationVersion: string;
 	snapshot?: boolean;
@@ -88,6 +89,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 				role: payload.role,
 				teamName: payload.teamName,
 				nickname: payload.nickname ?? null,
+				joinedAt: parseEventTime(payload.joinedAt)?.occurredAt ?? null,
 				occurredAt,
 				sourceVersion,
 				authorizationVersion,
@@ -133,8 +135,8 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return true;
 		}
 
-		return typeof event.role === 'string' && event.role.length > 0
-			&& typeof event.teamName === 'string' && event.teamName.length > 0
+		return typeof event.teamName === 'string' && event.teamName.length > 0
+			&& (event.joinedAt === undefined || parseEventTime(event.joinedAt) !== null)
 			&& (event.nickname === undefined || event.nickname === null || typeof event.nickname === 'string');
 	}
 

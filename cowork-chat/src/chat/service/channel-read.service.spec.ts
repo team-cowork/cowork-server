@@ -6,6 +6,7 @@ describe('ChannelReadService.advance', () => {
 	const requestedId = new Types.ObjectId('000000000000000000000001');
 	const adoptedId = new Types.ObjectId('000000000000000000000002');
 
+	const joinedAt = new Date(1000);
 	const createService = (applied: Nullable<boolean>) => {
 		const readStateRepository = {updateLastRead: jest.fn().mockResolvedValue(adoptedId)};
 		const messageRepository = {countUnread: jest.fn().mockResolvedValue(1)};
@@ -14,6 +15,7 @@ describe('ChannelReadService.advance', () => {
 			readStateRepository as never,
 			messageRepository as never,
 			unreadCounterService as never,
+			{requireChannelJoinedAt: async () => joinedAt} as never,
 		);
 		return {
 			service, readStateRepository, messageRepository, unreadCounterService,
@@ -26,8 +28,8 @@ describe('ChannelReadService.advance', () => {
 		const unreadCount = await service.advance(1, 42, requestedId);
 
 		expect(readStateRepository.updateLastRead).toHaveBeenCalledWith(1, 42, requestedId);
-		expect(messageRepository.countUnread).toHaveBeenCalledWith(1, adoptedId, false);
-		expect(unreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 1, readCursor: adoptedId.toHexString()});
+		expect(messageRepository.countUnread).toHaveBeenCalledWith(1, adoptedId, false, joinedAt);
+		expect(unreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 1, joinedAt, readCursor: adoptedId.toHexString()});
 		expect(unreadCount).toBe(1);
 	});
 
