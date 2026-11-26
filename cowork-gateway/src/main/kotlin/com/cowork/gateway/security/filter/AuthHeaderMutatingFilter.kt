@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.filter
 
+import com.cowork.gateway.security.agent.isAgent
 import org.slf4j.MDC
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
@@ -28,6 +29,7 @@ class AuthHeaderMutatingFilter :
                     .headers { h ->
                         h.set("X-User-Id", userId)
                         h.remove("X-User-Role")
+                        if (auth.isAgent()) h.set(AGENT_HEADER, "true") else h.remove(AGENT_HEADER)
                     }
                     .build()
 
@@ -60,6 +62,7 @@ class AuthHeaderMutatingFilter :
                         .headers { h ->
                             h.remove("X-User-Id")
                             h.remove("X-User-Role")
+                            h.remove(AGENT_HEADER)
                         }
                         .build()
                     chain.filter(exchange.mutate().request(strippedRequest).build())
@@ -67,6 +70,8 @@ class AuthHeaderMutatingFilter :
             }
 
     companion object {
+        /** agent JWT 요청임을 하위 서비스에 알린다. 외부에서 보낸 같은 이름의 헤더는 항상 제거한다. */
+        const val AGENT_HEADER = "X-Cowork-Agent"
         private const val MDC_USER_ID = "userId"
         private const val MDC_TEAM_ID = "teamId"
     }

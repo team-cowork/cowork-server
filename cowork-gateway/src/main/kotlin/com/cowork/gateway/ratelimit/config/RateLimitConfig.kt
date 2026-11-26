@@ -40,6 +40,10 @@ class RateLimitConfig {
     @Bean
     fun anonymousKeyResolver(): KeyResolver = KeyResolver { Mono.just("anonymous") }
 
+    // 에이전트 토큰 교환이 몰려도 로그인 경로의 anonymous 버킷을 소진하지 않게 키를 나눈다
+    @Bean
+    fun agentTokenExchangeKeyResolver(): KeyResolver = KeyResolver { Mono.just("agent-token-exchange") }
+
     /**
      * Rate Limiting 키 전략:
      * 인증된 요청 → X-User-Id 기준 (AuthHeaderMutatingFilter가 JWT 검증 결과로 덮어쓰고, 미인증 요청에서는 제거한다)

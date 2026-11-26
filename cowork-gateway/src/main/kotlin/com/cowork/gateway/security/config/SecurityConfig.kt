@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.config
 
+import com.cowork.gateway.security.agent.AgentScopeWebFilter
 import com.cowork.gateway.security.filter.DevOriginCredentialFilter
 import com.cowork.gateway.security.jwt.JwtAuthenticationSupport
 import com.cowork.gateway.security.jwt.JwtReactiveAuthenticationManager
@@ -106,6 +107,8 @@ class SecurityConfig(
                         "/api/authorization/auth/authorize",
                         "/api/authorization/auth/callback",
                         "/api/authorization/auth/refresh",
+                        // 에이전트 토큰 원문을 본문으로 받아 검증하므로 Cowork JWT가 없다.
+                        "/api/authorization/auth/agent-tokens/exchange",
                     ).permitAll()
                     // 파일 요청은 S3 서명으로 인증하고 공개 아이콘은 익명 읽기를 허용한다.
                     .pathMatchers(HttpMethod.GET, "/api/storage/**").permitAll()
@@ -161,6 +164,7 @@ class SecurityConfig(
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+            .addFilterAfter(AgentScopeWebFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
             .build()
     }
 }

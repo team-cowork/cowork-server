@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.filter
 
+import com.cowork.gateway.security.agent.AgentScope
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -21,7 +22,8 @@ class AuthHeaderMutatingFilterTest :
         fun spoofedExchange() = MockServerWebExchange.from(
             MockServerHttpRequest.get("/api/projects")
                 .header("X-User-Id", "attacker")
-                .header("X-User-Role", "OWNER"),
+                .header("X-User-Role", "OWNER")
+                .header("X-Cowork-Agent", "true"),
         )
 
         describe("AuthHeaderMutatingFilter 클래스의 filter 메서드는") {
@@ -35,6 +37,7 @@ class AuthHeaderMutatingFilterTest :
 
                     forwarded.captured.request.headers.getFirst("X-User-Id") shouldBe null
                     forwarded.captured.request.headers.getFirst("X-User-Role") shouldBe null
+                    forwarded.captured.request.headers.getFirst("X-Cowork-Agent") shouldBe null
                 }
             }
 
@@ -51,6 +54,27 @@ class AuthHeaderMutatingFilterTest :
 
                     forwarded.captured.request.headers.getFirst("X-User-Id") shouldBe "42"
                     forwarded.captured.request.headers.getFirst("X-User-Role") shouldBe null
+                    forwarded.captured.request.headers.getFirst("X-Cowork-Agent") shouldBe null
+                }
+            }
+
+            context("agent JWT로 인증된 요청이면") {
+                it("agent 요청 헤더를 붙인다") {
+                    val forwarded = slot<ServerWebExchange>()
+                    val chain = mockk<GatewayFilterChain>()
+                    every { chain.filter(capture(forwarded)) } returns Mono.empty()
+                    val authentication = UsernamePasswordAuthenticationToken(
+                        "42",
+                        "token",
+                        listOf(AgentScope.AGENT_AUTHORITY, AgentScope.CHAT_WRITE.authority),
+                    )
+
+                    filter.filter(MockServerWebExchange.from(MockServerHttpRequest.get("/api/chat")), chain)
+                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
+                        .block()
+
+                    forwarded.captured.request.headers.getFirst("X-User-Id") shouldBe "42"
+                    forwarded.captured.request.headers.getFirst("X-Cowork-Agent") shouldBe "true"
                 }
             }
         }
