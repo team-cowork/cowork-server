@@ -3,6 +3,7 @@ package com.cowork.team.domain.team.service
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.entity.TeamIconUpload
 import com.cowork.team.domain.team.repository.TeamIconUploadRepository
+import com.cowork.team.domain.team.repository.TeamRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -20,6 +21,7 @@ class TeamIconOwnershipManagerTest :
         val iconUrl = "https://storage.example.com/bucket/$key"
         lateinit var uploads: TeamIconUploadRepository
         lateinit var storage: TeamIconStorage
+        lateinit var teams: TeamRepository
         lateinit var service: TeamIconOwnershipManager
         lateinit var upload: TeamIconUpload
 
@@ -28,13 +30,15 @@ class TeamIconOwnershipManagerTest :
         beforeEach {
             uploads = mockk()
             storage = mockk(relaxed = true)
+            teams = mockk()
             upload = TeamIconUpload(key, uploadKey, 7L, "image/png", teamId = 10L)
             every { storage.extractObjectKey(iconUrl) } returns key
             every { storage.managedObjectKeyOrNull(iconUrl) } returns key
             every { storage.buildPublicUrl(key) } returns iconUrl
             every { uploads.findByObjectKeyForUpdate(key) } returns upload
             every { uploads.findByUploadKeyForUpdate(uploadKey) } returns upload
-            service = TeamIconOwnershipManager(uploads, storage)
+            every { teams.existsById(10L) } returns true
+            service = TeamIconOwnershipManager(uploads, storage, teams)
         }
 
         describe("아이콘 업로드 발급은") {
@@ -65,6 +69,20 @@ class TeamIconOwnershipManagerTest :
                 service.confirm(7L, uploadKey) shouldBe iconUrl
                 upload.confirmed shouldBe true
                 verify(exactly = 1) { storage.finalizeUpload(uploadKey, key, "image/png") }
+            }
+            it("발급 대상 팀이 없는 기존 업로드를 공개 경로로 복사하지 않는다") {
+                upload.teamId = null
+                shouldThrow<ExpectedException> { service.confirm(7L, uploadKey) }.statusCode shouldBe
+                    HttpStatus.BAD_REQUEST
+                upload.confirmed shouldBe false
+                verify(exactly = 0) { storage.finalizeUpload(any(), any(), any()) }
+            }
+            it("발급 후 대상 팀이 삭제된 업로드를 공개 경로로 복사하지 않는다") {
+                every { teams.existsById(10L) } returns false
+                shouldThrow<ExpectedException> { service.confirm(7L, uploadKey) }.statusCode shouldBe
+                    HttpStatus.BAD_REQUEST
+                upload.confirmed shouldBe false
+                verify(exactly = 0) { storage.finalizeUpload(any(), any(), any()) }
             }
         }
 

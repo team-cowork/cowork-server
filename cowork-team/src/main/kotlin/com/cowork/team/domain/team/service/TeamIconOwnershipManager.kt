@@ -4,6 +4,7 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.entity.TeamIconUpload
 import com.cowork.team.domain.team.presentation.data.response.IconPresignedUrlResponse
 import com.cowork.team.domain.team.repository.TeamIconUploadRepository
+import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.global.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -14,6 +15,7 @@ import team.themoment.sdk.exception.ExpectedException
 class TeamIconOwnershipManager(
     private val teamIconUploadRepository: TeamIconUploadRepository,
     private val teamIconStorage: TeamIconStorage,
+    private val teamRepository: TeamRepository,
 ) {
     /** 호출 서비스가 팀 변경 권한을 검사한 뒤 호출한다. 발급한 업로드는 그 팀에만 연결할 수 있다. */
     @Transactional
@@ -32,6 +34,11 @@ class TeamIconOwnershipManager(
             ?: throw ExpectedException("발급된 아이콘 업로드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         if (upload.uploadedBy != userId || upload.retired) {
             throw ExpectedException("아이콘 업로드를 확인할 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+        // 대상 팀이 없으면 공개 경로로 복사하지 않는다. 복사한 파일은 만료 규칙이 적용되지 않는다.
+        val teamId = upload.teamId
+        if (teamId == null || !teamRepository.existsById(teamId)) {
+            throw ExpectedException("아이콘 업로드 URL을 다시 발급받아야 합니다.", HttpStatus.BAD_REQUEST)
         }
         if (!upload.confirmed) {
             teamIconStorage.finalizeUpload(upload.uploadKey, upload.objectKey, upload.contentType)
