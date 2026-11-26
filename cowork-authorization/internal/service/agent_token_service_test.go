@@ -16,6 +16,8 @@ import (
 type fakeAgentTokenStore struct {
 	tokens   map[string]*domain.AgentToken
 	markedID int64
+	// beforeMarkUsed runs between the read and the conditional update, like a concurrent request.
+	beforeMarkUsed func()
 }
 
 func (s *fakeAgentTokenStore) Create(_ context.Context, token *domain.AgentToken) error {
@@ -33,16 +35,27 @@ func (s *fakeAgentTokenStore) FindByHash(_ context.Context, hash string) (*domai
 	if !ok {
 		return nil, gorm.ErrRecordNotFound
 	}
-	return token, nil
+	snapshot := *token
+	return &snapshot, nil
 }
 
 func (s *fakeAgentTokenStore) Revoke(context.Context, int64, int64, time.Time) (bool, error) {
 	return false, nil
 }
 
-func (s *fakeAgentTokenStore) MarkUsed(_ context.Context, id int64, _ time.Time) error {
-	s.markedID = id
-	return nil
+// MarkUsed applies the same revoked_at and expires_at conditions as the repository update.
+func (s *fakeAgentTokenStore) MarkUsed(_ context.Context, id int64, at time.Time) (bool, error) {
+	if s.beforeMarkUsed != nil {
+		s.beforeMarkUsed()
+	}
+	for _, token := range s.tokens {
+		if token.ID == id && token.Exchangeable(at) {
+			token.LastUsedAt = &at
+			s.markedID = id
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func newUnitAgentTokenService(now time.Time) (*AgentTokenService, *fakeAgentTokenStore) {
@@ -125,6 +138,37 @@ func TestExchangeAgentTokenRejectsUnknownRevokedAndExpiredTokens(t *testing.T) {
 	}
 	if store.markedID != 0 {
 		t.Fatalf("rejected exchange recorded use of token %d", store.markedID)
+	}
+}
+
+func TestExchangeAgentTokenRejectsTokenRevokedOrExpiredAfterRead(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 26, 1, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		race func(token *domain.AgentToken)
+	}{
+		{name: "revoked", race: func(token *domain.AgentToken) {
+			revokedAt := now
+			token.RevokedAt = &revokedAt
+		}},
+		{name: "expired", race: func(token *domain.AgentToken) { token.ExpiresAt = now }},
+	}
+	for _, test := range tests {
+		svc, store := newUnitAgentTokenService(now)
+		raw := AgentTokenPrefix + "racing"
+		stored := &domain.AgentToken{ID: 3, UserID: 42, Scopes: "chat:read", ExpiresAt: now.Add(time.Hour)}
+		store.tokens[HashToken(raw)] = stored
+		store.beforeMarkUsed = func() { test.race(stored) }
+
+		access, err := svc.Exchange(context.Background(), raw)
+		if !errors.Is(err, ErrAgentTokenRejected) || access != nil {
+			t.Errorf("%s: Exchange() = %+v, %v, want nil and ErrAgentTokenRejected", test.name, access, err)
+		}
+		if stored.LastUsedAt != nil {
+			t.Errorf("%s: rejected exchange recorded last_used_at", test.name)
+		}
 	}
 }
 

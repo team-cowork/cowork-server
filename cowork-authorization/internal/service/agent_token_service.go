@@ -30,7 +30,7 @@ type AgentTokenStore interface {
 	ListByUser(ctx context.Context, userID int64) ([]domain.AgentToken, error)
 	FindByHash(ctx context.Context, hash string) (*domain.AgentToken, error)
 	Revoke(ctx context.Context, id, userID int64, at time.Time) (bool, error)
-	MarkUsed(ctx context.Context, id int64, at time.Time) error
+	MarkUsed(ctx context.Context, id int64, at time.Time) (bool, error)
 }
 
 type AgentTokenInfo struct {
@@ -126,6 +126,8 @@ func (s *AgentTokenService) Revoke(ctx context.Context, userID, id int64) error 
 
 // Exchange signs a short access JWT for an unrevoked and unexpired agent token.
 // The JWT never outlives the agent token. Revocation does not reach JWTs exchanged before it.
+// The use is recorded with a conditional update before signing, so a revocation that lands
+// after the read still stops the exchange.
 func (s *AgentTokenService) Exchange(ctx context.Context, raw string) (*AgentAccessToken, error) {
 	if !strings.HasPrefix(raw, AgentTokenPrefix) {
 		return nil, ErrAgentTokenRejected
@@ -138,7 +140,8 @@ func (s *AgentTokenService) Exchange(ctx context.Context, raw string) (*AgentAcc
 		return nil, err
 	}
 
-	now := s.now().UTC().Truncate(time.Second)
+	usedAt := s.now().UTC().Truncate(time.Microsecond)
+	now := usedAt.Truncate(time.Second)
 	if !token.Exchangeable(now) {
 		return nil, ErrAgentTokenRejected
 	}
@@ -150,12 +153,16 @@ func (s *AgentTokenService) Exchange(ctx context.Context, raw string) (*AgentAcc
 		return nil, ErrAgentTokenRejected
 	}
 
+	used, err := s.store.MarkUsed(ctx, token.ID, usedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to record agent token use: %w", err)
+	}
+	if !used {
+		return nil, ErrAgentTokenRejected
+	}
 	accessToken, err := s.tokenSvc.GenerateAgentAccessToken(token.UserID, token.Scopes, now, expiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate agent access token: %w", err)
-	}
-	if err := s.store.MarkUsed(ctx, token.ID, now); err != nil {
-		return nil, fmt.Errorf("failed to record agent token use: %w", err)
 	}
 	return &AgentAccessToken{
 		AccessToken: accessToken,

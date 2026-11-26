@@ -44,8 +44,12 @@ func (r *AgentTokenRepository) Revoke(ctx context.Context, id, userID int64, at 
 	return result.RowsAffected == 1, result.Error
 }
 
-func (r *AgentTokenRepository) MarkUsed(ctx context.Context, id int64, at time.Time) error {
-	return r.db.WithContext(ctx).Model(&domain.AgentToken{}).
-		Where("id = ?", id).
-		Update("last_used_at", at).Error
+// MarkUsed records a use only while the token is still unrevoked and unexpired at the given time.
+// It reports false when a concurrent revocation or the expiry came first.
+// MySQL counts only changed rows, so a second use at the same microsecond also reports false.
+func (r *AgentTokenRepository) MarkUsed(ctx context.Context, id int64, at time.Time) (bool, error) {
+	result := r.db.WithContext(ctx).Model(&domain.AgentToken{}).
+		Where("id = ? AND revoked_at IS NULL AND expires_at > ?", id, at).
+		Update("last_used_at", at)
+	return result.RowsAffected == 1, result.Error
 }
