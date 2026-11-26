@@ -5,14 +5,13 @@ import {
 	OnModuleInit,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {TextChannelSettingProjectionRepository} from '../repository/index.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 
 const MAX_SLOWMODE_SECONDS = 21_600;
 
@@ -28,7 +27,7 @@ type TextChannelSettingEvent = {
 @injectable()
 export class TextChannelSettingEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TextChannelSettingEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 
 	constructor(
 		private readonly configService: ConfigService,
@@ -56,20 +55,15 @@ export class TextChannelSettingEventConsumer implements OnModuleInit, OnModuleDe
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-chat-text-channel-setting-event',
-			...getKafkaClientConfig(this.configService),
-		});
 		const stream = PROJECTION_STREAMS.textChannelSetting;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-text-channel-setting-event', readiness: this.projectionReadiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy(): Promise<void> {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }
 

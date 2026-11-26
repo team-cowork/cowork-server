@@ -2,10 +2,10 @@ import {randomUUID} from 'node:crypto';
 import {Injectable as injectable} from '@nestjs/common';
 import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
-import {PartitionOffset} from 'kafkajs';
 import {type Nullable} from '../type/nullable.js';
 import {ProjectionCheckpoint} from './projection-checkpoint.schema.js';
 import {ProjectionQuarantineRecord} from './projection-quarantine.schema.js';
+import {type PartitionOffset} from './projection-streams.js';
 
 export type SnapshotBarrierReceipt = {
 	offset: string;
@@ -16,7 +16,7 @@ export type SnapshotBarrierReceipt = {
 
 export type ProjectionCheckpointOffset = {
 	datasetGeneration?: string;
-	sourceGeneration?: string;
+	topicId?: string;
 	assignmentEpoch?: string;
 	assignmentMemberId?: string;
 	assignmentGenerationId?: number;
@@ -39,7 +39,7 @@ export type ProjectionAssignmentClaim = {
 };
 
 /**
-KafkaJS 기본 3초 heartbeat보다 충분히 길고 30초 session timeout보다 짧은 stale-owner lease.
+Consumer의 3초 heartbeat보다 충분히 길고 30초 session timeout보다 짧은 stale-owner lease.
 */
 export const PROJECTION_ASSIGNMENT_LEASE_MS = 15_000;
 
@@ -135,7 +135,7 @@ export class ProjectionCheckpointRepository {
 			.select({
 				partition: 1,
 				datasetGeneration: 1,
-				sourceGeneration: 1,
+				topicId: 1,
 				assignmentEpoch: 1,
 				assignmentMemberId: 1,
 				assignmentGenerationId: 1,
@@ -150,7 +150,7 @@ export class ProjectionCheckpointRepository {
 			.lean<Array<{
 			partition: number;
 			datasetGeneration?: string;
-			sourceGeneration?: string;
+			topicId?: Nullable<string>;
 			assignmentEpoch?: Nullable<string>;
 			assignmentMemberId?: Nullable<string>;
 			assignmentGenerationId?: Nullable<number>;
@@ -165,7 +165,7 @@ export class ProjectionCheckpointRepository {
 		return checkpoints.map(({
 			partition,
 			datasetGeneration,
-			sourceGeneration,
+			topicId,
 			assignmentEpoch,
 			assignmentMemberId,
 			assignmentGenerationId,
@@ -179,7 +179,7 @@ export class ProjectionCheckpointRepository {
 			partition,
 			offset: nextOffset.toString(),
 			...(isPresent(datasetGeneration) && {datasetGeneration}),
-			...(isPresent(sourceGeneration) && {sourceGeneration}),
+			...(isPresent(topicId) && {topicId}),
 			...(isPresent(assignmentEpoch) && {assignmentEpoch}),
 			...(isPresent(assignmentMemberId) && {assignmentMemberId}),
 			...(isPresent(assignmentGenerationId) && {assignmentGenerationId}),
@@ -202,7 +202,7 @@ export class ProjectionCheckpointRepository {
 		claim: {
 			partition: number;
 			datasetGeneration: string;
-			sourceGeneration: string;
+			topicId: string;
 			lease: ProjectionAssignmentLease;
 			checkpoint: {
 				nextOffset: bigint;
@@ -214,12 +214,12 @@ export class ProjectionCheckpointRepository {
 		},
 
 	): ProjectionCheckpointOffset {
-		const {partition, datasetGeneration, sourceGeneration, lease, checkpoint} = claim;
+		const {partition, datasetGeneration, topicId, lease, checkpoint} = claim;
 		return {
 			partition,
 			offset: checkpoint.nextOffset.toString(),
 			datasetGeneration,
-			sourceGeneration,
+			topicId,
 			assignmentEpoch: lease.assignmentEpoch,
 			assignmentMemberId: lease.memberId,
 			assignmentGenerationId: lease.groupGenerationId,
@@ -361,20 +361,20 @@ export class ProjectionCheckpointRepository {
 			partition: number;
 			earliestOffset: string;
 			datasetGeneration: string;
-			sourceGeneration: string;
+			topicId: string;
 			memberId: string;
 			groupGenerationId: number;
 		},
 
 	): Promise<ProjectionAssignmentClaim | undefined> {
-		const {groupId, topic, partition, earliestOffset, datasetGeneration, sourceGeneration, memberId, groupGenerationId} = claim;
+		const {groupId, topic, partition, earliestOffset, datasetGeneration, topicId, memberId, groupGenerationId} = claim;
 		const key = {groupId, topic, partition};
 		const assignmentEpoch = randomUUID();
 		const lease: ProjectionAssignmentLease = {assignmentEpoch, memberId, groupGenerationId};
 		const filter = {
 			...key,
 			datasetGeneration,
-			sourceGeneration,
+			topicId,
 			$or: [
 				{assignmentEpoch: null},
 				{assignmentLeaseRenewedAt: null},
@@ -400,7 +400,7 @@ export class ProjectionCheckpointRepository {
 			return {
 				lease,
 				checkpoint: this.claimedCheckpoint({
-					partition, datasetGeneration, sourceGeneration, lease, checkpoint: available,
+					partition, datasetGeneration, topicId, lease, checkpoint: available,
 				},
 				),
 			};
@@ -411,7 +411,7 @@ export class ProjectionCheckpointRepository {
 			// 이 두 번째 CAS를 통과하며, active owner와 경합하면 unique key가 claim을 막는다.
 			const inserted = await this.model.findOneAndUpdate(
 				{
-					...key, datasetGeneration, sourceGeneration, assignmentEpoch: null,
+					...key, datasetGeneration, topicId, assignmentEpoch: null,
 				},
 				{
 					...leaseUpdate,
@@ -428,7 +428,7 @@ export class ProjectionCheckpointRepository {
 			return {
 				lease,
 				checkpoint: this.claimedCheckpoint({
-					partition, datasetGeneration, sourceGeneration, lease, checkpoint: inserted,
+					partition, datasetGeneration, topicId, lease, checkpoint: inserted,
 				},
 				),
 			};
@@ -487,11 +487,11 @@ export class ProjectionCheckpointRepository {
 			topic: string;
 			offsets: PartitionOffset[];
 			datasetGeneration: string;
-			sourceGeneration: string;
+			topicId: string;
 		},
 
 	): Promise<void> {
-		const {groupId, topic, offsets, datasetGeneration, sourceGeneration} = reset;
+		const {groupId, topic, offsets, datasetGeneration, topicId} = reset;
 		await Promise.all(offsets.map(async ({partition, offset}) => this.model.updateOne(
 			{groupId, topic, partition},
 			{
@@ -500,7 +500,7 @@ export class ProjectionCheckpointRepository {
 					topic,
 					partition,
 					datasetGeneration,
-					sourceGeneration,
+					topicId,
 					nextOffset: BigInt(offset),
 					rebuildPausedGeneration: datasetGeneration,
 				},
@@ -517,6 +517,15 @@ export class ProjectionCheckpointRepository {
 			},
 			{upsert: true},
 		)));
+	}
+
+	/**
+    Topic UUID가 비어 있는 같은 dataset generation의 checkpoint에만 기록한다.
+    */
+	async adoptTopicId(groupId: string, topic: string, datasetGeneration: string, topicId: string): Promise<void> {
+		await this.model.updateMany({
+			groupId, topic, datasetGeneration, topicId: null,
+		}, {$set: {topicId}});
 	}
 
 	/**

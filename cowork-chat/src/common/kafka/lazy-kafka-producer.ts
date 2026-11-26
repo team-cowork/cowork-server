@@ -1,8 +1,39 @@
 import {Logger, type OnModuleDestroy, type OnModuleInit} from '@nestjs/common';
 import {type ConfigService} from '@nestjs/config';
-import {Kafka, type Producer, type ProducerRecord} from 'kafkajs';
+import {
+	compatibilityPartitioner,
+	type MessageToProduce,
+	type Partitioner,
+	Producer,
+	stringSerializers,
+} from '@platformatic/kafka';
 import {getKafkaClientConfig} from '../config/config.util.js';
 import {connectWithRetry} from './connect-with-retry.js';
+
+type StringProducer = Producer<string, string, string, string>;
+
+/**
+ Keyed messages use `compatibilityPartitioner`, the Java client's partitioner (murmur2 & 0x7fffffff), so each key
+ keeps its partition; platformatic's default partitioner differs for negative hashes.
+ A custom partitioner also receives keyless messages, and `compatibilityPartitioner` sends them all to
+ partition 0, so keyless messages round-robin here. The producer takes the result modulo the partition count.
+ */
+export function createPartitioner(): Partitioner<string, string, string, string> {
+	let keylessCount = 0;
+	return (message, key) => key === undefined ? keylessCount++ : compatibilityPartitioner(message, key);
+}
+
+export function createKafkaProducer(configService: ConfigService, clientId: string): StringProducer {
+	return new Producer({
+		clientId,
+		...getKafkaClientConfig(configService),
+		idempotent: true,
+		// Idempotent producers otherwise retry forever, so a down broker would never reject publish().
+		retries: 5,
+		partitioner: createPartitioner(),
+		serializers: stringSerializers,
+	});
+}
 
 type LazyKafkaProducerOptions = {
 	clientId: string;
@@ -22,7 +53,7 @@ type LazyKafkaProducerOptions = {
  on failure so the next call retries.
  */
 export abstract class LazyKafkaProducer implements OnModuleInit, OnModuleDestroy {
-	private producer!: Producer;
+	private producer!: StringProducer;
 	private isConnected = false;
 	private connectPromise?: Promise<void>;
 	private readonly logger = new Logger(this.constructor.name);
@@ -37,8 +68,9 @@ export abstract class LazyKafkaProducer implements OnModuleInit, OnModuleDestroy
 			return;
 		}
 
+		// Platformatic has no connect(); InitProducerId is the first broker round-trip.
 		this.connectPromise ??= this.producer
-			.connect()
+			.initIdempotentProducer({})
 			.then(() => {
 				this.isConnected = true;
 				this.logger.log(`${this.options.label} connected`);
@@ -52,11 +84,7 @@ export abstract class LazyKafkaProducer implements OnModuleInit, OnModuleDestroy
 	}
 
 	onModuleInit() {
-		const kafka = new Kafka({
-			clientId: this.options.clientId,
-			...getKafkaClientConfig(this.configService),
-		});
-		this.producer = kafka.producer({idempotent: true});
+		this.producer = createKafkaProducer(this.configService, this.options.clientId);
 		const {startupRetryLabel} = this.options;
 		const connect = startupRetryLabel === undefined
 			? this.ensureConnected()
@@ -67,17 +95,15 @@ export abstract class LazyKafkaProducer implements OnModuleInit, OnModuleDestroy
 	}
 
 	async onModuleDestroy() {
-		if (this.isConnected) {
-			await this.producer.disconnect();
-		}
+		await this.producer.close();
 	}
 
 	isReady(): boolean {
 		return this.isConnected;
 	}
 
-	protected async publish(record: ProducerRecord): Promise<void> {
+	protected async publish(messages: Array<MessageToProduce<string, string, string, string>>): Promise<void> {
 		await this.ensureConnected();
-		await this.producer.send(record);
+		await this.producer.send({messages});
 	}
 }

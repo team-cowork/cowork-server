@@ -1,7 +1,6 @@
 import {readFileSync} from 'node:fs';
-import {Logger} from '@nestjs/common';
 import {type ConfigService} from '@nestjs/config';
-import {type KafkaConfig, logLevel, type SASLOptions} from 'kafkajs';
+import {type BaseOptions, SASLMechanisms} from '@platformatic/kafka';
 
 export function getRequiredConfig(configService: ConfigService, key: string): string {
 	const value = getOptionalConfig(configService, key);
@@ -44,66 +43,35 @@ export function getRequiredCsvConfig(configService: ConfigService, key: string):
 	return values;
 }
 
-export function getKafkaClientConfig(configService: ConfigService): KafkaConfig {
+export type KafkaClientConfig = Pick<BaseOptions, 'bootstrapBrokers' | 'tls' | 'sasl'>;
+
+export function getKafkaClientConfig(configService: ConfigService): KafkaClientConfig {
 	const protocol = (getOptionalConfig(configService, 'KAFKA_SECURITY_PROTOCOL') ?? 'PLAINTEXT').toUpperCase();
 	if (!['PLAINTEXT', 'SSL', 'SASL_SSL'].includes(protocol)) {
 		throw new Error('KAFKA_SECURITY_PROTOCOL must be PLAINTEXT, SSL or SASL_SSL');
 	}
 
-	const config: KafkaConfig = {
-		brokers: getRequiredCsvConfig(configService, 'KAFKA_BOOTSTRAP_SERVERS'),
-		// KafkaJS 기본 로그에는 @timestamp가 없어 공통 Pino 로거로 전달한다.
-		logCreator: () => ({namespace, level, log}) => {
-			const logger = new Logger(['KafkaJS', namespace].filter(Boolean).join(':'));
-			switch (level) {
-				case logLevel.ERROR: {
-					logger.error(log);
-					break;
-				}
-
-				case logLevel.WARN: {
-					logger.warn(log);
-					break;
-				}
-
-				case logLevel.INFO: {
-					logger.log(log);
-					break;
-				}
-
-				case logLevel.DEBUG: {
-					logger.debug(log);
-					break;
-				}
-
-				case logLevel.NOTHING: {
-					break;
-				}
-			}
-		},
+	const config: KafkaClientConfig = {
+		bootstrapBrokers: getRequiredCsvConfig(configService, 'KAFKA_BOOTSTRAP_SERVERS'),
 	};
 	if (protocol !== 'PLAINTEXT') {
 		const caFile = getOptionalConfig(configService, 'KAFKA_SSL_CA_LOCATION');
-		config.ssl = caFile === undefined
-			? true
-			: {
-				rejectUnauthorized: true,
-				ca: [readFileSync(caFile, 'utf8')],
-			};
+		config.tls = caFile === undefined
+			? {rejectUnauthorized: true}
+			: {rejectUnauthorized: true, ca: [readFileSync(caFile, 'utf8')]};
 	}
 
 	if (protocol === 'SASL_SSL') {
-		const mechanism = (getOptionalConfig(configService, 'KAFKA_SASL_MECHANISM') ?? 'SCRAM-SHA-512').toLowerCase();
-		if (mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
+		const mechanism = (getOptionalConfig(configService, 'KAFKA_SASL_MECHANISM') ?? SASLMechanisms.SCRAM_SHA_512).toUpperCase();
+		if (mechanism !== SASLMechanisms.SCRAM_SHA_256 && mechanism !== SASLMechanisms.SCRAM_SHA_512) {
 			throw new Error('KAFKA_SASL_MECHANISM must be SCRAM-SHA-256 or SCRAM-SHA-512');
 		}
 
-		const sasl = {
+		config.sasl = {
 			mechanism,
 			username: getRequiredConfig(configService, 'KAFKA_SASL_USERNAME'),
 			password: getRequiredConfig(configService, 'KAFKA_SASL_PASSWORD'),
 		};
-		config.sasl = sasl as SASLOptions;
 	}
 
 	return config;

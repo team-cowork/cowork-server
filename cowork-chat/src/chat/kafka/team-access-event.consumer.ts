@@ -6,15 +6,14 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
 import {mongo} from 'mongoose';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseAuthorizationVersion, parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {TeamAccessProjectionRepository, type TeamAccessDecision} from '../repository/index.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 export function parseTeamAccessEvent(payload: unknown, messageKey?: string): Nullable<TeamAccessDecision> {
@@ -57,7 +56,7 @@ export function parseTeamAccessEvent(payload: unknown, messageKey?: string): Nul
 @injectable()
 export class TeamAccessEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TeamAccessEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 
 	@inject()
 	private readonly configService!: ConfigService;
@@ -78,19 +77,14 @@ export class TeamAccessEventConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-chat-team-access-state',
-			...getKafkaClientConfig(this.configService),
-		});
 		const stream = PROJECTION_STREAMS.teamAccess;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-team-access-state', readiness: this.projectionReadiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy(): Promise<void> {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

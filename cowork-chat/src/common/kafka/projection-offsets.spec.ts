@@ -1,7 +1,9 @@
 import {type ProjectionDatasetState} from './projection-dataset.repository.js';
 import {type ProjectionCheckpointOffset} from './projection-checkpoint.repository.js';
 import {
+	describeActiveCheckpointProblem,
 	describeStartupCheckpointProblem,
+	describeTopicIdentityProblem,
 	hasCompletedSnapshotBarriers,
 	isReadyWithLagGrace,
 	nextLag,
@@ -9,6 +11,8 @@ import {
 } from './projection-offsets.js';
 
 const NOW = 1_000_000;
+const TOPIC_ID = 'Ny4Dj7FcRdiX7gCxqXoj3A';
+const STARTUP_MISMATCH = 'Projection checkpoint topic UUID or dataset generation mismatch: channel.event.v2';
 
 describe('nextLag', () => {
 	const at = (high: string) => [{
@@ -96,7 +100,7 @@ describe('describeStartupCheckpointProblem', () => {
 	const dataset = (overrides: Partial<ProjectionDatasetState> = {}) => {
 		const merged: Partial<ProjectionDatasetState> = {
 			datasetGeneration: 'dataset-1',
-			sourceGeneration: 'source-1',
+			topicId: TOPIC_ID,
 			status: 'ACTIVE',
 			...overrides,
 		};
@@ -107,15 +111,17 @@ describe('describeStartupCheckpointProblem', () => {
 		partition,
 		offset: '10',
 		datasetGeneration: 'dataset-1',
-		sourceGeneration: 'source-1',
+		topicId: TOPIC_ID,
 		snapshotCompletedOffset: '8',
 		...overrides,
 	});
 
 	it.each([
 		['정상 checkpoint는 문제가 없다', dataset(), [checkpoint(0), checkpoint(1)], undefined],
-		['dataset generation이 다르면 재구축 사유를 반환한다', dataset(), [checkpoint(0, {datasetGeneration: 'old'}), checkpoint(1)], 'Projection checkpoint generation mismatch: channel.event.v2[0]'],
-		['source generation이 다르면 재구축 사유를 반환한다', dataset(), [checkpoint(0), checkpoint(1, {sourceGeneration: 'old'})], 'Projection checkpoint generation mismatch: channel.event.v2[1]'],
+		['dataset generation이 다르면 재구축 사유를 반환한다', dataset(), [checkpoint(0, {datasetGeneration: 'old'}), checkpoint(1)], `${STARTUP_MISMATCH}[0]`],
+		['topic UUID가 다르면 재구축 사유를 반환한다', dataset(), [checkpoint(0), checkpoint(1, {topicId: 'recreated'})], `${STARTUP_MISMATCH}[1]`],
+		['topic UUID가 없는 기존 checkpoint는 재구축 사유를 반환한다', dataset(), [checkpoint(0, {topicId: undefined}), checkpoint(1)], `${STARTUP_MISMATCH}[0]`],
+		['topic UUID가 없는 기존 dataset은 topic UUID가 없는 checkpoint와도 불일치다', dataset({topicId: undefined}), [checkpoint(0, {topicId: undefined})], `${STARTUP_MISMATCH}[0]`],
 		['retained log 밖의 checkpoint는 재구축 사유를 반환한다', dataset(), [checkpoint(0, {offset: '3'}), checkpoint(1)], 'Projection checkpoint is outside retained log: channel.event.v2[0]'],
 		['broker에 없는 partition의 checkpoint는 retained log 밖으로 본다', dataset(), [checkpoint(0), checkpoint(2)], 'Projection checkpoint is outside retained log: channel.event.v2[2]'],
 		['ACTIVE dataset에서 partition 목록이 불완전하면 실패한다', dataset(), [checkpoint(0)], 'Projection checkpoint partition set is incomplete: stored=0 broker=0,1'],
@@ -129,5 +135,47 @@ describe('describeStartupCheckpointProblem', () => {
 			// 사유 뒤에는 offset 세부 정보가 붙으므로 사유 접두부만 비교한다.
 			expect(problem).toContain(expected);
 		}
+	});
+});
+
+describe('describeActiveCheckpointProblem', () => {
+	const current = new Map([[0, {
+		partition: 0, offset: '20', low: '5', high: '20',
+	}]]);
+	const dataset = {datasetGeneration: 'dataset-1', topicId: TOPIC_ID};
+	const checkpoint = (overrides: Partial<ProjectionCheckpointOffset> = {}): ProjectionCheckpointOffset => ({
+		partition: 0,
+		offset: '10',
+		datasetGeneration: 'dataset-1',
+		topicId: TOPIC_ID,
+		...overrides,
+	});
+	const mismatch = 'Kafka projection checkpoint topic UUID or dataset generation mismatch: channel.event.v2[0]';
+
+	it.each([
+		['topic UUID와 dataset generation이 같으면 문제가 없다', dataset, [checkpoint()], undefined],
+		['topic UUID가 다르면 복구 불가 사유를 반환한다', dataset, [checkpoint({topicId: 'recreated'})], mismatch],
+		['dataset generation이 다르면 복구 불가 사유를 반환한다', dataset, [checkpoint({datasetGeneration: 'old'})], mismatch],
+		['topic UUID가 없는 기존 checkpoint는 일치로 보지 않는다', dataset, [checkpoint({topicId: undefined})], mismatch],
+		['topic UUID가 없는 기존 dataset은 topic UUID가 없는 checkpoint와도 불일치다', {datasetGeneration: 'dataset-1'}, [checkpoint({topicId: undefined})], mismatch],
+		['retained log 밖이면 topic UUID보다 먼저 보고한다', dataset, [checkpoint({offset: '3', topicId: 'recreated'})], 'Kafka projection checkpoint is outside the retained log: channel.event.v2[0]'],
+	])('%s', (_title, datasetState, checkpoints, expected) => {
+		const problem = describeActiveCheckpointProblem('channel.event.v2', datasetState, checkpoints, current);
+		if (expected === undefined) {
+			expect(problem).toBeUndefined();
+		} else {
+			expect(problem).toContain(expected);
+		}
+	});
+});
+
+describe('describeTopicIdentityProblem', () => {
+	it.each([
+		['broker topic UUID가 dataset과 같으면 이어 읽는다', 'topic-a', 'topic-a', false],
+		['같은 이름으로 다시 만든 topic은 UUID가 달라 재구축한다', 'topic-a', 'topic-b', true],
+		['topic UUID가 없는 기존 dataset은 재구축한다', undefined, 'topic-a', true],
+	])('%s', (_title, datasetTopicId, brokerTopicId, isProblem) => {
+		const problem = describeTopicIdentityProblem('channel.event.v2', {topicId: datasetTopicId}, brokerTopicId);
+		expect(problem !== undefined).toBe(isProblem);
 	});
 });

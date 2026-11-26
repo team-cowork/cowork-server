@@ -18,7 +18,7 @@ export class ProjectionStreamStatusDto {
 	@apiProperty({enum: modes}) mode!: string;
 	@apiProperty({enum: statuses}) status!: string;
 	@apiProperty() datasetGeneration!: string;
-	@apiProperty() sourceGeneration!: string;
+	@apiPropertyOptional() topicId?: string;
 	@apiPropertyOptional() reason?: string;
 	@apiProperty({type: [ProjectionPartitionStatusDto]}) partitions!: ProjectionPartitionStatusDto[];
 }
@@ -32,7 +32,7 @@ export class ProjectionDatasetDto {
 	@apiProperty() stream!: string;
 	@apiProperty() groupId!: string;
 	@apiProperty() topic!: string;
-	@apiProperty() sourceGeneration!: string;
+	@apiPropertyOptional() topicId?: string;
 	@apiProperty() datasetGeneration!: string;
 	@apiProperty({enum: modes}) mode!: string;
 	@apiProperty({enum: statuses}) status!: string;

@@ -7,14 +7,12 @@ import {
 	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Kafka, Consumer} from 'kafkajs';
 import mongoose from 'mongoose';
 import {ChatService} from '../chat.service.js';
 import {UserClient} from '../service/index.js';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {type KafkaConsumerHandle, startCommittedConsumer} from '../../common/kafka/partition-fetcher.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
@@ -152,7 +150,7 @@ export function voiceEventMessage(event: VoiceEvent, displayName: Nullable<strin
 @injectable()
 export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(VoiceEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 
 	@inject(forwardRef(() => ChatService))
 	private readonly chatService!: ForwardReference<ChatService>;
@@ -170,9 +168,8 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
      음성 이벤트를 SYSTEM 메시지로 저장하고 채널에 브로드캐스트한다.
 
      `source`(Kafka 메시지 위치)는 잘못된 페이로드를 로그에 남기는 데 사용한다.
-     오래 걸리는 준비 대기 동안 `heartbeat`로 Kafka consumer heartbeat를 보낸다.
      */
-	private async handleVoiceEvent(payload: unknown, source: KafkaMessageSource, heartbeat: () => Promise<void>): Promise<void> {
+	private async handleVoiceEvent(payload: unknown, source: KafkaMessageSource): Promise<void> {
 		const event = parseVoiceEvent(payload);
 		if (event === null) {
 			this.logger.warn(`Skipping invalid voice event [offset=${source.offset}]`);
@@ -183,7 +180,7 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return;
 		}
 
-		await waitForProjectionReadiness(this.projectionReadiness, heartbeat);
+		await waitForProjectionReadiness(this.projectionReadiness);
 		if (!this.projectionReadiness.isReady()) {
 			throw new Error('Kafka projections became unavailable while processing voice.event');
 		}
@@ -209,40 +206,30 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
      그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
      */
 	async onModuleInit() {
-		const kafka = new Kafka({
+		this.consumer = await startCommittedConsumer({
+			logger: this.logger,
+			configService: this.configService,
 			clientId: 'cowork-chat-voice-event',
-			...getKafkaClientConfig(this.configService),
-		});
-		this.consumer = kafka.consumer({groupId: 'cowork-chat-voice-event'});
-		await connectWithRetry(this.logger, 'Kafka consumer startup: voice.event', async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: 'voice.event', fromBeginning: false});
-		});
+			groupId: 'cowork-chat-voice-event',
+			topic: 'voice.event',
+			fromBeginning: false,
+			handle: async ({topic, partition, offset, value}) => {
+				if (value === null) {
+					return;
+				}
 
-		void this.consumer
-			.run({
-				eachMessage: async payload => {
-					const {topic, partition, message} = payload;
-					if (!message.value) {
-						return;
+				try {
+					const event = JSON.parse(value) as unknown;
+					await this.handleVoiceEvent(event, {topic, partition, offset});
+				} catch (error) {
+					if (!(error instanceof SyntaxError) && !(error instanceof mongoose.Error.ValidationError)) {
+						throw error;
 					}
 
-					try {
-						const event = JSON.parse(message.value.toString()) as unknown;
-						await this.handleVoiceEvent(event, {topic, partition, offset: message.offset}, async () => payload.heartbeat());
-					} catch (error) {
-						this.logger.error('Failed to process voice event', error);
-						if (!(error instanceof SyntaxError) && !(error instanceof mongoose.Error.ValidationError)) {
-							throw error;
-						}
-					}
-				},
-			})
-			.catch(async (error: unknown) => {
-				this.logger.error('voice.event Kafka consumer failed', error);
-				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-				throw error;
-			});
+					this.logger.error('Failed to process voice event', error);
+				}
+			},
+		});
 		this.logger.log('Kafka consumer started: voice.event');
 	}
 
@@ -250,6 +237,6 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
      모듈 종료 시 Kafka 컨슈머 연결을 해제한다.
      */
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }
