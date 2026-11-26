@@ -65,7 +65,7 @@ class ChannelRolePermissionResolverTest :
                 ) shouldBe
                     true
             }
-            it("기본 역할의 최초 권한은 조회, 음성 연결과 일정 만들기만 허용한다") {
+            it("기본 역할의 최초 권한은 조회, 음성 연결, 일정 만들기와 앱 사용만 허용한다") {
                 TeamRolePermissions.everyone().filterValues { it }.keys shouldBe
                     setOf(
                         "message_read",
@@ -73,6 +73,7 @@ class ChannelRolePermissionResolverTest :
                         "project_read",
                         "project_board_read",
                         "calendar_event_create",
+                        "use_applets",
                     )
                 TeamRolePermissions.everyone().keys shouldBe PermissionKeys.ROLE_SCOPED
             }

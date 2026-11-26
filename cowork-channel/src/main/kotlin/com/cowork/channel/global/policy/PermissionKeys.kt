@@ -15,6 +15,7 @@ object PermissionKeys {
     const val MANAGE_PROJECTS = "manage_projects"
     const val MANAGE_GITHUB = "manage_github"
     const val MANAGE_APPLETS = "manage_applets"
+    const val USE_APPLETS = "use_applets"
     const val MANAGE_NICKNAMES = "manage_nicknames"
     const val MANAGE_NICKNAME_FORMAT = "manage_nickname_format"
     const val ARCHIVE_CHANNELS = "archive_channels"
@@ -55,6 +56,7 @@ object PermissionKeys {
         MANAGE_PROJECTS,
         MANAGE_GITHUB,
         MANAGE_APPLETS,
+        USE_APPLETS,
         MANAGE_NICKNAMES,
         MANAGE_NICKNAME_FORMAT,
         ARCHIVE_CHANNELS,
