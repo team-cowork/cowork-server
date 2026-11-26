@@ -41,15 +41,17 @@ class TeamIconOwnershipManagerTest :
             service = TeamIconOwnershipManager(uploads, storage, teams)
         }
 
-        describe("아이콘 업로드 발급은") {
-            it("발급 대상 팀을 업로드 기록에 저장한다") {
-                val saved = slot<TeamIconUpload>()
-                every { storage.buildObjectKey("image/png") } returns key
-                every { uploads.save(capture(saved)) } answers { firstArg() }
-                service.issue(7L, 10L, "image/png")
-                saved.captured.teamId shouldBe 10L
-                saved.captured.uploadedBy shouldBe 7L
-                saved.captured.uploadKey shouldBe uploadKey
+        describe("TeamIconOwnershipManager 클래스의 issue 메서드는") {
+            context("팀 관리자가 아이콘 업로드 URL을 요청하면") {
+                it("발급 대상 팀을 업로드 기록에 저장한다") {
+                    val saved = slot<TeamIconUpload>()
+                    every { storage.buildObjectKey("image/png") } returns key
+                    every { uploads.save(capture(saved)) } answers { firstArg() }
+                    service.issue(7L, 10L, "image/png")
+                    saved.captured.teamId shouldBe 10L
+                    saved.captured.uploadedBy shouldBe 7L
+                    saved.captured.uploadKey shouldBe uploadKey
+                }
             }
         }
 
@@ -106,6 +108,14 @@ class TeamIconOwnershipManagerTest :
                 shouldThrow<ExpectedException> { service.replace(7L, team(), iconUrl) }.statusCode shouldBe
                     HttpStatus.FORBIDDEN
                 upload.teamId shouldBe 20L
+            }
+            it("발급 대상 팀 없이 확인된 기존 업로드는 업로더도 연결할 수 없다") {
+                upload.confirmed = true
+                upload.teamId = null
+                val target = team(icon = "https://storage.example.com/bucket/team-icons/previous.png")
+                shouldThrow<ExpectedException> { service.replace(7L, target, iconUrl) }.statusCode shouldBe
+                    HttpStatus.FORBIDDEN
+                target.iconUrl shouldBe "https://storage.example.com/bucket/team-icons/previous.png"
             }
             it("폐기한 아이콘을 다시 연결할 수 없다") {
                 upload.confirmed = true
