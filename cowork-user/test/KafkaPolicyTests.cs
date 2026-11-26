@@ -303,10 +303,10 @@ public class ContractTests
         var otherAccount = IdentityCommandContract.Parse(Json(GitHubLink.Replace("\"accountId\":7", "\"accountId\":8")), "GITHUB:583231")!;
         Assert.NotEqual(IdentityCommandHandler.HashFor(4, login), IdentityCommandHandler.HashFor(4, link));
         Assert.NotEqual(IdentityCommandHandler.HashFor(4, link), IdentityCommandHandler.HashFor(4, otherAccount));
-        // Inbox rows written under rule 3 remain verifiable after the upgrade.
+        // Redelivery must match the exact digest stored under each rule.
         var student = IdentityCommandContract.Parse(Json(IdentityCommand), "DATAGSM:7")!;
-        Assert.NotNull(IdentityCommandHandler.HashFor(3, student));
-        Assert.NotEqual(IdentityCommandHandler.HashFor(3, student), IdentityCommandHandler.HashFor(4, student));
+        Assert.Equal("c3b0f344e291c6dabc6080083a60b4997ea395b5c8aedc0c5c64a226a7c67e0a", IdentityCommandHandler.HashFor(3, student));
+        Assert.Equal("0c2547e71ae71a47644ac016bc54f342d2df0872331cc012c51cf018190035a2", IdentityCommandHandler.HashFor(4, student));
     }
 
     const string StudentUpdated = """

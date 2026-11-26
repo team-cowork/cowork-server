@@ -12,7 +12,7 @@ public static partial class IdentityCommandContract
     public sealed record Command(
         string OperationId, string IdempotencyKey, string Name, string Email, string Sex,
         long? Grade, long? ClassNumber, long? StudentNumberInClass, string? Major, string Role, string? GithubId,
-        long? DatagsmStudentId, DateTime OccurredAt, int OccurredAtPrecision, string Provider, string ProviderSubject,
+        long? DatagsmStudentId, DateTime OccurredAt, string Provider, string ProviderSubject,
         string CommandType = "UPSERT", long? AccountId = null, bool GsmEmailVerified = false);
 
     /// <summary>The only command schema version accepted from the identity command topic.</summary>
@@ -38,10 +38,10 @@ public static partial class IdentityCommandContract
             || !ContractFields.RequiredString(payload.Get("idempotencyKey"), MaxIdempotencyKeyLength)
             || !ContractFields.RequiredString(payload.Get("name"), 50) || !ContractFields.RequiredString(payload.Get("email"), 255)
             || subject is null || key != provider + ":" + subject
-            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var at, out var precision)) return null;
+            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var at)) return null;
 
         var command = new Command(operation, payload.GetString("idempotencyKey")!, payload.GetString("name")!,
-            payload.GetString("email")!, "", null, null, null, null, "", null, null, at, precision, provider!, subject, commandType);
+            payload.GetString("email")!, "", null, null, null, null, "", null, null, at, provider!, subject, commandType);
         if (commandType == "LINK")
         {
             if (provider is not ("GITHUB" or "DATAGSM") || payload.Get("accountId").Integer() is not > 0) return null;
