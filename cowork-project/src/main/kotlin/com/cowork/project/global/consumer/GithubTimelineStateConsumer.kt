@@ -18,6 +18,7 @@ data class GithubTimelineRecord(
     val subject: String,
     val snapshotId: UUID,
     val item: GithubTimelineActivityResDto? = null,
+    val deletedActivityId: String? = null,
     val start: Boolean = false,
     val parent: GithubTimelineParent? = null,
     val count: Int? = null,
@@ -25,6 +26,11 @@ data class GithubTimelineRecord(
 ) {
     fun matches(key: String): Boolean {
         if (!key.startsWith("$subject:") || subject.isBlank() || subject.length > 255) return false
+        if (deletedActivityId != null) {
+            return deletedActivityId.length in 1..255 && ':' in deletedActivityId &&
+                key == "$subject:$deletedActivityId" &&
+                !start && item == null && count == null && parent == null && completedAt == null
+        }
         if (start) {
             return key == "$subject:start" && item == null && count == null && parent == null &&
                 completedAt == null
@@ -59,6 +65,8 @@ class GithubTimelineStateConsumer(
             return
         }
         projectionRecordProcessor.applyRecord(stream, record) {
+            // 이 활동은 새 스냅샷에 들어가지 않는다. 이전 행은 완료 레코드에서 한 번에 교체한다.
+            if (event.deletedActivityId != null) return@applyRecord
             if (event.start) {
                 githubTimelineRepository.discardUnpublished(event.subject, event.snapshotId)
             } else if (event.item == null) {
