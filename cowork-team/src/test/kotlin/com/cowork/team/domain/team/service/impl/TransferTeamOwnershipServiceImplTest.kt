@@ -49,7 +49,7 @@ class TransferTeamOwnershipServiceImplTest :
             memberEvents = mockk(relaxed = true)
             val roles = policyReader(1L, mapOf(7L to mapOf("transfer_team_ownership" to true)))
             service = TransferTeamOwnershipServiceImpl(
-                TeamAccessGuard(teams, TeamPermissionGuard(members, roles)),
+                TeamAccessGuard(teams, TeamPermissionGuard(members, roles, mockk())),
                 TeamMemberships(members, memberEvents),
                 teamEvents,
             )

@@ -7,6 +7,7 @@ import {PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
 import {ProjectBoardWebhookHandler} from '../../project-board/project-board-webhook.handler.js';
 import {PullRequestService} from '../../pull-request/pull-request.service.js';
 import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers.js';
+import {GithubBackfillService} from '../github-backfill.service.js';
 import {TeamGithubProducer} from '../kafka/team-github.producer.js';
 import {RepoEventProducer} from '../kafka/repo-event.producer.js';
 import {GithubWebhookController} from './github-webhook.controller.js';
@@ -53,6 +54,7 @@ describe('GithubWebhookController', () => {
 		const module: TestingModule = await Test.createTestingModule({
 			controllers: [GithubWebhookController],
 			providers: [
+				{provide: GithubBackfillService, useValue: {enqueue: jest.fn()}},
 				{provide: TeamGithubProducer, useValue: producer},
 				{provide: RepoEventProducer, useValue: repoEventProducer},
 				{provide: GithubReadModelEventProducers, useValue: readModelProducers},

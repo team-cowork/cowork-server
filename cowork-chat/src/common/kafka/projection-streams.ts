@@ -69,10 +69,10 @@ export const PROJECTION_STREAMS = {
 		groupId: 'cowork-chat-team-member-event-v1-projection',
 		expectedSource: 'cowork-team',
 	},
-	teamRole: {
-		name: 'teamRole',
-		topic: 'preference.team-role.state.v2',
-		groupId: 'cowork-chat-team-role-state-v2-projection',
+	teamAccess: {
+		name: 'teamAccess',
+		topic: 'preference.team-access.state.v2',
+		groupId: 'cowork-chat-team-access-state-v2-projection',
 		expectedSource: 'cowork-preference',
 	},
 	channelAccess: {

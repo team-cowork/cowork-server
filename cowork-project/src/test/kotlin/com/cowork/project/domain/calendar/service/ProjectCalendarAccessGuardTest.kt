@@ -1,10 +1,10 @@
 package com.cowork.project.domain.calendar.service
 
 import com.cowork.project.domain.calendar.model.CalendarAction
-import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.global.policy.TeamAccessProjection
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -19,7 +19,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ProjectCalendarAccessGuardTest :
     DescribeSpec({
         val projectAccessGuard = mockk<ProjectAccessGuard>()
-        val permissions = mockk<TeamRolePermissionReader>()
+        val permissions = mockk<TeamAccessProjection>()
         val projects = mockk<ProjectRepository>()
         val guard = ProjectCalendarAccessGuard(projectAccessGuard, permissions, projects)
         val project = Project(id = 5L, teamId = 3L, name = "Backend", description = null, createdBy = 1L)

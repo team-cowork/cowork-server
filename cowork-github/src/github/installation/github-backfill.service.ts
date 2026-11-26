@@ -7,6 +7,7 @@ import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache.j
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
 import {ProjectBoardSyncService} from '../project-board/project-board-sync.service.js';
+import {TimelineSyncService} from '../timeline/timeline-sync.service.js';
 import {PullRequestService} from '../pull-request/pull-request.service.js';
 import {InstallationApiClient} from './client/installation-api.client.js';
 import {IssueCommentStateEvent} from './kafka/event/issue-comment-state.js';
@@ -17,15 +18,32 @@ import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper.js
 export type GithubSyncTarget =
 	| {type: 'ORG_REPOSITORIES'; installationId: number; owner: string}
 	| {type: 'REPOSITORY'; owner: string; repo: string}
+	| {type: 'TIMELINE'; owner: string; repo: string; number: number; updatedAt?: string}
 	| {type: 'PROJECT'; owner: string; projectNumber: number};
 
-// MVP: 락을 갱신하지 않는다. 동기화가 TTL보다 오래 걸리면 다른 레플리카가 같은 대상을 다시 돌 수 있지만,
-// state 레코드는 버전으로 멱등 반영되므로 결과는 같다. 대상이 커져 TTL을 넘기기 시작하면 갱신을 추가한다.
+type SyncJob = {
+	key: string;
+	target: GithubSyncTarget;
+	done: Promise<void>;
+	finish: () => void;
+};
+
+// 정기 스캔이 채울 수 있는 슬롯 수. 초과분은 다음 스캔이나 상세 조회에서 동기화한다.
+const MAX_PENDING_TIMELINE_BACKFILLS = 16;
+
+// 타임라인은 페이지와 완료 레코드를 발행하기 전에 락을 갱신한다.
 const SYNC_LOCK_TTL_MS = 30 * 60 * 1000;
+// 목록의 updated_at이 같아도 하루마다 누락된 변경을 다시 확인한다.
+const TIMELINE_BACKFILL_TTL_SECONDS = 24 * 60 * 60;
+const RENEW_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end';
 const RELEASE_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
 
 const syncTargetKey = (target: GithubSyncTarget): string => {
 	switch (target.type) {
+		case 'TIMELINE': {
+			return `timeline:${target.owner.toLowerCase()}/${target.repo.toLowerCase()}#${target.number}`;
+		}
+
 		case 'REPOSITORY': {
 			return `repo:${target.owner}/${target.repo}`;
 		}
@@ -58,15 +76,16 @@ const mergeByNumber = <T extends {number: number}>(...lists: T[][]): T[] => {
  스냅샷이 cowork-project projection의 초기 상태이자 주기적 재동기화 경로다. 무엇을 언제 동기화할지는
  cowork-project가 정하고(`github.sync.command.v1`), 설치 콜백은 repo 목록만 바로 요청한다.
 
- MVP: 각 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
+ 저장소, PR, 이슈 보드 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
  100개를 초과하는 repo/PR/이슈는 초과분이 동기화되지 않으며, 페이지네이션 지원과 함께 후속 과제로 남긴다.
  이슈/PR은 `all` 최신 100건에서 빠지는 오래된 열린 항목이 보드에서 사라지지 않게 `open` 100건을 따로 받아 합친다.
  */
 @injectable()
 export class GithubBackfillService {
 	private readonly logger = new Logger(GithubBackfillService.name);
-	private readonly queued = new Set<string>();
-	private queue: Promise<void> = Promise.resolve();
+	private readonly foreground = new Map<string, SyncJob>();
+	private readonly background = new Map<string, SyncJob>();
+	private running?: SyncJob;
 
 	@inject(InstallationApiClient)
 	private readonly installationApiClient!: InstallationApiClient;
@@ -76,6 +95,9 @@ export class GithubBackfillService {
 
 	@inject(PullRequestService)
 	private readonly pullRequestService!: PullRequestService;
+
+	@inject(TimelineSyncService)
+	private readonly timelineSyncService!: TimelineSyncService;
 
 	@inject(LabelHttpService)
 	private readonly labelHttpService!: LabelHttpService;
@@ -99,13 +121,28 @@ export class GithubBackfillService {
 		}
 
 		try {
-			await this.sync(target);
+			if (target.type === 'TIMELINE') {
+				const versionKey = githubCacheKeys.timelineBackfillVersion(key);
+				const renew = async () => {
+					const renewed = await this.redis.eval(RENEW_LOCK_SCRIPT, 1, lockKey, token, SYNC_LOCK_TTL_MS);
+					if (renewed !== 1) {
+						throw new Error('Lost GitHub timeline sync lock');
+					}
+				};
+
+				await this.timelineSyncService.sync(target.owner, target.repo, target.number, renew);
+				if (target.updatedAt !== undefined) {
+					await this.redis.set(versionKey, target.updatedAt, 'EX', TIMELINE_BACKFILL_TTL_SECONDS);
+				}
+			} else {
+				await this.sync(target);
+			}
 		} finally {
 			await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
 		}
 	}
 
-	private async sync(target: GithubSyncTarget): Promise<void> {
+	private async sync(target: Exclude<GithubSyncTarget, {type: 'TIMELINE'}>): Promise<void> {
 		switch (target.type) {
 			case 'REPOSITORY': {
 				await this.syncRepository(target.owner, target.repo);
@@ -192,8 +229,8 @@ export class GithubBackfillService {
 				deleted: false,
 				sourceOccurredAt: issue.updatedAt,
 			});
-			await this.syncComments({
-				owner, repo, parentNumber: issue.number, parentType: 'ISSUE',
+			await this.syncDiscussion({
+				owner, repo, parentNumber: issue.number, updatedAt: issue.updatedAt, parentType: 'ISSUE',
 			});
 		});
 	}
@@ -236,19 +273,23 @@ export class GithubBackfillService {
 				sourceOccurredAt: summary.updatedAt,
 				files: fileStates,
 			});
-			await this.syncComments({
-				owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',
+			await this.syncDiscussion({
+				owner, repo, parentNumber: summary.number, updatedAt: summary.updatedAt, parentType: 'PULL_REQUEST',
 			});
 		});
 	}
 
-	private async syncComments(parameters: {
+	private async syncDiscussion(parameters: {
 		owner: string;
 		repo: string;
 		parentNumber: number;
 		parentType: IssueCommentStateEvent['parentType'];
+		updatedAt: string;
 	}): Promise<void> {
 		const {owner, repo, parentNumber, parentType} = parameters;
+		await this.scheduleTimelineBackfill({
+			type: 'TIMELINE', owner, repo, number: parentNumber, updatedAt: parameters.updatedAt,
+		});
 		const comments = await this.issueHttpService.listComments(owner, repo, parentNumber);
 		await Promise.all(comments.map(async comment => this.producers.issueComment.send({
 			owner,
@@ -266,30 +307,62 @@ export class GithubBackfillService {
 		})));
 	}
 
-	/**
-     대상을 프로세스 안의 직렬 대기열에 넣고, 그 대상의 동기화가 끝나면 resolve되는 Promise를 돌려준다
-     (실패해도 로그만 남기고 reject하지 않는다). 한 번에 하나씩 돌려 GitHub secondary rate limit을 피하고,
-     이미 대기 중인 대상은 다시 넣지 않는다. 처리 전에 프로세스가 내려가면 cowork-project가 다시 요청한다.
-     */
-	async enqueue(target: GithubSyncTarget): Promise<void> {
+	private async scheduleTimelineBackfill(target: Extract<GithubSyncTarget, {type: 'TIMELINE'}>): Promise<void> {
 		const key = syncTargetKey(target);
-		if (this.queued.has(key)) {
-			return this.queue;
+		if (this.background.size >= MAX_PENDING_TIMELINE_BACKFILLS || this.background.has(key)) {
+			return;
 		}
 
-		this.queued.add(key);
-		this.queue = this.queue.then(async () => {
-			try {
-				await this.runWithLock(key, target);
-			} catch (error) {
-				this.logger.error(
-					`GitHub sync failed [target=${key}]`,
-					error instanceof Error ? error.stack : String(error),
-				);
-			} finally {
-				this.queued.delete(key);
+		const versionKey = githubCacheKeys.timelineBackfillVersion(key);
+		try {
+			if (await this.redis.get(versionKey) !== target.updatedAt) {
+				void this.queueJob(key, target, this.background);
 			}
+		} catch (error) {
+			// 정기 타임라인 조회를 예약하지 못해도 저장소의 이슈와 댓글 동기화는 계속한다.
+			this.logger.warn(`Failed to schedule GitHub timeline backfill [target=${key}]`, error);
+		}
+	}
+
+	private async queueJob(key: string, target: GithubSyncTarget, queue: Map<string, SyncJob>): Promise<void> {
+		const pending = queue.get(key);
+		if (pending !== undefined) {
+			return pending.done;
+		}
+
+		const {promise, resolve} = Promise.withResolvers<void>();
+		queue.set(key, {
+			key, target, done: promise, finish: resolve,
 		});
-		return this.queue;
+		this.runNext();
+		return promise;
+	}
+
+	private runNext(): void {
+		if (this.running !== undefined) {
+			return;
+		}
+
+		const queue = this.foreground.size > 0 ? this.foreground : this.background;
+		const first = queue.values().next();
+		if (first.done) {
+			return;
+		}
+
+		const job = first.value;
+		queue.delete(job.key);
+		this.running = job;
+		void this.runWithLock(job.key, job.target).catch((error: unknown) => {
+			this.logger.error(`GitHub sync failed [target=${job.key}]`, error instanceof Error ? error.stack : String(error));
+		}).finally(() => {
+			this.running = undefined;
+			job.finish();
+			this.runNext();
+		});
+	}
+
+	async enqueue(target: GithubSyncTarget): Promise<void> {
+		const key = syncTargetKey(target);
+		return target.type !== 'TIMELINE' && this.running?.key === key ? this.running.done : this.queueJob(key, target, this.foreground);
 	}
 }

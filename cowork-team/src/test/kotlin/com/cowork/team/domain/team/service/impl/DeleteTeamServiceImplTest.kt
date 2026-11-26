@@ -47,7 +47,11 @@ class DeleteTeamServiceImplTest :
                 mockk<TeamEventPublisher>(relaxed = true),
                 TeamAccessGuard(
                     teamRepository,
-                    TeamPermissionGuard(memberRepository, policyReader(10, mapOf(2L to mapOf("delete_team" to true)))),
+                    TeamPermissionGuard(
+                        memberRepository,
+                        policyReader(10, mapOf(2L to mapOf("delete_team" to true))),
+                        mockk(),
+                    ),
                 ),
                 iconOwnership,
                 TeamCalendarCleanup(calendarEvents),

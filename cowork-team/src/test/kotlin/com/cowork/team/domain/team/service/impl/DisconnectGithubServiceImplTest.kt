@@ -33,6 +33,7 @@ class DisconnectGithubServiceImplTest :
                     TeamPermissionGuard(
                         memberRepository,
                         policyReader(1, mapOf(10L to mapOf("manage_github" to true))),
+                        mockk(),
                     ),
                 ),
                 mockk<TeamEventPublisher>(relaxed = true),

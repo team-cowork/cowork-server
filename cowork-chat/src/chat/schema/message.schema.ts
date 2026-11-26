@@ -333,6 +333,7 @@ export const messageSchema = SchemaFactory.createForClass(Message)
 	 값이 없는 이전 메시지도 `null`로 색인되어 채널 목록 조회에 포함됩니다.
 	 */
 	.index({channelId: 1, threadId: 1, _id: -1})
+	.index({channelId: 1, threadId: 1, createdAt: 1})
 	/**
 	 채널별 고정 메시지를 최신순으로 조회하기 위한 부분 인덱스 (`channelId` 오름차순, `_id` 내림차순).
 	 `isPinned: true`인 도큐먼트만 담아 고정되지 않은 메시지의 쓰기에는 인덱스 비용이 들지 않습니다.

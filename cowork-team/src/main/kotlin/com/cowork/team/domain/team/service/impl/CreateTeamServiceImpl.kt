@@ -6,7 +6,6 @@ import com.cowork.team.domain.team.presentation.data.request.CreateTeamRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.CreateTeamService
-import com.cowork.team.domain.team.service.TeamIconOwnershipManager
 import com.cowork.team.domain.teamMember.TeamMemberships
 import com.cowork.team.global.policy.AccountPermissionGuard
 import org.springframework.stereotype.Service
@@ -15,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class CreateTeamServiceImpl(
     private val accountPermissionGuard: AccountPermissionGuard,
-    private val teamIconOwnershipManager: TeamIconOwnershipManager,
     private val teamRepository: TeamRepository,
     private val teamMemberships: TeamMemberships,
     private val teamEventPublisher: TeamEventPublisher,
@@ -32,7 +30,6 @@ class CreateTeamServiceImpl(
                 ownerId = ownerId,
             ),
         )
-        request.iconUrl?.let { teamIconOwnershipManager.replace(ownerId, team, it) }
         teamEventPublisher.publishCreated(team, ownerId)
         teamMemberships.registerOwner(team.id, ownerId)
 

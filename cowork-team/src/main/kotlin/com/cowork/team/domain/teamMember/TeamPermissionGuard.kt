@@ -2,8 +2,7 @@ package com.cowork.team.domain.teamMember
 
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.TeamRoleQueries
-import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
-import com.cowork.team.global.policy.RolePolicy
+import com.cowork.team.global.policy.TeamAccessProjection
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
@@ -11,6 +10,7 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class TeamPermissionGuard(
     private val teamMemberRepository: TeamMemberRepository,
+    private val teamAccessProjection: TeamAccessProjection,
     private val teamRoleQueries: TeamRoleQueries,
 ) {
     fun requireMemberExists(teamId: Long, userId: Long) {
@@ -19,18 +19,11 @@ class TeamPermissionGuard(
         }
     }
 
-    fun requirePermission(
-        teamId: Long,
-        accountId: Long,
-        permission: String,
-        deniedMessage: String = "권한이 없습니다.",
-    ): List<TeamRoleResponse> {
+    fun requirePermission(teamId: Long, accountId: Long, permission: String, deniedMessage: String = "권한이 없습니다.") {
         requireMemberExists(teamId, accountId)
-        val roles = teamRoleQueries.getMemberRoles(teamId, accountId)
-        if (roles.none { RolePolicy.allows(it.permissions, permission) }) {
+        if (permission !in teamAccessProjection.permissions(teamId, accountId)) {
             throw ExpectedException(deniedMessage, HttpStatus.FORBIDDEN)
         }
-        return roles
     }
 
     fun requireLowerMemberPriority(teamId: Long, actorId: Long, targetId: Long) {

@@ -8,7 +8,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {mongo} from 'mongoose';
 import {Server} from 'socket.io';
-import {parseEventTime} from '../../common/util/event-time.util.js';
+import {parseAuthorizationVersion, parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
@@ -69,25 +69,6 @@ function hasValidShape(event: Partial<ChannelAccessEvent>, messageKey?: string):
 		&& CHANNEL_SCOPED_PERMISSIONS.every(key => typeof event.permissions![key] === 'boolean')
 		&& event.sourceAuthorizationVersion !== undefined
 		&& (event.snapshot === undefined || typeof event.snapshot === 'boolean');
-}
-
-/**
-인가 version이 없는 기록은 모든 권한을 거부해야 한다. 인가 version은 0보다 크고 멤버십 version 이하다.
-계약을 어기면 undefined를 반환한다.
-*/
-function parseAuthorizationVersion(
-	value: Nullable<string>,
-	membershipVersion: mongo.Long,
-	hasAnyGrant: boolean,
-): Nullable<mongo.Long> | undefined {
-	if (value === null) {
-		return hasAnyGrant ? undefined : null;
-	}
-
-	const authorization = parseEventTime(value)?.sourceVersion;
-	return authorization && authorization.greaterThan(mongo.Long.ZERO) && !authorization.greaterThan(membershipVersion)
-		? authorization
-		: undefined;
 }
 
 /**

@@ -61,7 +61,7 @@ func (s *Service) handleParticipantJoined(ctx context.Context, event *livekit.We
 		return nil
 	}
 
-	voiceSession, err := s.findSession(ctx, room.Name)
+	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
 	if err != nil {
 		slog.Error("participant_joined: failed to find session", "err", err, "room_name", room.Name)
 		return errors.New("internal server error")
@@ -122,7 +122,7 @@ func (s *Service) handleParticipantLeft(ctx context.Context, event *livekit.Webh
 		return nil
 	}
 
-	voiceSession, err := s.findSession(ctx, room.Name)
+	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
 	if err != nil {
 		slog.Error("participant_left: failed to find session", "err", err, "room_name", room.Name)
 		return errors.New("internal server error")
@@ -174,7 +174,7 @@ func (s *Service) handleRoomFinished(ctx context.Context, event *livekit.Webhook
 		return nil
 	}
 
-	voiceSession, err := s.findSession(ctx, room.Name)
+	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
 	if err != nil {
 		slog.Error("room_finished: failed to find session", "err", err, "room_name", room.Name)
 		return errors.New("internal server error")
@@ -214,8 +214,4 @@ func (s *Service) handleRoomFinished(ctx context.Context, event *livekit.Webhook
 	}
 
 	return nil
-}
-
-func (s *Service) findSession(ctx context.Context, roomName string) (*voiceroom.Session, error) {
-	return s.repo.FindSessionByRoomName(ctx, roomName)
 }

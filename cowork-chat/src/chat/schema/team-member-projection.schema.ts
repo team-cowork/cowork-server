@@ -11,6 +11,7 @@ export class TeamMemberProjection {
 	@prop({required: true, default: ''}) role!: string;
 	@prop({required: true, default: ''}) teamName!: string;
 	@prop({type: String, default: null}) nickname!: Nullable<string>;
+	@prop({type: Date, default: null}) joinedAt!: Nullable<Date>;
 	@prop({required: true, default: false}) deleted!: boolean;
 	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
 	@prop({required: true}) sourceVersion!: bigint;

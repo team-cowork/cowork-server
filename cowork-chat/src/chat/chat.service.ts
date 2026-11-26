@@ -244,12 +244,13 @@ export class ChatService {
 		userId: number,
 		channelIds: number[],
 		hiddenSystemChannelIds = new Set<number>(),
+		joinedAt?: Date,
 	): Promise<Map<number, number>> {
 		if (channelIds.length === 0) {
 			return new Map();
 		}
 
-		const cached = await this.unreadCounterService.getMany(userId, channelIds);
+		const cached = await this.unreadCounterService.getMany(userId, channelIds, joinedAt);
 		const missedIds = cached ? cached.misses : channelIds;
 		if (missedIds.length === 0) {
 			return cached!.hits;
@@ -257,11 +258,12 @@ export class ChatService {
 
 		const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
 		const recomputed = await this.messageRepository.countUnreadForChannels(readStates.map(state => ({
-			...state, shouldExcludeSystem: hiddenSystemChannelIds.has(state.channelId),
+			...state, joinedAt, shouldExcludeSystem: hiddenSystemChannelIds.has(state.channelId),
 		})));
 		// 집계 중 읽음 처리가 끝났다면 이 값은 오래된 위치 기준이므로, 기준 위치를 함께 넘겨 최신 값을 덮지 않게 한다.
 		const filled = new Map(readStates.map(({channelId, lastReadMessageId}) => [channelId, {
 			count: recomputed.get(channelId) ?? 0,
+			joinedAt,
 			readCursor: lastReadMessageId?.toHexString() ?? null,
 		}]));
 		void this.unreadCounterService.setMany(userId, filled);
@@ -1149,16 +1151,12 @@ export class ChatService {
 	async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
 		const readableChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, userId);
 
-		const isMember = await this.teamMemberRepository.exists(teamId, userId);
-		this.channelMessageReadAccess.requireProjectionsReady();
-		if (!isMember) {
-			throw new ForbiddenException('팀 접근 권한이 없습니다');
-		}
+		const joinedAt = await this.channelMessageReadAccess.requireTeamJoinedAt(teamId, userId);
 
 		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
 		const channelIds = await this.withoutArchivedChannels(readableChannelIds);
 		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(userId, channelIds);
-		const unreadCounts = await this.getUnreadCounts(userId, channelIds, hiddenSystemChannelIds);
+		const unreadCounts = await this.getUnreadCounts(userId, channelIds, hiddenSystemChannelIds, joinedAt);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
 
@@ -1233,7 +1231,7 @@ export class ChatService {
 		// 음성 채널의 SYSTEM 메시지는 음성 채널 로그다. 로그를 볼 수 없는 사용자의 안읽음 수는 올리지 않는다.
 		const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId], {voiceLogs: true});
 		const targetUserIds = readableUsers.get(channelId) ?? [];
-		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
+		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds, saved.createdAt);
 		return saved;
 	}
 

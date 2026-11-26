@@ -22,7 +22,7 @@ class AccountPermissionGuardTest :
             guard = AccountPermissionGuard(accounts, readiness)
             every { readiness.requireReady() } returns Unit
             every { accounts.findAccountPolicies(7) } returns listOf(mapOf("create_team" to false))
-            every { accounts.findTeamPolicies(7) } returns listOf(mapOf("create_team" to false))
+            every { accounts.teamAllowsCreation(7) } returns false
         }
 
         describe("AccountPermissionGuard 클래스의 requireCreateTeam 메서드는") {
@@ -39,24 +39,9 @@ class AccountPermissionGuardTest :
                 }
             }
 
-            listOf(
-                "생성 권한" to mapOf("create_team" to true),
-                "관리자 정책" to RolePolicy.administrator(),
-                "소유자 정책" to RolePolicy.owner(),
-            ).forEach { (name, policy) ->
-                context("부여된 팀 역할에 ${name}이 있으면") {
-                    it("기본 역할이 허용하지 않아도 팀 생성을 허용한다") {
-                        // Given
-                        every { accounts.findTeamPolicies(7) } returns listOf(mapOf("create_team" to false), policy)
-
-                        // When
-                        guard.requireCreateTeam(7)
-
-                        // Then
-                        verify(exactly = 1) { accounts.findAccountPolicies(7) }
-                        verify(exactly = 1) { accounts.findTeamPolicies(7) }
-                    }
-                }
+            it("소속 팀의 판정이 팀 생성을 허용하면 계정 기본 역할이 거부해도 허용한다") {
+                every { accounts.teamAllowsCreation(7) } returns true
+                guard.requireCreateTeam(7)
             }
 
             context("부여된 전역 역할에 팀 생성 권한이 있으면") {
@@ -66,14 +51,14 @@ class AccountPermissionGuardTest :
                         mapOf("create_team" to false),
                         mapOf("create_team" to true),
                     )
-                    every { accounts.findTeamPolicies(7) } returns emptyList()
+                    every { accounts.teamAllowsCreation(7) } returns false
 
                     // When
                     guard.requireCreateTeam(7)
 
                     // Then
                     verify(exactly = 1) { accounts.findAccountPolicies(7) }
-                    verify(exactly = 1) { accounts.findTeamPolicies(7) }
+                    verify(exactly = 0) { accounts.teamAllowsCreation(7) }
                 }
             }
 
@@ -81,7 +66,7 @@ class AccountPermissionGuardTest :
                 it("명시적으로 부여된 역할이 없어도 팀 생성을 허용한다") {
                     // Given
                     every { accounts.findAccountPolicies(7) } returns listOf(mapOf("create_team" to true))
-                    every { accounts.findTeamPolicies(7) } returns emptyList()
+                    every { accounts.teamAllowsCreation(7) } returns false
 
                     // When
                     guard.requireCreateTeam(7)
@@ -95,7 +80,7 @@ class AccountPermissionGuardTest :
                 it("팀 생성을 거부한다") {
                     // Given
                     every { accounts.findAccountPolicies(7) } returns emptyList()
-                    every { accounts.findTeamPolicies(7) } returns emptyList()
+                    every { accounts.teamAllowsCreation(7) } returns false
 
                     // When
                     val exception = shouldThrow<ExpectedException> { guard.requireCreateTeam(7) }
@@ -109,7 +94,7 @@ class AccountPermissionGuardTest :
                 it("팀 생성을 거부한다") {
                     // Given
                     every { accounts.findAccountPolicies(7) } returns listOf(mapOf("manage_account_roles" to true))
-                    every { accounts.findTeamPolicies(7) } returns emptyList()
+                    every { accounts.teamAllowsCreation(7) } returns false
 
                     // When
                     val exception = shouldThrow<ExpectedException> { guard.requireCreateTeam(7) }
@@ -131,7 +116,7 @@ class AccountPermissionGuardTest :
                     // Then
                     exception.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
                     verify(exactly = 0) { accounts.findAccountPolicies(any()) }
-                    verify(exactly = 0) { accounts.findTeamPolicies(any()) }
+                    verify(exactly = 0) { accounts.teamAllowsCreation(any()) }
                 }
             }
         }

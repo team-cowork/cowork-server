@@ -20,8 +20,8 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
 
     private static final String APPLY_EVENT_SQL = """
             INSERT INTO tb_team_member_projections
-                (team_id, user_id, role, team_name, active, event_occurred_at)
-            VALUES (:teamId, :userId, :role, :teamName, :active, :occurredAt)
+                (team_id, user_id, role, team_name, active, event_occurred_at, authorization_version)
+            VALUES (:teamId, :userId, :role, :teamName, :active, :occurredAt, :authorizationVersion)
             ON DUPLICATE KEY UPDATE
                 role = IF(VALUES(event_occurred_at) >= event_occurred_at, VALUES(role), role),
                 team_name = IF(VALUES(event_occurred_at) >= event_occurred_at, VALUES(team_name), team_name),
@@ -30,6 +30,11 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
                     VALUES(active),
                     IF(VALUES(event_occurred_at) = event_occurred_at, active AND VALUES(active), active)
                 ),
+                authorization_version = CASE
+                    WHEN VALUES(event_occurred_at) > event_occurred_at THEN VALUES(authorization_version)
+                    WHEN VALUES(event_occurred_at) = event_occurred_at THEN
+                        COALESCE(GREATEST(authorization_version, VALUES(authorization_version)), authorization_version, VALUES(authorization_version))
+                    ELSE authorization_version END,
                 event_occurred_at = GREATEST(event_occurred_at, VALUES(event_occurred_at))
             """;
 
@@ -47,6 +52,20 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
                 .setParameter("userId", userId)
                 .getSingleResultOrNull();
         return Optional.ofNullable(role);
+    }
+
+    // TODO(#1111): Once all active rows and writers have authorization versions,
+    // remove this check, its wiring and the null-version upsert branches.
+    // Drop the lookup index in a new migration.
+    @Override
+    public boolean allActiveMembersHaveAuthorizationVersion() {
+        return entityManager.createNativeQuery("""
+                SELECT 1 FROM tb_team_member_projections
+                WHERE active AND authorization_version IS NULL LIMIT 1
+                """, Integer.class)
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .getResultList()
+                .isEmpty();
     }
 
     @Override
@@ -68,6 +87,10 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
                 .setParameter("teamName", event.teamName())
                 .setParameter("active", active)
                 .setParameter("occurredAt", LocalDateTime.ofInstant(event.occurredAt(), ZoneOffset.UTC))
+                .setParameter("authorizationVersion",
+                        event.authorizationVersion() == null
+                                ? null
+                                : LocalDateTime.ofInstant(event.authorizationVersion(), ZoneOffset.UTC))
                 .executeUpdate();
     }
 }

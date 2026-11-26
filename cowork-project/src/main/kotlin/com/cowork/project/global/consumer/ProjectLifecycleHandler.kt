@@ -5,8 +5,6 @@ import com.cowork.project.domain.calendar.service.ProjectCalendarLifecycleSuppor
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.githubBoard.service.ProjectGithubBoardLifecycleSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
-import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
-import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
@@ -22,7 +20,6 @@ class ProjectLifecycleHandler(
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectEventPublisher: ProjectEventPublisher,
     private val projectGithubRepoDeletionSupport: ProjectGithubRepoDeletionSupport,
-    private val teamRoleMemberTombstoneRepository: TeamRoleMemberTombstoneRepository,
     private val projectGithubBoardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
     private val projectCalendarLifecycleSupport: ProjectCalendarLifecycleSupport,
     private val projectReadableUserStatePublisher: ProjectReadableUserStatePublisher,
@@ -83,11 +80,6 @@ class ProjectLifecycleHandler(
         authorizationVersion: Instant? = null,
     ) {
         val version = occurredAt.toProjectionPrecision()
-        val fenceKey = TeamRoleMemberTombstone.key(teamId, targetUserId)
-        val fence = teamRoleMemberTombstoneRepository.findById(fenceKey).orElse(null)
-        if (fence == null || version.isAfter(fence.sourceOccurredAt)) {
-            teamRoleMemberTombstoneRepository.save(TeamRoleMemberTombstone(fenceKey, teamId, targetUserId, version))
-        }
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, targetUserId)
             ?: TeamMembership(
                 teamId = teamId,

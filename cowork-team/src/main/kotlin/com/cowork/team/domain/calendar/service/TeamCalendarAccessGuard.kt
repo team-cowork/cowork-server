@@ -5,9 +5,8 @@ import com.cowork.team.domain.calendar.model.CalendarPermissionPolicy
 import com.cowork.team.domain.teamAccess.MembershipDirectory
 import com.cowork.team.domain.teamAccess.TeamDirectory
 import com.cowork.team.domain.teamMember.TeamPermissionGuard
-import com.cowork.team.domain.teamRole.TeamRoleQueries
 import com.cowork.team.global.policy.PermissionKeys
-import com.cowork.team.global.policy.RolePolicy
+import com.cowork.team.global.policy.TeamAccessProjection
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
@@ -18,7 +17,7 @@ class TeamCalendarAccessGuard(
     private val teamDirectory: TeamDirectory,
     private val teamPermissionGuard: TeamPermissionGuard,
     private val membershipDirectory: MembershipDirectory,
-    private val teamRoleQueries: TeamRoleQueries,
+    private val teamAccessProjection: TeamAccessProjection,
 ) {
     fun requireMember(teamId: Long, userId: Long) {
         teamDirectory.requireExists(teamId)
@@ -56,5 +55,5 @@ class TeamCalendarAccessGuard(
     }
 
     private fun hasPermission(teamId: Long, userId: Long, key: String): Boolean =
-        teamRoleQueries.getMemberRoles(teamId, userId).any { RolePolicy.allows(it.permissions, key) }
+        key in teamAccessProjection.permissions(teamId, userId)
 }

@@ -1,0 +1,90 @@
+import {
+	Injectable as injectable,
+	Logger,
+	OnModuleDestroy,
+	OnModuleInit,
+	Inject as inject,
+} from '@nestjs/common';
+import {ConfigService} from '@nestjs/config';
+import {mongo} from 'mongoose';
+import {parseAuthorizationVersion, parseEventTime} from '../../common/util/event-time.util.js';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {TeamAccessProjectionRepository, type TeamAccessDecision} from '../repository/index.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
+import {type Nullable} from '../../common/type/nullable.js';
+
+export function parseTeamAccessEvent(payload: unknown, messageKey?: string): Nullable<TeamAccessDecision> {
+	if (typeof payload !== 'object' || payload === null) {
+		return null;
+	}
+
+	const event = payload as Record<string, unknown>;
+	if (event.eventType !== 'UPSERT' || !isSafePositiveInteger(event.teamId) || !isSafePositiveInteger(event.accountId)
+		|| messageKey !== `${event.teamId}:${event.accountId}`
+		|| typeof event.permissions !== 'object' || event.permissions === null || Array.isArray(event.permissions)) {
+		return null;
+	}
+
+	const permissions = event.permissions as Record<string, unknown>;
+	const {baseGrants} = event;
+	if (!Array.isArray(baseGrants) || baseGrants.some(grant => typeof grant !== 'string' || Object.hasOwn(permissions, grant))) {
+		return null;
+	}
+
+	const values = Object.values(permissions);
+	const membership = parseEventTime(event.sourceMembershipVersion);
+	const time = parseEventTime(event.occurredAt);
+	if (!time || !membership || membership.sourceVersion.lessThan(mongo.Long.ZERO)
+		|| typeof permissions.administrator !== 'boolean' || values.some(value => typeof value !== 'boolean')) {
+		return null;
+	}
+
+	const sourceAuthorizationVersion = parseAuthorizationVersion(event.sourceAuthorizationVersion, membership.sourceVersion, values.includes(true) || baseGrants.length > 0);
+	if (sourceAuthorizationVersion === undefined) {
+		return null;
+	}
+
+	return {
+		teamId: event.teamId, userId: event.accountId, administrator: permissions.administrator,
+		sourceMembershipVersion: membership.sourceVersion, sourceAuthorizationVersion, ...time,
+	};
+}
+
+@injectable()
+export class TeamAccessEventConsumer implements OnModuleInit, OnModuleDestroy {
+	private readonly logger = new Logger(TeamAccessEventConsumer.name);
+	private consumer?: KafkaConsumerHandle;
+
+	@inject()
+	private readonly configService!: ConfigService;
+
+	@inject()
+	private readonly repository!: TeamAccessProjectionRepository;
+
+	@inject()
+	private readonly projectionReadiness!: ProjectionReadinessService;
+
+	private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
+		const decision = parseTeamAccessEvent(payload, messageKey);
+		if (!decision) {
+			throw new ProjectionContractError(`invalid team access event [key=${messageKey ?? '<missing>'}]`);
+		}
+
+		await this.repository.upsert(decision);
+	}
+
+	async onModuleInit() {
+		const stream = PROJECTION_STREAMS.teamAccess;
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-team-access-state', readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
+		});
+	}
+
+	async onModuleDestroy(): Promise<void> {
+		await this.consumer?.close();
+	}
+}

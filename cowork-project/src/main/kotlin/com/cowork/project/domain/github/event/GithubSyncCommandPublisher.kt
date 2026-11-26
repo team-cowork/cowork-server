@@ -11,7 +11,8 @@ private const val SEND_TIMEOUT_SECONDS = 5L
 
 /**
  * `cowork-github`에 동기화를 요청한다. `ORG_REPOSITORIES`는 org의 repo 목록을, `REPOSITORY`는 repo 하나의
- * 이슈, PR, 라벨, 댓글을, `PROJECT`는 GitHub Project 하나의 설정과 item을 다시 publish하게 하며,
+ * 이슈, PR, 라벨, 댓글을, `PROJECT`는 GitHub Project의 설정과 item을,
+ * `TIMELINE`은 저장소의 이슈 또는 PR 한 건의 전체 활동 이력을 다시 발행하게 하며,
  * 완료되면 각 state 토픽에 완료 마커가 남는다.
  */
 data class GithubSyncCommand(
@@ -22,6 +23,7 @@ data class GithubSyncCommand(
     val installationId: Long?,
     val requestedAt: Instant,
     val projectNumber: Int? = null,
+    val number: Int? = null,
 )
 
 val GithubSyncCommand.key: String

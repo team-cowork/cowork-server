@@ -35,6 +35,7 @@ class ChannelPermissionSupportTest {
         accessRepository,
         mockk<ProjectionReadinessGate>(relaxed = true),
         mockk(),
+        mockk(),
     )
     private val support = ChannelPermissionSupport(memberRepository, teamPermissionService, evaluator)
 

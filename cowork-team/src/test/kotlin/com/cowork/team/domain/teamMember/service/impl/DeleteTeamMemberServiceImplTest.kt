@@ -11,6 +11,7 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.global.outbox.NotificationPublisher
+import com.cowork.team.global.policy.TeamAccessProjection
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -26,6 +27,7 @@ class DeleteTeamMemberServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
+        lateinit var access: TeamAccessProjection
         lateinit var roleReader: TeamRoleProjectionReader
         lateinit var service: DeleteTeamMemberServiceImpl
 
@@ -34,13 +36,15 @@ class DeleteTeamMemberServiceImplTest :
         beforeEach {
             teamRepository = mockk()
             memberRepository = mockk()
+            access = mockk()
+            every { access.permissions(any(), any()) } returns emptySet()
             roleReader = mockk(relaxed = true)
             service = DeleteTeamMemberServiceImpl(
                 JpaTeamDirectory(teamRepository),
                 memberRepository,
                 mockk<NotificationPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamPermissionGuard(memberRepository, roleReader),
+                TeamPermissionGuard(memberRepository, access, roleReader),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team
             every { memberRepository.existsByTeamIdAndUserId(any(), any()) } answers {
@@ -92,6 +96,7 @@ class DeleteTeamMemberServiceImplTest :
                         TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
                         TeamMember(teamId = team.id, userId = 30L)
+                    every { access.permissions(1L, 20L) } returns setOf("kick_members")
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(1))
                     for (priority in listOf(1, 10)) {
                         every { roleReader.getMemberRoles(1L, 30L) } returns listOf(role(priority))
@@ -107,6 +112,7 @@ class DeleteTeamMemberServiceImplTest :
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
                         TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns target
+                    every { access.permissions(1L, 20L) } returns setOf("kick_members")
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(10))
                     every { roleReader.getMemberRoles(1L, 30L) } returns listOf(role(1))
                     every { memberRepository.delete(target) } just Runs
@@ -121,6 +127,7 @@ class DeleteTeamMemberServiceImplTest :
                         TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
                         TeamMember(teamId = team.id, userId = 30L)
+                    every { access.permissions(1L, 20L) } returns setOf("kick_members")
                     every { roleReader.getMemberRoles(1L, any()) } returns
                         listOf(role(Int.MIN_VALUE).copy(isDefault = true))
 
@@ -134,6 +141,7 @@ class DeleteTeamMemberServiceImplTest :
                         TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
                         TeamMember(teamId = team.id, userId = 30L, role = TeamRole.ADMIN)
+                    every { access.permissions(1L, 20L) } returns setOf("kick_members")
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(10))
                     every { roleReader.getMemberRoles(1L, 30L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
@@ -147,6 +155,7 @@ class DeleteTeamMemberServiceImplTest :
             context("ADMIN이 일반 멤버를 제거하면") {
                 it("대상 멤버십을 삭제한다") {
                     val admin = TeamMember(teamId = team.id, userId = 20L, role = TeamRole.ADMIN)
+                    every { access.permissions(1L, 20L) } returns setOf("kick_members")
                     every { roleReader.getMemberRoles(1L, 20L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
                     val target = TeamMember(teamId = team.id, userId = 30L)
