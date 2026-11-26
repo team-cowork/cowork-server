@@ -2,7 +2,6 @@ package com.cowork.project.domain.project.service
 
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
-import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.event.ProjectEventPublisher
@@ -14,7 +13,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.time.Instant
-import java.util.Optional
 
 class ProjectMembershipLifecycleTest :
     DescribeSpec({
@@ -34,7 +32,6 @@ class ProjectMembershipLifecycleTest :
                     ProjectLifecycleHandler(
                         mockk(),
                         members,
-                        mockk(),
                         mockk(),
                         mockk(),
                         mockk(relaxed = true),
@@ -93,17 +90,14 @@ class ProjectMembershipLifecycleTest :
         }
 
         describe("팀 탈퇴와 프로젝트 수명") {
-            it("생성자의 탈퇴는 팀 프로젝트를 삭제하지 않고 이전 역할만 차단한다") {
+            it("생성자의 탈퇴는 팀 프로젝트를 삭제하지 않고 멤버십을 비활성화한다") {
                 val projects = mockk<ProjectRepository>(relaxed = true)
                 val members = mockk<TeamMembershipRepository>(relaxed = true)
-                val fences = mockk<TeamRoleMemberTombstoneRepository>(relaxed = true)
                 val events = mockk<ProjectEventPublisher>(relaxed = true)
                 val repos = mockk<ProjectGithubRepoDeletionSupport>(relaxed = true)
                 val membership = TeamMembership(teamId = 1L, userId = 7L, role = "MEMBER")
                 val version = Instant.EPOCH.plusSeconds(1)
                 every { members.findStateByTeamIdAndUserIdForUpdate(1L, 7L) } returns membership
-                every { fences.findById("1:7") } returns Optional.empty()
-                every { fences.save(any()) } answers { firstArg() }
                 every { members.save(any()) } answers { firstArg() }
                 val handler =
                     ProjectLifecycleHandler(
@@ -111,7 +105,6 @@ class ProjectMembershipLifecycleTest :
                         members,
                         events,
                         repos,
-                        fences,
                         mockk(relaxed = true),
                         mockk(relaxed = true),
                         mockk(relaxed = true),
@@ -120,19 +113,15 @@ class ProjectMembershipLifecycleTest :
                 handler.onMemberRemovedFromTeam(1L, 7L, "MEMBER", version)
 
                 membership.active shouldBe false
-                verify { fences.save(match { it.sourceOccurredAt == version }) }
                 verify(exactly = 0) { projects.deleteAll(any<Iterable<Project>>()) }
                 verify(exactly = 0) { repos.deleteByProjectIds(any(), any()) }
             }
-            it("늦게 도착한 탈퇴도 재가입 이전 역할의 복구를 막는다") {
+            it("늦게 도착한 탈퇴도 재가입한 멤버를 비활성화하지 않는다") {
                 val members = mockk<TeamMembershipRepository>(relaxed = true)
-                val fences = mockk<TeamRoleMemberTombstoneRepository>(relaxed = true)
                 val version = Instant.EPOCH.plusSeconds(1)
                 val membership =
                     TeamMembership(teamId = 1L, userId = 7L, role = "MEMBER", sourceOccurredAt = version.plusSeconds(1))
                 every { members.findStateByTeamIdAndUserIdForUpdate(1L, 7L) } returns membership
-                every { fences.findById("1:7") } returns Optional.empty()
-                every { fences.save(any()) } answers { firstArg() }
                 every { members.save(any()) } answers { firstArg() }
                 val handler =
                     ProjectLifecycleHandler(
@@ -140,7 +129,6 @@ class ProjectMembershipLifecycleTest :
                         members,
                         mockk(),
                         mockk(),
-                        fences,
                         mockk(relaxed = true),
                         mockk(relaxed = true),
                         mockk(relaxed = true),
@@ -149,7 +137,6 @@ class ProjectMembershipLifecycleTest :
                 handler.onMemberRemovedFromTeam(1L, 7L, "MEMBER", version)
 
                 membership.active shouldBe true
-                verify { fences.save(match { it.sourceOccurredAt == version }) }
                 verify(exactly = 0) { members.save(any()) }
             }
         }

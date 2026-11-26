@@ -2,11 +2,10 @@ package com.cowork.project.domain.calendar.service
 
 import com.cowork.project.domain.calendar.model.CalendarAction
 import com.cowork.project.domain.calendar.model.CalendarPermissionPolicy
-import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.global.policy.PermissionKeys
+import com.cowork.project.global.policy.TeamAccessProjection
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
@@ -15,7 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 @Component
 class ProjectCalendarAccessGuard(
     private val projectAccessGuard: ProjectAccessGuard,
-    private val teamRolePermissionReader: TeamRolePermissionReader,
+    private val teamAccessProjection: TeamAccessProjection,
     private val projectRepository: ProjectRepository,
 ) {
     fun requireReader(projectId: Long, userId: Long): Project = projectAccessGuard.findProjectOrThrow(projectId).also {
@@ -23,7 +22,7 @@ class ProjectCalendarAccessGuard(
     }
 
     fun requireCreator(projectId: Long, userId: Long): Project = requireReader(projectId, userId).also {
-        if (!teamRolePermissionReader.hasPermission(it.teamId, userId, PermissionKeys.CALENDAR_EVENT_CREATE)) {
+        if (!teamAccessProjection.hasPermission(it.teamId, userId, "calendar_event_create")) {
             throw ExpectedException("일정 만들기 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
     }
@@ -31,11 +30,11 @@ class ProjectCalendarAccessGuard(
     /** 작성자가 아니면 [action]에 맞는 팀 권한을 요구한다. 프로젝트 읽기 권한은 호출 전에 확인한다. */
     fun requireOwnerOrPermission(project: Project, createdBy: Long, userId: Long, action: CalendarAction) {
         val key = when (action) {
-            CalendarAction.UPDATE -> PermissionKeys.CALENDAR_EVENT_UPDATE
-            CalendarAction.DELETE -> PermissionKeys.CALENDAR_EVENT_DELETE
+            CalendarAction.UPDATE -> "calendar_event_update"
+            CalendarAction.DELETE -> "calendar_event_delete"
         }
         val allowed = CalendarPermissionPolicy.allows(createdBy, userId) {
-            teamRolePermissionReader.hasPermission(project.teamId, userId, key)
+            teamAccessProjection.hasPermission(project.teamId, userId, key)
         }
         if (allowed) return
         throw ExpectedException(
