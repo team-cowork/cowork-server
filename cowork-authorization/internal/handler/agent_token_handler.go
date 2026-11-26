@@ -27,9 +27,9 @@ type CreateAgentTokenRequest struct {
 	ExpiresInDays int      `json:"expires_in_days" binding:"required"`
 }
 
-type ExchangeAgentTokenRequest struct {
-	Token string `json:"token" binding:"required"`
-}
+// AgentTokenHeader carries the raw agent token on exchange. Gateway keys the exchange rate limit
+// on its hash and strips it from every other route. Authorization stays free for access JWTs.
+const AgentTokenHeader = "X-Cowork-Agent-Token"
 
 func (h *AgentTokenHandler) Create(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
@@ -84,12 +84,12 @@ func (h *AgentTokenHandler) Revoke(c *gin.Context) {
 
 func (h *AgentTokenHandler) Exchange(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
-	var req ExchangeAgentTokenRequest
-	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
+	token := c.GetHeader(AgentTokenHeader)
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": AgentTokenHeader + " header is required"})
 		return
 	}
-	access, err := h.agentTokenSvc.Exchange(c.Request.Context(), req.Token)
+	access, err := h.agentTokenSvc.Exchange(c.Request.Context(), token)
 	if errors.Is(err, service.ErrAgentTokenRejected) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid, expired or revoked agent token"})
 		return

@@ -203,17 +203,20 @@ func paths() *openapi3.Paths {
 	}})
 	paths.Set("/auth/agent-tokens/exchange", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "에이전트 토큰 교환",
-		Description: "에이전트 토큰을 액세스 토큰으로 교환합니다. 받은 액세스 토큰은 토큰의 scope에 허용된 API만 호출할 수 있고 에이전트 토큰의 만료 시각을 넘지 않습니다. Authorization 헤더 없이 호출합니다.",
+		Description: "에이전트 토큰을 액세스 토큰으로 교환합니다. 받은 액세스 토큰은 토큰의 scope에 허용된 API만 호출할 수 있고 에이전트 토큰의 만료 시각을 넘지 않습니다. 토큰은 X-Cowork-Agent-Token 헤더로 보내고 Authorization 헤더와 본문 없이 호출합니다. 같은 토큰의 반복 요청은 토큰마다 따로 제한합니다.",
 		Tags:        []string{"agent-tokens"},
-		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
-			Required: true,
-			Content: openapi3.Content{
-				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.ExchangeAgentTokenRequest")},
-			},
-		}},
+		Parameters: openapi3.Parameters{
+			{Value: &openapi3.Parameter{
+				In:          "header",
+				Name:        "X-Cowork-Agent-Token",
+				Description: "발급 응답의 토큰 원문",
+				Required:    true,
+				Schema:      &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "password"}},
+			}},
+		},
 		Responses: openapi3.NewResponses(
 			openapi3.WithName("200", jsonResponse("교환 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentAccessToken")),
-			openapi3.WithName("400", jsonResponse("필수 요청 값이 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("400", jsonResponse("X-Cowork-Agent-Token 헤더 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("유효하지 않거나 만료되었거나 폐기한 토큰", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),

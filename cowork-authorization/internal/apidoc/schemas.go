@@ -36,9 +36,6 @@ func schemas() openapi3.Schemas {
 			WithProperty("scopes", openapi3.NewArraySchema().WithMinItems(1).WithItems(agentScopeSchema())).
 			WithProperty("expires_in_days", openapi3.NewIntegerSchema().WithMin(1).WithMax(365)).
 			WithRequired([]string{"name", "scopes", "expires_in_days"})},
-		"internal_handler.ExchangeAgentTokenRequest": &openapi3.SchemaRef{Value: openapi3.NewObjectSchema().
-			WithProperty("token", &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "password", WriteOnly: true}).
-			WithRequired([]string{"token"})},
 		"internal_handler.LoginCallbackRequest": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"code":  &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
 			"error": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
