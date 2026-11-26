@@ -55,6 +55,16 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
     }
 
     @Override
+    public boolean allActiveMembersHaveAuthorizationVersion() {
+        return entityManager.createNativeQuery("""
+                SELECT 1 FROM tb_team_member_projections
+                WHERE active AND authorization_version IS NULL LIMIT 1
+                """, Integer.class)
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .getResultList().isEmpty();
+    }
+
+    @Override
     public void upsert(TeamMemberEvent event) {
         apply(event, true);
     }

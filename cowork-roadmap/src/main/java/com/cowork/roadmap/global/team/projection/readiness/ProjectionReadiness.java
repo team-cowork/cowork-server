@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
@@ -47,6 +48,7 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
     private final String topic;
     private final long assignmentRetryBackoffMs;
     private final long assignmentRetryTimeoutMs;
+    private final BooleanSupplier projectionDataReady;
 
     private final Object stateLock = new Object();
 
@@ -65,10 +67,12 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
             String consumerGroup,
             String topic,
             long assignmentRetryBackoffMs,
-            long assignmentRetryTimeoutMs) {
+            long assignmentRetryTimeoutMs,
+            BooleanSupplier projectionDataReady) {
         this.projectionCheckpointRepository = projectionCheckpointRepository;
         this.projectionTopicIdentityProvider = projectionTopicIdentityProvider;
         this.projectionTopicGenerationRegistry = projectionTopicGenerationRegistry;
+        this.projectionDataReady = projectionDataReady;
         this.consumerGroup = consumerGroup;
         this.topic = topic;
         this.assignmentRetryBackoffMs = Math.max(0L, assignmentRetryBackoffMs);
@@ -205,6 +209,9 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
                     topic);
             Map<Integer, ProjectionCheckpoint> stored = projectionCheckpointRepository.findByTopic(consumerGroup,
                     topic);
+            if (!projectionDataReady.getAsBoolean()) {
+                return false;
+            }
             // Observe the broker last so an append concurrent with the durable reads cannot
             // leave readiness open against an older high-watermark.
             ProjectionTopicState broker = projectionTopicIdentityProvider.topicState(topic);
