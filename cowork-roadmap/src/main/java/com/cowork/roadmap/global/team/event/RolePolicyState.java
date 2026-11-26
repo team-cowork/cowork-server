@@ -4,41 +4,25 @@ import java.time.Instant;
 
 import tools.jackson.databind.JsonNode;
 
-public record RolePolicyState(long teamId, String kind, Long roleId, Long accountId, boolean isDefault,
-        String permissions, boolean deleted, Instant occurredAt) {
-    public static RolePolicyState parse(String key, JsonNode event, boolean teamScoped) {
+public record RolePolicyState(String kind, Long roleId, Long accountId, boolean isDefault, String permissions,
+        boolean deleted, Instant occurredAt) {
+    public static RolePolicyState parse(String key, JsonNode event) {
         if (event == null || !event.isObject()) {
             throw new IllegalArgumentException("Expected a role policy object");
         }
-        long teamId = teamScoped ? id(event, "teamId") : 0;
-        String scope = teamScoped ? teamId + ":" : "";
-        String type = event.path("eventType").asString("");
+        String kind = event.path("eventType").asString("");
         Instant version = Instant.parse(event.path("occurredAt").asString(""));
-        String kind = teamScoped ? switch (type) {
-            case "ROLE_UPSERTED", "ROLE_DELETED" -> "ROLE";
-            case "ASSIGNMENT_UPSERTED", "ASSIGNMENT_DELETED" -> "ASSIGNMENT";
-            case "MEMBER_ASSIGNMENTS_DELETED" -> "MEMBER";
-            default -> throw new IllegalArgumentException("Invalid team policy type");
-        } : type;
-        boolean deleted = teamScoped ? type.endsWith("_DELETED") : bool(event, "deleted");
-        if (teamScoped && "MEMBER".equals(kind)) {
-            long accountId = id(event, "accountId");
-            checkKey(key, "member:" + scope + accountId);
-            return new RolePolicyState(teamId, kind, null, accountId, false, "{}", true, version);
-        }
+        boolean deleted = bool(event, "deleted");
         long roleId = id(event, "roleId");
         if ("ASSIGNMENT".equals(kind)) {
             long accountId = id(event, "accountId");
-            checkKey(key, "assignment:" + scope + accountId + ":" + roleId);
-            return new RolePolicyState(teamId, kind, roleId, accountId, false, "{}", deleted, version);
+            checkKey(key, "assignment:" + accountId + ":" + roleId);
+            return new RolePolicyState(kind, roleId, accountId, false, "{}", deleted, version);
         }
         if (!"ROLE".equals(kind)) {
             throw new IllegalArgumentException("Invalid account policy type");
         }
-        checkKey(key, "role:" + scope + roleId);
-        if (teamScoped && deleted) {
-            return new RolePolicyState(teamId, kind, roleId, null, false, "{}", true, version);
-        }
+        checkKey(key, "role:" + roleId);
         JsonNode permissions = event.path("permissions");
         if (!permissions.isObject()) {
             throw new IllegalArgumentException("Missing permissions");
@@ -48,8 +32,7 @@ public record RolePolicyState(long teamId, String kind, Long roleId, Long accoun
                 throw new IllegalArgumentException("Invalid permission value");
             }
         }
-        return new RolePolicyState(teamId,
-                kind,
+        return new RolePolicyState(kind,
                 roleId,
                 null,
                 bool(event, "isDefault"),

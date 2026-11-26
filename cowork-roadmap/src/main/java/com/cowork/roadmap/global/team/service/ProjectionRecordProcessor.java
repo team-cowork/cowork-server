@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cowork.roadmap.global.team.event.RolePolicyState;
+import com.cowork.roadmap.global.team.event.TeamAccessState;
 import com.cowork.roadmap.global.team.event.TeamMemberEvent;
 import com.cowork.roadmap.global.team.projection.readiness.ProjectionReadiness;
 import com.cowork.roadmap.global.team.repository.ProjectionCheckpointRepository;
@@ -37,6 +38,12 @@ public class ProjectionRecordProcessor {
     @Transactional
     public void applyPolicy(ConsumerRecord<String, String> record, RolePolicyState policy) {
         roadmapPolicyRepository.apply(record.key(), policy);
+        advance(record);
+    }
+
+    @Transactional
+    public void applyTeamAccess(ConsumerRecord<String, String> record, TeamAccessState state) {
+        roadmapPolicyRepository.applyTeamAccess(state);
         advance(record);
     }
 

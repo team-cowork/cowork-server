@@ -1,6 +1,8 @@
 package com.cowork.roadmap.global.team.consumer;
 
 import java.time.DateTimeException;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -8,10 +10,12 @@ import org.springframework.stereotype.Component;
 
 import com.cowork.roadmap.global.config.KafkaConsumerConfig;
 import com.cowork.roadmap.global.team.event.RolePolicyState;
+import com.cowork.roadmap.global.team.event.TeamAccessState;
 import com.cowork.roadmap.global.team.service.ProjectionRecordProcessor;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -22,15 +26,19 @@ public class PolicyEventConsumer {
 
     @KafkaListener(topics = KafkaConsumerConfig.ACCOUNT_POLICY_TOPIC, groupId = KafkaConsumerConfig.ACCOUNT_POLICY_GROUP, containerFactory = "accountPolicyListenerContainerFactory")
     public void consumeAccount(ConsumerRecord<String, String> record) {
-        consume(record, false);
+        consume(record,
+                node -> RolePolicyState.parse(record.key(), node),
+                state -> projectionRecordProcessor.applyPolicy(record, state));
     }
 
-    @KafkaListener(topics = KafkaConsumerConfig.TEAM_POLICY_TOPIC, groupId = KafkaConsumerConfig.TEAM_POLICY_GROUP, containerFactory = "teamPolicyListenerContainerFactory")
+    @KafkaListener(topics = KafkaConsumerConfig.TEAM_ACCESS_TOPIC, groupId = KafkaConsumerConfig.TEAM_ACCESS_GROUP, containerFactory = "teamAccessListenerContainerFactory")
     public void consumeTeam(ConsumerRecord<String, String> record) {
-        consume(record, true);
+        consume(record,
+                node -> TeamAccessState.parse(record.key(), node),
+                state -> projectionRecordProcessor.applyTeamAccess(record, state));
     }
 
-    private void consume(ConsumerRecord<String, String> record, boolean teamScoped) {
+    private <T> void consume(ConsumerRecord<String, String> record, Function<JsonNode, T> parse, Consumer<T> apply) {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
             String violation = ProjectionSnapshotCompletion.violation(objectMapper, record, "cowork-preference");
             if (violation == null) {
@@ -41,13 +49,13 @@ public class PolicyEventConsumer {
             }
             return;
         }
-        RolePolicyState state;
+        T state;
         try {
-            state = RolePolicyState.parse(record.key(), objectMapper.readTree(record.value()), teamScoped);
+            state = parse.apply(objectMapper.readTree(record.value()));
         } catch (IllegalArgumentException | JacksonException | DateTimeException error) {
-            projectionRecordProcessor.discard(record, "Invalid role policy state");
+            projectionRecordProcessor.discard(record, "Invalid permission state");
             return;
         }
-        projectionRecordProcessor.applyPolicy(record, state);
+        apply.accept(state);
     }
 }

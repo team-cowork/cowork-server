@@ -1,5 +1,6 @@
 package com.cowork.roadmap.global.team.service;
 
+import java.time.Instant;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
@@ -31,6 +32,8 @@ public class TeamMemberProjectionHandler {
     private boolean isValid(TeamMemberEvent event) {
         return event != null && event.eventType() != null && event.teamId() != null && event.teamId() > 0
                 && event.userId() != null && event.userId() > 0 && event.role() != null && ROLES.contains(event.role())
-                && event.teamName() != null && !event.teamName().isBlank() && event.occurredAt() != null;
+                && event.teamName() != null && !event.teamName().isBlank() && event.occurredAt() != null
+                && (event.authorizationVersion() == null || (event.authorizationVersion().isAfter(Instant.EPOCH)
+                        && !event.authorizationVersion().isAfter(event.occurredAt())));
     }
 }
