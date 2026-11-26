@@ -24,15 +24,21 @@ export class TimelineApiClient {
 		});
 	}
 
-	private async * listPages(owner: string, path: string, isReviewCommentPage: boolean): AsyncGenerator<TimelineEvent[]> {
-		for (let page = 1; ; page++) {
-			// eslint-disable-next-line no-await-in-loop -- GitHub의 Link 헤더가 다음 페이지 유무를 결정한다.
-			const {data, headers} = await this.get<TimelineEvent[]>(owner, path, page);
-			yield isReviewCommentPage ? data.map(comment => ({...comment, event: 'review_commented'})) : data;
-			if (typeof headers.link !== 'string' || !headers.link.includes('rel="next"')) {
-				return;
+	private listPages(owner: string, path: string, isReviewCommentPage: boolean): AsyncIterable<TimelineEvent[]> {
+		let page = 1;
+		let hasNext = true;
+		const next = async (): Promise<IteratorResult<TimelineEvent[]>> => {
+			if (!hasNext) {
+				return {done: true, value: undefined};
 			}
-		}
+
+			const {data, headers} = await this.get<TimelineEvent[]>(owner, path, page);
+			hasNext = typeof headers.link === 'string' && headers.link.includes('rel="next"');
+			page++;
+			return {done: false, value: isReviewCommentPage ? data.map(comment => ({...comment, event: 'review_commented'})) : data};
+		};
+
+		return {[Symbol.asyncIterator]: () => ({next})};
 	}
 
 	async parent(owner: string, repo: string, number: number): Promise<TimelineParent> {
