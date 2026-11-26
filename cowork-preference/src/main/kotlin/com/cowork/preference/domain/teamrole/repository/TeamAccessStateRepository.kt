@@ -25,7 +25,7 @@ class TeamAccessStateRepository(private val outbox: PreferenceOutboxRepository) 
             val authorizationVersion = inputs.authorizationVersion(memberId)
             val active = inputs.isActive(memberId) && authorizationVersion != null
             val roles = inputs.roles(memberId)
-            // 기본 권한 변경도 이전 발행자와 같은 버전 비교에 포함한다.
+            // 기본 권한만 바뀌어도 판정 버전을 갱신한다.
             val permissions = JsonObject(TeamAccessPermissions.resolve(roles, active))
             TeamAccessPermissions.baseGrants(roles, active).forEach { permissions.put(it, true) }
             val previous = existing[memberId]

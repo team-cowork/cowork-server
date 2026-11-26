@@ -17,6 +17,7 @@ class TeamAccessStateTest :
             put("occurredAt", "2026-10-01T00:00:02.000001Z")
             put("sourceMembershipVersion", "2026-10-01T00:00:02Z")
             put("sourceAuthorizationVersion", "2026-10-01T00:00:01Z")
+            putArray("baseGrants")
             putObject("permissions").apply {
                 keys.forEach { put(it, false) }
                 put("administrator", true)
@@ -25,6 +26,9 @@ class TeamAccessStateTest :
 
         it("관리자 여부와 관계없이 요청한 키의 판정을 보존한다") {
             val event = record()
+            shouldThrow<IllegalArgumentException> {
+                TeamAccessState.parse("3:7", record().apply { remove("baseGrants") })
+            }
             val decision = TeamAccessState.parse("3:7", event)
             decision.allowedPermissions shouldBe setOf("administrator")
             ("transfer_team_ownership" in decision.allowedPermissions) shouldBe false

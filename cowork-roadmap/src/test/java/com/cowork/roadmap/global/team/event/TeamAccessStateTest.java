@@ -15,7 +15,7 @@ class TeamAccessStateTest {
                 .readTree(
                         """
                                 {"eventType":"UPSERT","teamId":9,"accountId":7,"permissions":{"administrator":true,"manage_roadmaps":false},
-                                 "sourceMembershipVersion":"2026-10-10T12:00:00Z","sourceAuthorizationVersion":"2026-10-10T12:00:00Z",
+                                 "baseGrants":[],"sourceMembershipVersion":"2026-10-10T12:00:00Z","sourceAuthorizationVersion":"2026-10-10T12:00:00Z",
                                  "occurredAt":"2026-10-10T12:00:01Z"}
                                 """);
         assertFalse(TeamAccessState.parse("9:7", event).manageRoadmaps());

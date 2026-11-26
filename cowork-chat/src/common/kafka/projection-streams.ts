@@ -86,8 +86,8 @@ export const PROJECTION_STREAMS = {
 	},
 	teamAccess: {
 		name: 'teamAccess',
-		topic: 'preference.team-access.state.v1',
-		groupId: 'cowork-chat-team-access-state-v1-projection',
+		topic: 'preference.team-access.state.v2',
+		groupId: 'cowork-chat-team-access-state-v2-projection',
 		expectedSource: 'cowork-preference',
 		sourceGeneration: sourceGeneration('TEAM_ACCESS'),
 	},

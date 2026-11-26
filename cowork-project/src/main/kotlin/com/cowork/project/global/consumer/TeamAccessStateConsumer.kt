@@ -19,7 +19,7 @@ data class TeamAccessState(
     val occurredAt: Instant,
 ) {
     companion object {
-        const val TOPIC = "preference.team-access.state.v1"
+        const val TOPIC = "preference.team-access.state.v2"
         const val GROUP = "cowork-project.team-access-projection"
         private val REQUIRED_KEYS = setOf(
             "administrator",
@@ -43,12 +43,9 @@ data class TeamAccessState(
             require(permissions.isObject && permissions.all { it.isBoolean })
             require(REQUIRED_KEYS.all { permissions.has(it) })
             val allowed = REQUIRED_KEYS.filterTo(mutableSetOf()) { permissions.path(it).asBoolean() }
-            // 초기 v1 스냅샷에는 채널 및 프로젝트 기본 권한이 없다.
             val baseGrants = node.path("baseGrants")
-            if (!baseGrants.isMissingNode) {
-                require(baseGrants.isArray && baseGrants.all { it.isString && !permissions.has(it.asString()) })
-                baseGrants.asSequence().map { it.asString() }.filterTo(allowed) { it == "project_read" }
-            }
+            require(baseGrants.isArray && baseGrants.all { it.isString && !permissions.has(it.asString()) })
+            baseGrants.asSequence().map { it.asString() }.filterTo(allowed) { it == "project_read" }
             val membership = Instant.parse(node.path("sourceMembershipVersion").asString())
             require(!membership.isBefore(Instant.EPOCH) && node.has("sourceAuthorizationVersion"))
             val authorization = if (node.hasNonNull("sourceAuthorizationVersion")) {

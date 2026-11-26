@@ -29,10 +29,10 @@ public class KafkaConsumerConfig {
 
     public static final String TEAM_MEMBER_TOPIC = "team.member.event";
     public static final String ACCOUNT_POLICY_TOPIC = "preference.account-role.state.v1";
-    public static final String TEAM_ACCESS_TOPIC = "preference.team-access.state.v1";
+    public static final String TEAM_ACCESS_TOPIC = "preference.team-access.state.v2";
     public static final String TEAM_MEMBER_GROUP = "cowork-roadmap.team-member.v2";
     public static final String ACCOUNT_POLICY_GROUP = "cowork-roadmap.account-role.v1";
-    public static final String TEAM_ACCESS_GROUP = "cowork-roadmap.team-access.v1";
+    public static final String TEAM_ACCESS_GROUP = "cowork-roadmap.team-access.v2";
 
     @Value("${projection.readiness.assignment-retry-backoff-ms:1000}")
     private long retryBackoff;
@@ -43,7 +43,10 @@ public class KafkaConsumerConfig {
     ProjectionReadiness teamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider broker,
             TeamMemberProjectionRepository teamMemberProjectionRepository) {
-        return readiness(checkpoints, broker, TEAM_MEMBER_GROUP, TEAM_MEMBER_TOPIC,
+        return readiness(checkpoints,
+                broker,
+                TEAM_MEMBER_GROUP,
+                TEAM_MEMBER_TOPIC,
                 teamMemberProjectionRepository::allActiveMembersHaveAuthorizationVersion);
     }
 

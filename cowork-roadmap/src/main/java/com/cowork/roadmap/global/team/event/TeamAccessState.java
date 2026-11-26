@@ -17,6 +17,15 @@ public record TeamAccessState(long teamId, long accountId, boolean manageRoadmap
                 || !permissions.path("manage_roadmaps").isBoolean() || !event.has("sourceAuthorizationVersion")) {
             throw new IllegalArgumentException("Invalid team access state");
         }
+        JsonNode baseGrants = event.path("baseGrants");
+        if (!baseGrants.isArray() || (!event.hasNonNull("sourceAuthorizationVersion") && !baseGrants.isEmpty())) {
+            throw new IllegalArgumentException("Invalid team base grants");
+        }
+        for (JsonNode grant : baseGrants) {
+            if (!grant.isString() || permissions.has(grant.asString())) {
+                throw new IllegalArgumentException("Invalid team base grant");
+            }
+        }
         Instant membership = Instant.parse(event.path("sourceMembershipVersion").asString(""));
         Instant authorization = event.hasNonNull("sourceAuthorizationVersion")
                 ? Instant.parse(event.path("sourceAuthorizationVersion").asString(""))

@@ -30,6 +30,11 @@ export function parseTeamAccessEvent(payload: unknown, messageKey?: string): Nul
 	}
 
 	const permissions = event.permissions as Record<string, unknown>;
+	const {baseGrants} = event;
+	if (!Array.isArray(baseGrants) || baseGrants.some(grant => typeof grant !== 'string' || Object.hasOwn(permissions, grant))) {
+		return null;
+	}
+
 	const values = Object.values(permissions);
 	const membership = parseEventTime(event.sourceMembershipVersion);
 	const time = parseEventTime(event.occurredAt);
@@ -38,7 +43,7 @@ export function parseTeamAccessEvent(payload: unknown, messageKey?: string): Nul
 		return null;
 	}
 
-	const sourceAuthorizationVersion = parseAuthorizationVersion(event.sourceAuthorizationVersion, membership.sourceVersion, values.includes(true));
+	const sourceAuthorizationVersion = parseAuthorizationVersion(event.sourceAuthorizationVersion, membership.sourceVersion, values.includes(true) || baseGrants.length > 0);
 	if (sourceAuthorizationVersion === undefined) {
 		return null;
 	}

@@ -5,7 +5,7 @@ import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.access.permission.PolicyRole
 import com.cowork.preference.domain.access.permission.RolePolicy
 
-/** preference.team-access.state.v1로 발행하는 팀 권한 판정. 유효 권한 조회 API와 같은 판정 코드를 쓴다. */
+/** preference.team-access.state.v2로 발행하는 팀 권한 판정. 유효 권한 조회 API와 같은 판정 코드를 쓴다. */
 object TeamAccessPermissions {
     private val KEYS = PermissionKeys.TEAM_SCOPED.toList()
     private val BASE_KEYS = (PermissionKeys.CHANNEL_SCOPED + PermissionKeys.PROJECT_SCOPED).sorted()
