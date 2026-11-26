@@ -16,6 +16,7 @@ export const githubField = {
 	mergedAt: 'merged_at',
 	mergeMethod: 'merge_method',
 	nodeId: 'node_id',
+	originalLine: 'original_line',
 	perPage: 'per_page',
 	performedViaGithubApp: 'performed_via_github_app',
 	projectNodeId: 'project_node_id',

@@ -7,6 +7,8 @@ import {IssueHttpModule} from '../issue-http/issue-http.module.js';
 import {LabelHttpModule} from '../label-http/label-http.module.js';
 import {ProjectBoardModule} from '../project-board/project-board.module.js';
 import {PullRequestModule} from '../pull-request/pull-request.module.js';
+import {TimelineApiClient} from '../timeline/timeline-api.client.js';
+import {TimelineSyncService} from '../timeline/timeline-sync.service.js';
 import {InstallationApiClient} from './client/installation-api.client.js';
 import {GithubBackfillService} from './github-backfill.service.js';
 import {GithubSyncCommandController} from './github-sync-command.controller.js';
@@ -30,6 +32,8 @@ import {GithubWebhookController} from './webhook/github-webhook.controller.js';
 	providers: [
 		AppConfigService,
 		InstallationApiClient,
+		TimelineApiClient,
+		TimelineSyncService,
 		TeamGithubProducer,
 		RepoEventProducer,
 		GithubReadModelEventProducers,

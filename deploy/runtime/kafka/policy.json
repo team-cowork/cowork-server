@@ -413,6 +413,13 @@
         "segment.ms": "3600000"
       }
     },
+    "github.timeline.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
     "github.sync.command.v1": {
       "partitions": 1,
       "config": {
@@ -620,6 +627,7 @@
         "github.pull-request.state.v1",
         "github.label.state.v1",
         "github.issue-comment.state.v1",
+        "github.timeline.state.v1",
         "github.sync.command.v1",
         "github.project.state.v1",
         "github.project-item.state.v1",
@@ -705,6 +713,7 @@
         "github.pull-request.state.v1",
         "github.label.state.v1",
         "github.issue-comment.state.v1",
+        "github.timeline.state.v1",
         "github.sync.command.v1",
         "github.project.state.v1",
         "github.project-item.state.v1",

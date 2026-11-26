@@ -12,7 +12,8 @@ describe('GithubBackfillService', () => {
 	let producers: Record<'repo' | 'issue' | 'pullRequest' | 'label' | 'issueComment', ReturnType<typeof producer>>;
 	let labelHttpService: {listLabels: jest.Mock};
 	let issueHttpService: {listIssues: jest.Mock; listComments: jest.Mock};
-	let redis: {set: jest.Mock; eval: jest.Mock};
+	let timeline: {sync: jest.Mock};
+	let redis: {get: jest.Mock; set: jest.Mock; eval: jest.Mock};
 	let service: GithubBackfillService;
 
 	beforeEach(() => {
@@ -20,7 +21,8 @@ describe('GithubBackfillService', () => {
 			repo: producer(), issue: producer(), pullRequest: producer(), label: producer(), issueComment: producer(),
 		};
 		labelHttpService = {listLabels: jest.fn().mockResolvedValue([{name: 'bug', color: 'd73a4a'}])};
-		redis = {set: jest.fn().mockResolvedValue('OK'), eval: jest.fn()};
+		timeline = {sync: jest.fn()};
+		redis = {get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue('OK'), eval: jest.fn()};
 		issueHttpService = {
 			listIssues: jest.fn().mockResolvedValue([{number: 1, updatedAt: '2026-01-01T00:00:00Z'}]),
 			listComments: jest.fn().mockResolvedValue([{id: 10, updatedAt: '2026-01-01T00:00:00Z'}]),
@@ -31,6 +33,7 @@ describe('GithubBackfillService', () => {
 			listPullRequestFiles: jest.fn().mockResolvedValue([]),
 		};
 		service = Object.assign(new GithubBackfillService(), {
+			timelineSyncService: timeline,
 			installationApiClient: {listRepositories: jest.fn().mockResolvedValue([])} as unknown as InstallationApiClient,
 			issueHttpService: issueHttpService as unknown as IssueHttpService,
 			pullRequestService: pullRequestService as unknown as PullRequestService,
