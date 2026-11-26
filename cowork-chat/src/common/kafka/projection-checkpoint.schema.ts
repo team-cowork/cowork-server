@@ -14,9 +14,9 @@ export class ProjectionCheckpoint {
     */
 	@prop({required: true}) datasetGeneration!: string;
 	/**
-    Topic 재생성/producer 세대 교체 시 운영자가 변경하는 source identity.
+    Checkpoint를 기록한 broker topic UUID. Topic을 재생성하면 바뀐다. 이 필드가 없는 기존 row는 시작 시 dataset과 함께 넘겨받는다.
     */
-	@prop({required: true}) sourceGeneration!: string;
+	@prop({type: String, default: null}) topicId!: Nullable<string>;
 	/**
     현재 partition assignment owner만 checkpoint를 전진시킬 수 있는 fencing token.
     */

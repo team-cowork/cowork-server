@@ -2,9 +2,10 @@ import {NotFoundException} from '@nestjs/common';
 import {Types} from 'mongoose';
 import {ChatService} from './chat.service.js';
 
+const joinedAt = new Date(1000);
 const messageId = new Types.ObjectId().toHexString();
 const systemMessage = {
-	_id: new Types.ObjectId(messageId), channelId: 30, authorId: 0, type: 'SYSTEM', content: '음성 통화가 시작되었습니다.',
+	_id: new Types.ObjectId(messageId), channelId: 30, authorId: 0, createdAt: new Date(2000), type: 'SYSTEM', content: '음성 통화가 시작되었습니다.',
 };
 
 const messageRepository = {
@@ -20,13 +21,12 @@ const channelMessageReadAccess = {
 	requireCanRead: jest.fn(),
 	requirePermission: jest.fn(),
 	requirePermissions: jest.fn(),
-	requireProjectionsReady: jest.fn(),
+	requireTeamJoinedAt: jest.fn().mockResolvedValue(joinedAt),
 	requireReadableTeamChannelIds: jest.fn(),
 	requireVoiceLogHiddenChannelIds: jest.fn(),
 	findReadableUsersByChannel: jest.fn(),
 };
 const readStateRepository = {findForChannels: jest.fn()};
-const teamMemberRepository = {exists: jest.fn()};
 const channelProjectionRepository = {findByIds: jest.fn(), findById: jest.fn(), findByIdIncludingDeleted: jest.fn()};
 const unreadCounterService = {getMany: jest.fn(), setMany: jest.fn(), incrementIfPresent: jest.fn()};
 
@@ -39,12 +39,10 @@ describe('ChatService voice channel logs', () => {
 			messageRepository,
 			channelMessageReadAccess,
 			readStateRepository,
-			teamMemberRepository,
 			channelProjectionRepository,
 			unreadCounterService,
 		});
 		channelMessageReadAccess.requireVoiceLogHiddenChannelIds.mockResolvedValue(new Set([30]));
-		teamMemberRepository.exists.mockResolvedValue(true);
 		unreadCounterService.getMany.mockResolvedValue(null);
 		channelProjectionRepository.findByIds.mockImplementation(async (ids: number[]) =>
 			ids.map(channelId => ({channelId, archived: false})));
@@ -106,8 +104,12 @@ describe('ChatService voice channel logs', () => {
 			{channelId: 30, unreadCount: 0},
 		]);
 		expect(messageRepository.countUnreadForChannels).toHaveBeenCalledWith([
-			{channelId: 1, lastReadMessageId: null, shouldExcludeSystem: false},
-			{channelId: 30, lastReadMessageId: null, shouldExcludeSystem: true},
+			{
+				channelId: 1, lastReadMessageId: null, joinedAt, shouldExcludeSystem: false,
+			},
+			{
+				channelId: 30, lastReadMessageId: null, joinedAt, shouldExcludeSystem: true,
+			},
 		]);
 	});
 
@@ -121,6 +123,6 @@ describe('ChatService voice channel logs', () => {
 		await service.saveSystemMessage(10, 30, '음성 통화가 시작되었습니다.', 'system:voice:a:30');
 
 		expect(channelMessageReadAccess.findReadableUsersByChannel).toHaveBeenCalledWith([30], {voiceLogs: true});
-		expect(unreadCounterService.incrementIfPresent).toHaveBeenCalledWith(30, [7]);
+		expect(unreadCounterService.incrementIfPresent).toHaveBeenCalledWith(30, [7], systemMessage.createdAt);
 	});
 });

@@ -7,14 +7,12 @@ import {
 	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Kafka, Consumer} from 'kafkajs';
 import mongoose from 'mongoose';
 import {ChatService} from '../chat.service.js';
 import {ProjectClient} from '../service/index.js';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {type KafkaConsumerHandle, startCommittedConsumer} from '../../common/kafka/partition-fetcher.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubRepoEvent} from './event/github-repo.event.js';
@@ -38,7 +36,7 @@ function isNonRetryableError(error: unknown): boolean {
 @injectable()
 export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(GithubRepoEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 
 	@inject(forwardRef(() => ChatService))
 	private readonly chatService!: ForwardReference<ChatService>;
@@ -59,16 +57,15 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      `summary`를 SYSTEM 메시지로 저장하고 각 채널에 Socket.IO로 브로드캐스트한다.
 
      `source`(Kafka 메시지 위치)로 채널별 시스템 메시지 멱등성 키를 만든다.
-     오래 걸리는 준비 대기 동안 `heartbeat`로 Kafka consumer heartbeat를 보낸다.
      */
-	private async handleRepoEvent(event: GithubRepoEvent, source: KafkaMessageSource, heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */}): Promise<void> {
+	private async handleRepoEvent(event: GithubRepoEvent, source: KafkaMessageSource): Promise<void> {
 		const summary = this.sanitizeSummary(event.summary);
 		if (summary === null) {
 			this.logger.warn(`Skipping repo event with empty summary owner=${event.owner} repo=${event.repo}`);
 			return;
 		}
 
-		await waitForProjectionReadiness(this.projectionReadiness, heartbeat);
+		await waitForProjectionReadiness(this.projectionReadiness);
 		if (!this.projectionReadiness.isReady()) {
 			throw new Error('Kafka projections became unavailable while processing github.repo.event');
 		}
@@ -121,41 +118,31 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
      */
 	async onModuleInit() {
-		const kafka = new Kafka({
+		this.consumer = await startCommittedConsumer({
+			logger: this.logger,
+			configService: this.configService,
 			clientId: 'cowork-chat-github-repo-event',
-			...getKafkaClientConfig(this.configService),
-		});
-		this.consumer = kafka.consumer({groupId: 'cowork-chat-github-repo-event'});
-		await connectWithRetry(this.logger, 'Kafka consumer startup: github.repo.event', async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: 'github.repo.event', fromBeginning: false});
-		});
+			groupId: 'cowork-chat-github-repo-event',
+			topic: 'github.repo.event',
+			fromBeginning: false,
+			handle: async ({topic, partition, offset, value}) => {
+				if (value === null) {
+					return;
+				}
 
-		void this.consumer
-			.run({
-				eachMessage: async payload => {
-					const {topic, partition, message} = payload;
-					if (!message.value) {
-						return;
+				try {
+					const event = JSON.parse(value) as GithubRepoEvent;
+					await this.handleRepoEvent(event, {topic, partition, offset});
+				} catch (error) {
+					// 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
+					if (!isNonRetryableError(error)) {
+						throw error;
 					}
 
-					try {
-						const event = JSON.parse(message.value.toString()) as GithubRepoEvent;
-						await this.handleRepoEvent(event, {topic, partition, offset: message.offset}, async () => payload.heartbeat());
-					} catch (error) {
-						this.logger.error('Failed to process repo event', error);
-						// 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
-						if (!isNonRetryableError(error)) {
-							throw error;
-						}
-					}
-				},
-			})
-			.catch(async (error: unknown) => {
-				this.logger.error('github.repo.event Kafka consumer failed', error);
-				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-				throw error;
-			});
+					this.logger.error('Failed to process repo event', error);
+				}
+			},
+		});
 		this.logger.log('Kafka consumer started: github.repo.event');
 	}
 
@@ -163,6 +150,6 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      모듈 종료 시 Kafka 컨슈머 연결을 해제한다.
      */
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

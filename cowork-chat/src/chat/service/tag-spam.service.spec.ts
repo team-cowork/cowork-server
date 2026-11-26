@@ -26,22 +26,27 @@ describe('decideTagSpam', () => {
 });
 
 describe('TagSpamService.reserve', () => {
+	const readiness = {areReady: jest.fn()};
 	const settingRepository = {isTagSpamBlockEnabled: jest.fn()};
 	const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn()};
-	const roleRepository = {hasAdministratorPolicy: jest.fn()};
+	const teamAccessRepository = {hasAdministratorPolicy: jest.fn()};
 	const rateLimiter = {tryReserveWeighted: jest.fn(), releaseWeighted: jest.fn()};
 	const service = Object.assign<TagSpamService, Record<string, unknown>>(new TagSpamService(), {
+		readiness,
 		settingRepository,
 		teamMemberRepository,
-		roleRepository,
+		teamAccessRepository,
 		rateLimiter,
 	});
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		roleRepository.hasAdministratorPolicy.mockResolvedValue(false);
+		readiness.areReady.mockReturnValue(true);
+		teamAccessRepository.hasAdministratorPolicy.mockResolvedValue(false);
 		settingRepository.isTagSpamBlockEnabled.mockResolvedValue(true);
-		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
+		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{
+			teamId: 10, userId: 42, authorizationVersion: 7n, role: 'MEMBER',
+		}]);
 		rateLimiter.tryReserveWeighted.mockResolvedValue('RESERVED');
 	});
 
@@ -75,16 +80,26 @@ describe('TagSpamService.reserve', () => {
 
 		settingRepository.isTagSpamBlockEnabled.mockResolvedValueOnce(false);
 		await expect(service.reserve(10, 42, mentions(30), 'client-1')).resolves.toBeUndefined();
+		expect(teamAccessRepository.hasAdministratorPolicy).not.toHaveBeenCalled();
 
 		rateLimiter.tryReserveWeighted.mockResolvedValueOnce('HELD_BY_SAME_HOLDER');
 		await expect(service.reserve(10, 42, mentions(3), 'client-1')).resolves.toBeUndefined();
 	});
 
+	it('팀 권한을 동기화하는 동안에는 관리자 예외를 적용할 수 없다', async () => {
+		readiness.areReady.mockReturnValueOnce(true).mockReturnValueOnce(false);
+		await expect(service.reserve(10, 42, mentions(11), 'client-1')).rejects.toMatchObject({status: 503});
+		expect(teamAccessRepository.hasAdministratorPolicy).not.toHaveBeenCalled();
+	});
+
 	it('관리자 정책은 시간창도 소비하지 않는다', async () => {
-		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
-		roleRepository.hasAdministratorPolicy.mockResolvedValue(true);
+		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{
+			teamId: 10, userId: 42, authorizationVersion: 7n, role: 'MEMBER',
+		}]);
+		teamAccessRepository.hasAdministratorPolicy.mockResolvedValue(true);
 
 		await expect(service.reserve(10, 42, mentions(30), 'client-1')).resolves.toBeUndefined();
+		expect(teamAccessRepository.hasAdministratorPolicy).toHaveBeenCalledWith(10, 42, 7n);
 		expect(rateLimiter.tryReserveWeighted).not.toHaveBeenCalled();
 	});
 });

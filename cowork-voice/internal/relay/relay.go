@@ -17,7 +17,7 @@ const maxPublishAttempts = 50
 type Outbox interface {
 	RecoverPendingCleanup(ctx context.Context, limit int) error
 	FetchUnsent(ctx context.Context, limit int) ([]mongoinfra.OutboxMessage, error)
-	MarkSent(ctx context.Context, message mongoinfra.OutboxMessage, sentAt time.Time) error
+	MarkSent(ctx context.Context, message mongoinfra.OutboxMessage) error
 	IncrementAttempts(ctx context.Context, message mongoinfra.OutboxMessage) error
 	MarkFailed(ctx context.Context, message mongoinfra.OutboxMessage, failedAt time.Time) error
 }
@@ -107,8 +107,8 @@ func (r *Relay) drain() {
 			// 같은 key의 순서를 보존하기 위해 이후 메시지는 다음 tick에서 재시도한다.
 			return
 		}
-		if err := r.outbox.MarkSent(ctx, m, time.Now().UTC()); err != nil {
-			// sent_at 기록 실패: 다음 tick에 재전송됨(중복 가능 → consumer 멱등성 전제).
+		if err := r.outbox.MarkSent(ctx, m); err != nil {
+			// 전송한 항목을 제거하지 못하면 다음 tick에 다시 전송한다.
 			slog.Error("outbox relay: mark sent failed", "err", err, "key", m.Key)
 			return
 		}

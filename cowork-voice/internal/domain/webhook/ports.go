@@ -9,6 +9,7 @@ import (
 )
 
 type SessionRepository interface {
+	// FindSessionByRoomName 메서드는 종료된 세션을 포함해 roomName에 해당하는 세션을 반환한다.
 	FindSessionByRoomName(ctx context.Context, roomName string) (*voiceroom.Session, error)
 	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
 	RecordParticipantJoinedAndEnqueue(ctx context.Context, participant *voiceroom.Participant, occurrenceID string, event any) (bool, error)
@@ -24,6 +25,7 @@ type LiveSessionRepository interface {
 	RecordViewerJoinedAndEnqueue(ctx context.Context, viewer *liveroom.Viewer, occurrenceID string, event any) (bool, error)
 	GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
 	MarkViewerLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
+	// EndSessionAndEnqueue 메서드는 enqueueOnlyIfStarted가 참이면 시작 이벤트가 저장된 세션에만 종료 이벤트를 기록한다.
 	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any, enqueueOnlyIfStarted bool) (bool, error)
 	CleanupOrphanViewers(ctx context.Context, sessionID string, now time.Time) (int64, error)
 }

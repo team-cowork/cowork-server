@@ -47,7 +47,8 @@ class CreateTeamRoleServiceImplTest :
             context("사용자 정의 역할 관리자가 자신의 최상위 역할과 같은 우선순위의 역할을 만들면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { accessGuard.requireManageRoles(1L, 20L) } returns ManageRoleContext(
-                        listOf(customRole(priority = 10)),
+                        10,
+                        setOf("manage_roles"),
                     )
 
                     val error = shouldThrow<ExpectedException> {
@@ -61,12 +62,8 @@ class CreateTeamRoleServiceImplTest :
             context("OWNER가 높은 우선순위의 역할을 만들면") {
                 it("우선순위 제한 없이 접수한다") {
                     every { accessGuard.requireManageRoles(1L, 10L) } returns ManageRoleContext(
-                        listOf(
-                            policyRole(
-                                mapOf("administrator" to true, "transfer_team_ownership" to true),
-                                Int.MAX_VALUE,
-                            ),
-                        ),
+                        Int.MAX_VALUE,
+                        setOf("administrator", "transfer_team_ownership"),
                     )
 
                     service.execute(10L, 1L, "request-1", request(priority = 100)) shouldBe accepted
@@ -78,19 +75,6 @@ class CreateTeamRoleServiceImplTest :
         private fun request(priority: Int) = CreateTeamRoleRequest(
             name = "Reviewer",
             priority = priority,
-        )
-
-        private fun customRole(priority: Int) = TeamRoleResponse(
-            id = 7L,
-            teamId = 1L,
-            name = "Manager",
-            colorHex = "#123ABC",
-            priority = priority,
-            mentionable = true,
-            permissions = mapOf(PermissionKeys.MANAGE_ROLES to true),
-            createdAt = null,
-            updatedAt = null,
-            isDefault = false,
         )
     }
 }

@@ -34,6 +34,12 @@ export class GithubSyncCommandController {
 				return {type: 'REPOSITORY', owner: command.owner, repo: command.repo!};
 			}
 
+			case 'TIMELINE': {
+				return {
+					type: 'TIMELINE', owner: command.owner, repo: command.repo!, number: command.number!,
+				};
+			}
+
 			case 'PROJECT': {
 				return {type: 'PROJECT', owner: command.owner, projectNumber: command.projectNumber!};
 			}

@@ -33,7 +33,7 @@ public static class ProjectionBarrier
             || payload.GetString("source") is not { Length: > 0 } source)
             throw new InvalidRecord(":invalid_projection_snapshot_barrier");
         if (source != expectedSource) throw new InvalidRecord(":invalid_barrier_source");
-        if (!Iso8601.TryParse(payload.GetString("occurredAt"), out var occurredAt, out _))
+        if (!Iso8601.TryParse(payload.GetString("occurredAt"), out var occurredAt))
             throw new InvalidRecord(":invalid_projection_snapshot_barrier");
         return new Marker(snapshotId, source, occurredAt);
     }

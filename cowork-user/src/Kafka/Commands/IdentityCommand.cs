@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using CoworkUser.Platform;
+using CoworkUser.Config;
 using CoworkUser.Users;
 using Dapper;
 using MySqlConnector;
@@ -29,7 +30,8 @@ public static class IdentityCommand
             return;
         }
 
-        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText);
+        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText,
+            record.Topic == AppConfig.LegacyProviderCommandTopic ? 3 : IdentityCommandContract.CommandSchemaVersion);
         if (command is null)
         {
             await Quarantine(IdentityCommandContract.CorrelationOperationId(payload.Value), ":invalid_user_identity_command");
@@ -114,8 +116,8 @@ public static class IdentityCommand
     {
         NotLinkedCode => "an existing account uses this email or GitHub ID, but this login method is not linked to it",
         AlreadyLinkedCode => "the login method is already linked to another account, or the account already has one",
-        DataGsmLoginRequiredCode => "a GSM school email must sign in with DataGSM first and then link GitHub",
-        GitHubLoginRequiredCode => "an account without student information uses this email or GitHub ID; sign in with GitHub and then link DataGSM",
+        DataGsmLoginRequiredCode => "DataGSM authentication is required to complete GitHub login",
+        GitHubLoginRequiredCode => "GitHub authentication is required to sign up",
         _ => ResultErrorMessage,
     };
 
@@ -143,17 +145,24 @@ public static class IdentityCommand
     {
         // TODO(2026-11-23T07:19:58Z): Remove rule 3 and its test after Kafka retention has expired every identity command
         // processed before hash rule 4. Until then, a redelivered command must still match its stored rule 3 hash.
-        3 => Hash(Json.Encode(new
+        3 when command.CommandType == "UPSERT" && command.GitHubIdentity is null => Hash(Json.Encode(new
         {
             command.OperationId, command.IdempotencyKey, command.Provider, command.ProviderSubject, command.Name, command.Email,
             command.Sex, command.Grade, command.ClassNumber, command.StudentNumberInClass, command.Major, command.Role,
             command.GithubId, command.DatagsmStudentId, OccurredAt = Iso8601.Format(command.OccurredAt)
         })),
-        4 => Hash(Json.Encode(new
+        4 when command.GitHubIdentity is null && command.CommandType is ("UPSERT" or "LINK") => Hash(Json.Encode(new
         {
             command.OperationId, command.IdempotencyKey, command.CommandType, command.AccountId, command.Provider, command.ProviderSubject,
             command.Name, command.Email, command.GsmEmailVerified, command.Sex, command.Grade, command.ClassNumber,
             command.StudentNumberInClass, command.Major, command.Role, command.GithubId, command.DatagsmStudentId, OccurredAt = Iso8601.Format(command.OccurredAt)
+        })),
+        5 => Hash(Json.Encode(new
+        {
+            command.OperationId, command.IdempotencyKey, command.CommandType, command.AccountId, command.Provider, command.ProviderSubject,
+            command.Name, command.Email, command.GsmEmailVerified, command.Sex, command.Grade, command.ClassNumber,
+            command.StudentNumberInClass, command.Major, command.Role, command.GithubId, command.DatagsmStudentId,
+            command.GitHubIdentity, OccurredAt = Iso8601.Format(command.OccurredAt)
         })),
         _ => null,
     };

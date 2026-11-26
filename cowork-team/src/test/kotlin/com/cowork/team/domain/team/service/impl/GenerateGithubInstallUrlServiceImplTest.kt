@@ -22,7 +22,11 @@ class GenerateGithubInstallUrlServiceImplTest {
     private val teamAccessGuard =
         TeamAccessGuard(
             teamRepository,
-            TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(10L to mapOf("manage_github" to true)))),
+            TeamPermissionGuard(
+                teamMemberRepository,
+                policyReader(1, mapOf(10L to mapOf("manage_github" to true))),
+                mockk(),
+            ),
         )
     private val teamGithubStateSupport = mockk<TeamGithubStateSupport>()
     private val teamGithubProperties = TeamGithubProperties(stateSecret = "secret", appSlug = "my-app")

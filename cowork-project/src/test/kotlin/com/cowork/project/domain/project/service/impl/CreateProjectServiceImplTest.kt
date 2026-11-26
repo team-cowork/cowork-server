@@ -1,6 +1,5 @@
 package com.cowork.project.domain.project.service.impl
 
-import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
@@ -9,6 +8,7 @@ import com.cowork.project.domain.project.presentation.data.request.CreateProject
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.global.policy.TeamAccessProjection
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -27,7 +27,7 @@ class CreateProjectServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
-    private val teamPermissions = mockk<TeamRolePermissionReader>(relaxed = true)
+    private val teamPermissions = mockk<TeamAccessProjection>(relaxed = true)
     private val projectAccessGuard =
         ProjectAccessGuard(
             projectRepository,

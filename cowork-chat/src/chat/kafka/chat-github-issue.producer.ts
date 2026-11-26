@@ -13,14 +13,12 @@ export class ChatGithubIssueCommandProducer extends LazyKafkaProducer {
      같은 채널의 이슈 요청이 순서대로 전달되도록 `channelId`를 키로 쓴다.
      */
 	async send(command: ChatGithubIssueCreateCommand): Promise<void> {
-		await this.publish({
-			topic: 'project.chat-github-issue.command',
-			messages: [
-				{
-					key: command.channelId.toString(),
-					value: JSON.stringify(command),
-				},
-			],
-		});
+		await this.publish([
+			{
+				topic: 'project.chat-github-issue.command',
+				key: command.channelId.toString(),
+				value: JSON.stringify(command),
+			},
+		]);
 	}
 }

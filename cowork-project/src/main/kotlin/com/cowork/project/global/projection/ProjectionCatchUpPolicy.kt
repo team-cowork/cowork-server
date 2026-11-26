@@ -55,8 +55,10 @@ object ProjectionCatchUpPolicy {
                     checkpoint.topicId == barrier.topicId &&
                     checkpoint.invalidCheckpointOffset == null &&
                     checkpoint.invalidRecordOffset == null &&
-                    checkpoint.snapshotCompletedOffset != null &&
-                    checkpoint.nextOffset > checkpoint.snapshotCompletedOffset &&
+                    (
+                        stream.expectedSource == null ||
+                            checkpoint.snapshotCompletedOffset?.let { checkpoint.nextOffset > it } == true
+                        ) &&
                     checkpoint.nextOffset >= barrier.targetOffset
             }
     }
@@ -78,7 +80,10 @@ object ProjectionCatchUpPolicy {
             val checkpoint = streamCheckpoints.getValue(partition)
             barrier.topicId == topicState.topicId &&
                 checkpoint.topicId == topicState.topicId &&
-                checkpoint.snapshotCompletedOffset?.let { it >= range.beginningOffset } == true &&
+                (
+                    stream.expectedSource == null ||
+                        checkpoint.snapshotCompletedOffset?.let { it >= range.beginningOffset } == true
+                    ) &&
                 barrier.targetOffset <= range.endOffset &&
                 checkpoint.nextOffset == range.endOffset
         }

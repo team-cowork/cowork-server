@@ -81,8 +81,7 @@ class KafkaConsumerConfig(
     }
 
     @Bean
-    fun preferenceTeamRoleChangedListenerContainerFactory() =
-        projectionListenerContainerFactory(projectionStreams.teamRole)
+    fun teamAccessListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.teamAccess)
 
     @Bean
     fun projectAccessListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.projectAccess)
@@ -118,6 +117,10 @@ class KafkaConsumerConfig(
     @Bean
     fun githubLabelStateListenerContainerFactory() =
         projectionListenerContainerFactory(projectionStreams.githubLabelState)
+
+    @Bean
+    fun githubTimelineStateListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.githubTimelineState)
 
     @Bean
     fun githubIssueCommentStateListenerContainerFactory() =

@@ -22,8 +22,8 @@ const (
 var (
 	ErrIdentityNotLinked     = errors.New("an existing account uses this email or GitHub ID, but this login method is not linked to it")
 	ErrIdentityAlreadyLinked = errors.New("the login method is already linked to another account, or the account already has one")
-	ErrDataGSMLoginRequired  = errors.New("a GSM school email must sign in with DataGSM first and then link GitHub")
-	ErrGitHubLoginRequired   = errors.New("an account without student information uses this email or GitHub ID; sign in with GitHub and then link DataGSM")
+	ErrDataGSMLoginRequired  = errors.New("DataGSM authentication is required to complete GitHub login")
+	ErrGitHubLoginRequired   = errors.New("GitHub authentication is required to sign up")
 )
 
 type UserIdentityOperationStore interface {

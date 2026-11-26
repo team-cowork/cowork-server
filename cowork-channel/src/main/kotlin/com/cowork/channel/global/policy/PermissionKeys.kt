@@ -85,28 +85,4 @@ object PermissionKeys {
         LIVE_BROADCAST,
         VOICE_LOG_READ,
     )
-
-    const val PROJECT_READ = "project_read"
-    const val PROJECT_WRITE = "project_write"
-    const val PROJECT_MANAGE = "project_manage"
-    const val PROJECT_REORDER = "project_reorder"
-    const val PROJECT_CHANNEL_ARCHIVE = "project_channel_archive"
-    const val PROJECT_BOARD_READ = "project_board_read"
-    const val PROJECT_BOARD_WRITE = "project_board_write"
-
-    val PROJECT_SCOPED: Set<String> = linkedSetOf(
-        PROJECT_READ,
-        PROJECT_WRITE,
-        PROJECT_MANAGE,
-        PROJECT_REORDER,
-        PROJECT_CHANNEL_ARCHIVE,
-        PROJECT_BOARD_READ,
-        PROJECT_BOARD_WRITE,
-    )
-
-    val ROLE_SCOPED: Set<String> = buildSet {
-        addAll(this@PermissionKeys.TEAM_SCOPED)
-        addAll(this@PermissionKeys.CHANNEL_SCOPED)
-        addAll(this@PermissionKeys.PROJECT_SCOPED)
-    }
 }

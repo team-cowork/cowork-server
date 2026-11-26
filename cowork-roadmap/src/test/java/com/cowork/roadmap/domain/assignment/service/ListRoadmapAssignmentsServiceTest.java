@@ -54,7 +54,7 @@ class ListRoadmapAssignmentsServiceTest {
 
     @Test
     void crossTeamReadPolicy_canInspectLegacyAssignments() {
-        when(policies.allows(0, 7, "read_all_team_roadmaps")).thenReturn(true);
+        when(policies.accountAllows(7, "read_all_team_roadmaps")).thenReturn(true);
         assertThat(service.execute(7L, 1L)).hasSize(2);
     }
 

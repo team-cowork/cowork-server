@@ -212,7 +212,8 @@ class ProjectionReadinessTest {
                 GROUP,
                 TOPIC,
                 retryBackoffMs,
-                retryTimeoutMs);
+                retryTimeoutMs,
+                () -> true);
     }
 
     private void stubCaughtUp() {

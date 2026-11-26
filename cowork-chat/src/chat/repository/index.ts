@@ -11,7 +11,7 @@ export * from './project-github-repo-projection.repository.js';
 export * from './project-permission-projection.repository.js';
 export * from './project-projection.repository.js';
 export * from './team-member-projection.repository.js';
-export * from './team-role-projection.repository.js';
+export * from './team-access-projection.repository.js';
 export * from './text-channel-setting-projection.repository.js';
 export * from './team-setting-projection.repository.js';
 export * from './user-profile-projection.repository.js';

@@ -1,7 +1,8 @@
-import {type Admin, type Consumer, type Kafka} from 'kafkajs';
+import {type Admin, type AdminOptions} from '@platformatic/kafka';
 import {type ProjectionAssignmentLease, type ProjectionCheckpointOffset} from './projection-checkpoint.repository.js';
 import {type ProjectionDatasetState} from './projection-dataset.repository.js';
 import {type ProjectionLag} from './projection-offsets.js';
+import {type PartitionFetcher} from './partition-fetcher.js';
 import {type ProjectionDatasetStatus, type ProjectionRunMode} from './projection-dataset.schema.js';
 import {type ProjectionStream, type StartupPartitionOffset} from './projection-streams.js';
 
@@ -10,6 +11,7 @@ export type AssignmentClaimContext = {
 	pending: PendingProjectionAssignment;
 	groupGenerationId: number;
 	dataset: ProjectionDatasetState;
+	topicId: string;
 	currentByPartition: Map<number, StartupPartitionOffset>;
 };
 
@@ -31,7 +33,7 @@ export type PendingProjectionAssignment = {
 
 export type ProjectionCatchupState = {
 	stream: ProjectionStream;
-	consumer: Consumer;
+	fetcher: PartitionFetcher;
 	targets: StartupPartitionOffset[];
 	checkpoints: Map<number, string>;
 	checkpointLeases: Map<number, ProjectionAssignmentLease>;
@@ -74,13 +76,12 @@ export type ProjectionStreamStatus = {
 	mode: ProjectionRunMode;
 	status: ProjectionDatasetStatus;
 	datasetGeneration: string;
-	sourceGeneration: string;
+	topicId?: string;
 	reason?: string;
 	partitions: ProjectionPartitionStatus[];
 };
 
 export type ProjectionAdminConnection = {
-	kafka: Kafka;
+	options: AdminOptions;
 	admin?: Admin;
-	connectPromise?: Promise<Admin>;
 };

@@ -288,10 +288,6 @@ func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*Session
 	return s.findActiveSessionResult, s.findActiveSessionErr
 }
 
-func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*Session, error) {
-	return nil, errors.New("unexpected call")
-}
-
 func (s *stubRepository) CreateSession(_ context.Context, _, _, hostUserID int64) (*Session, bool, error) {
 	s.createSessionHostUserID = hostUserID
 	s.createSessionCalls++
@@ -301,19 +297,6 @@ func (s *stubRepository) CreateSession(_ context.Context, _, _, hostUserID int64
 func (s *stubRepository) EndSession(_ context.Context, _ string, _ time.Time) (bool, error) {
 	s.endSessionCalls++
 	return s.endSessionErr == nil, s.endSessionErr
-}
-
-func (s *stubRepository) MarkSessionStartedAndEnqueue(_ context.Context, _ string, _ time.Time, _ any) (bool, error) {
-	return false, errors.New("unexpected call")
-}
-
-func (s *stubRepository) RecordViewerJoinedAndEnqueue(
-	_ context.Context,
-	_ *Viewer,
-	_ string,
-	_ any,
-) (bool, error) {
-	return false, errors.New("unexpected call")
 }
 
 func (s *stubRepository) MarkViewerLeftAndEnqueue(
@@ -329,20 +312,6 @@ func (s *stubRepository) MarkViewerLeftAndEnqueue(
 		s.enqueuedEvents = append(s.enqueuedEvents, event)
 	}
 	return s.markViewerLeftFirst, nil
-}
-
-func (s *stubRepository) EndSessionAndEnqueue(
-	_ context.Context,
-	_ string,
-	_ time.Time,
-	_ any,
-	_ bool,
-) (bool, error) {
-	return false, errors.New("unexpected call")
-}
-
-func (s *stubRepository) CleanupOrphanViewers(_ context.Context, _ string, _ time.Time) (int64, error) {
-	return 0, errors.New("unexpected call")
 }
 
 func (s *stubRepository) GetViewerJoinedAt(_ context.Context, _ string, _ int64, _ string) (*time.Time, error) {

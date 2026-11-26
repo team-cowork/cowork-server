@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ProviderCommandTopic          = "user.identity.command.v3"
+	ProviderCommandTopic          = "user.identity.command.v4"
 	ProviderResultTopic           = "user.identity.result.v2"
 	ProviderResultGroup           = "cowork-authorization.user-identity-result.v2"
 	ProviderResultDLT             = ProviderResultTopic + "-dlt"

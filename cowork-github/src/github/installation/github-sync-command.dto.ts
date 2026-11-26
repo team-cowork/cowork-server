@@ -11,14 +11,14 @@ export class GithubSyncCommandDto {
 	@isIn([1])
 	schemaVersion: number;
 
-	@isIn(['ORG_REPOSITORIES', 'REPOSITORY', 'PROJECT'])
-	target: 'ORG_REPOSITORIES' | 'REPOSITORY' | 'PROJECT';
+	@isIn(['ORG_REPOSITORIES', 'REPOSITORY', 'PROJECT', 'TIMELINE'])
+	target: 'ORG_REPOSITORIES' | 'REPOSITORY' | 'PROJECT' | 'TIMELINE';
 
 	@isString()
 	@isNotEmpty()
 	owner: string;
 
-	@validateIf((command: GithubSyncCommandDto) => command.target === 'REPOSITORY')
+	@validateIf((command: GithubSyncCommandDto) => command.target === 'REPOSITORY' || command.target === 'TIMELINE')
 	@isString()
 	@isNotEmpty()
 	repo?: string;
@@ -26,6 +26,11 @@ export class GithubSyncCommandDto {
 	@validateIf((command: GithubSyncCommandDto) => command.target === 'ORG_REPOSITORIES')
 	@isInt()
 	installationId?: number;
+
+	@validateIf((command: GithubSyncCommandDto) => command.target === 'TIMELINE')
+	@isInt()
+	@isPositive()
+	number?: number;
 
 	@validateIf((command: GithubSyncCommandDto) => command.target === 'PROJECT')
 	@isInt()

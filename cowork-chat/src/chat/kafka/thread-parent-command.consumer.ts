@@ -5,9 +5,8 @@ import {
 	OnModuleInit,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka, Producer} from 'kafkajs';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {createKafkaProducer} from '../../common/kafka/lazy-kafka-producer.js';
+import {type KafkaConsumerHandle, startCommittedConsumer} from '../../common/kafka/partition-fetcher.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {MessageRepository} from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
@@ -74,8 +73,8 @@ export function judgeThreadParent(
 @injectable()
 export class ThreadParentCommandConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(ThreadParentCommandConsumer.name);
-	private consumer!: Consumer;
-	private producer!: Producer;
+	private consumer?: KafkaConsumerHandle;
+	private producer!: ReturnType<typeof createKafkaProducer>;
 
 	constructor(
 		private readonly config: ConfigService,
@@ -93,46 +92,35 @@ export class ThreadParentCommandConsumer implements OnModuleInit, OnModuleDestro
 		const command = parseThreadParentCommand(payload, key);
 		if (!command) {
 			this.logger.warn(`Invalid thread parent command, moving to DLT (key=${key ?? '<missing>'})`);
-			await this.producer.send({topic: THREAD_PARENT_COMMAND_DLT_TOPIC, messages: [{key: key ?? null, value}]});
+			await this.producer.send({messages: [{topic: THREAD_PARENT_COMMAND_DLT_TOPIC, key, value}]});
 			return;
 		}
 
 		const parent = await this.messageRepository.findByIdAndChannelId(command.parentMessageId, command.channelId);
 		const result = judgeThreadParent(command, parent);
 		await this.producer.send({
-			topic: THREAD_PARENT_RESULT_TOPIC,
-			messages: [{key: String(result.threadId), value: JSON.stringify(result)}],
+			messages: [{topic: THREAD_PARENT_RESULT_TOPIC, key: String(result.threadId), value: JSON.stringify(result)}],
 		});
 		this.logger.log(`thread parent judged threadId=${result.threadId} accepted=${result.accepted} reason=${result.reason ?? 'none'}`);
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({clientId: 'cowork-chat-thread-parent', ...getKafkaClientConfig(this.config)});
-		this.consumer = kafka.consumer({groupId: 'cowork-chat-thread-parent-command-v1'});
-		this.producer = kafka.producer({idempotent: true});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${THREAD_PARENT_COMMAND_TOPIC}`, async () => {
-			await this.producer.connect();
-			await this.consumer.connect();
+		this.producer = createKafkaProducer(this.config, 'cowork-chat-thread-parent');
+		this.consumer = await startCommittedConsumer({
+			logger: this.logger,
+			configService: this.config,
+			clientId: 'cowork-chat-thread-parent',
+			groupId: 'cowork-chat-thread-parent-command-v1',
+			topic: THREAD_PARENT_COMMAND_TOPIC,
 			// 그룹이 처음 생길 때 이미 쌓인 command도 처리해야 스레드가 검증 대기에 머물지 않는다.
-			await this.consumer.subscribe({topic: THREAD_PARENT_COMMAND_TOPIC, fromBeginning: true});
-		});
-
-		void this.consumer.run({
-			eachMessage: async ({message}) => {
-				const key = message.key?.toString();
-				const value = message.value?.toString() ?? '';
-				await this.handle(key, value);
-			},
-		}).catch((error: unknown) => {
-			this.logger.error(`${THREAD_PARENT_COMMAND_TOPIC} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
+			fromBeginning: true,
+			handle: async ({key, value}) => this.handle(key ?? undefined, value ?? ''),
 		});
 		this.logger.log(`Kafka consumer started: ${THREAD_PARENT_COMMAND_TOPIC}`);
 	}
 
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
-		await this.producer.disconnect();
+		await this.consumer?.close();
+		await this.producer.close();
 	}
 }

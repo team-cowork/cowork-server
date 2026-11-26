@@ -1,11 +1,14 @@
 package com.cowork.project.domain.github.presentation.controller
 
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
+import com.cowork.project.domain.github.presentation.data.request.GithubTimelineQueryReqDto
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubCommentReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestActionResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubTimelineResDto
+import com.cowork.project.domain.github.repository.GithubTimelineParent
 import com.cowork.project.domain.github.service.ApprovePullRequestService
 import com.cowork.project.domain.github.service.ClosePullRequestService
 import com.cowork.project.domain.github.service.CreateGithubCommentService
@@ -14,6 +17,7 @@ import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.domain.github.service.ListGithubCommentsService
 import com.cowork.project.domain.github.service.ListPullRequestFilesService
 import com.cowork.project.domain.github.service.MergePullRequestService
+import com.cowork.project.domain.github.service.QueryGithubTimelineService
 import com.cowork.project.domain.github.service.QueryPullRequestDetailService
 import com.cowork.project.domain.github.service.UpdateGithubCommentService
 import io.swagger.v3.oas.annotations.Operation
@@ -24,9 +28,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import org.springdoc.core.annotations.ParameterObject
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -58,6 +65,7 @@ import team.themoment.sdk.response.CommonApiResponse
 @RestController
 @RequestMapping("/projects/{projectId}/github-repos/{repoId}/pulls/{prNumber}")
 class GithubPullRequestController(
+    private val queryGithubTimelineService: QueryGithubTimelineService,
     private val queryPullRequestDetailService: QueryPullRequestDetailService,
     private val listPullRequestFilesService: ListPullRequestFilesService,
     private val mergePullRequestService: MergePullRequestService,
@@ -68,6 +76,37 @@ class GithubPullRequestController(
     private val updateGithubCommentService: UpdateGithubCommentService,
     private val deleteGithubCommentService: DeleteGithubCommentService,
 ) {
+
+    @Operation(
+        summary = "PR 활동 이력 조회",
+        description = "발생 시각이 같은 활동은 식별자 순으로 반환합니다. 다음 페이지부터 첫 페이지 응답의 snapshotId를 보내고 size를 유지하십시오.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "활동 이력 조회 성공"),
+        ApiResponse(responseCode = "400", description = "잘못된 번호, 페이지 범위 또는 다음 페이지의 스냅샷 ID 누락"),
+        ApiResponse(responseCode = "403", description = "프로젝트 읽기 권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트, 저장소 또는 PR 없음"),
+        ApiResponse(responseCode = "409", description = "요청한 스냅샷 만료"),
+        ApiResponse(responseCode = "503", description = "동기화 진행 중. 잠시 후 다시 조회하십시오."),
+    )
+    @GetMapping("/timeline")
+    fun getTimeline(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
+        @PathVariable prNumber: Int,
+        @Valid @ParameterObject @ModelAttribute queryReq: GithubTimelineQueryReqDto,
+    ): GithubTimelineResDto = queryGithubTimelineService.execute(
+        userId,
+        projectId,
+        repoId,
+        GithubTimelineParent.PULL_REQUEST,
+        prNumber,
+        queryReq.page,
+        queryReq.size,
+        queryReq.snapshotId,
+    )
 
     @Operation(
         summary = "PR 상세 조회",

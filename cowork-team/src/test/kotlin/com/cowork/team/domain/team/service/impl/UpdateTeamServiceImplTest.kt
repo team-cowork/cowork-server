@@ -51,7 +51,11 @@ class UpdateTeamServiceImplTest :
                 mockk<TeamEventPublisher>(relaxed = true),
                 TeamAccessGuard(
                     teamRepository,
-                    TeamPermissionGuard(memberRepository, policyReader(1, mapOf(20L to mapOf("manage_team" to true)))),
+                    TeamPermissionGuard(
+                        memberRepository,
+                        policyReader(1, mapOf(20L to mapOf("manage_team" to true))),
+                        mockk(),
+                    ),
                 ),
             )
         }

@@ -6,17 +6,16 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
 import {mongo} from 'mongoose';
 import {Server} from 'socket.io';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {parseEventTime} from '../../common/util/event-time.util.js';
+import {parseAuthorizationVersion, parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {ChannelAccessProjectionRepository, type ChannelAccessDecision} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 /**
@@ -73,25 +72,6 @@ function hasValidShape(event: Partial<ChannelAccessEvent>, messageKey?: string):
 }
 
 /**
-인가 version이 없는 기록은 모든 권한을 거부해야 한다. 인가 version은 0보다 크고 멤버십 version 이하다.
-계약을 어기면 undefined를 반환한다.
-*/
-function parseAuthorizationVersion(
-	value: Nullable<string>,
-	membershipVersion: mongo.Long,
-	hasAnyGrant: boolean,
-): Nullable<mongo.Long> | undefined {
-	if (value === null) {
-		return hasAnyGrant ? undefined : null;
-	}
-
-	const authorization = parseEventTime(value)?.sourceVersion;
-	return authorization && authorization.greaterThan(mongo.Long.ZERO) && !authorization.greaterThan(membershipVersion)
-		? authorization
-		: undefined;
-}
-
-/**
 `preference.channel-access.state.v1` 레코드를 projection 입력으로 바꾼다. 계약을 어기면 null을 반환한다.
 활성 멤버가 아닌 쌍은 `sourceMembershipVersion`이 Unix epoch이고 `sourceAuthorizationVersion`이 null이며 모든 권한이 거부다.
 */
@@ -133,7 +113,7 @@ export function parseChannelAccessEvent(payload: unknown, messageKey?: string): 
 @injectable()
 export class ChannelAccessEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(ChannelAccessEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 	private io?: Server;
 
 	@inject()
@@ -171,19 +151,14 @@ export class ChannelAccessEventConsumer implements OnModuleInit, OnModuleDestroy
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-chat-channel-access-state',
-			...getKafkaClientConfig(this.configService),
-		});
 		const stream = PROJECTION_STREAMS.channelAccess;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-channel-access-state', readiness: this.projectionReadiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy(): Promise<void> {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

@@ -9,21 +9,24 @@ public static partial class IdentityCommandContract
 {
     const int MaxIdempotencyKeyLength = 128;
 
+    public sealed record VerifiedGitHub(long Id, string Login, string Name, string Email);
+
     public sealed record Command(
         string OperationId, string IdempotencyKey, string Name, string Email, string Sex,
         long? Grade, long? ClassNumber, long? StudentNumberInClass, string? Major, string Role, string? GithubId,
-        long? DatagsmStudentId, DateTime OccurredAt, int OccurredAtPrecision, string Provider, string ProviderSubject,
-        string CommandType = "UPSERT", long? AccountId = null, bool GsmEmailVerified = false);
+        long? DatagsmStudentId, DateTime OccurredAt, string Provider, string ProviderSubject,
+        string CommandType = "UPSERT", long? AccountId = null, bool GsmEmailVerified = false, VerifiedGitHub? GitHubIdentity = null);
 
-    /// <summary>The only command schema version accepted from the identity command topic.</summary>
-    public const int CommandSchemaVersion = 3;
+    /// <summary>The current identity command version. Retained v3 commands use their original topic.</summary>
+    public const int CommandSchemaVersion = 4;
 
     static readonly HashSet<string> CommandKeys =
         ["schemaVersion", "commandType", "operationId", "idempotencyKey", "provider", "providerSubject", "name", "email", "student", "occurredAt"];
+    static readonly HashSet<string> GitHubIdentityKeys = ["id", "login", "name", "email", "gsmEmailVerified"];
     static readonly HashSet<string> StudentKeys =
         ["sex", "role", "grade", "classNumber", "studentNumberInClass", "major", "githubId", "dataGSMStudentId"];
 
-    public static Command? Parse(JsonElement payload, string? key)
+    public static Command? Parse(JsonElement payload, string? key, int version = CommandSchemaVersion)
     {
         var provider = payload.GetString("provider");
         var subject = payload.GetString("providerSubject");
@@ -33,19 +36,32 @@ public static partial class IdentityCommandContract
         var keys = new HashSet<string>(CommandKeys);
         if (provider == "GITHUB") keys.UnionWith(["githubLogin", "gsmEmailVerified"]);
         if (commandType == "LINK") keys.Add("accountId");
-        if (!ContractFields.ExactKeys(payload, keys) || payload.Get("schemaVersion").Integer() != CommandSchemaVersion
-            || commandType is not ("UPSERT" or "LINK") || operation is null
+        if (commandType == "SCHOOL_LOGIN") keys.Add("githubIdentity");
+        if (version is not (3 or CommandSchemaVersion) || payload.Get("schemaVersion").Integer() != version
+            || !ContractFields.ExactKeys(payload, keys)
+            || commandType is not ("UPSERT" or "LINK" or "SIGN_IN" or "SCHOOL_LOGIN") || operation is null
+            || (commandType is "SIGN_IN" or "SCHOOL_LOGIN") && (version != CommandSchemaVersion || provider != "DATAGSM")
             || !ContractFields.RequiredString(payload.Get("idempotencyKey"), MaxIdempotencyKeyLength)
             || !ContractFields.RequiredString(payload.Get("name"), 50) || !ContractFields.RequiredString(payload.Get("email"), 255)
             || subject is null || key != provider + ":" + subject
-            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var at, out var precision)) return null;
+            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var at)) return null;
 
         var command = new Command(operation, payload.GetString("idempotencyKey")!, payload.GetString("name")!,
-            payload.GetString("email")!, "", null, null, null, null, "", null, null, at, precision, provider!, subject, commandType);
+            payload.GetString("email")!, "", null, null, null, null, "", null, null, at, provider!, subject, commandType);
         if (commandType == "LINK")
         {
             if (provider is not ("GITHUB" or "DATAGSM") || payload.Get("accountId").Integer() is not > 0) return null;
             command = command with { AccountId = payload.Get("accountId").Integer() };
+        }
+        if (commandType == "SCHOOL_LOGIN")
+        {
+            if (payload.Get("githubIdentity") is not { ValueKind: JsonValueKind.Object } gh
+                || !ContractFields.ExactKeys(gh, GitHubIdentityKeys)
+                || gh.Get("id").Integer() is not long id || id <= 0
+                || gh.GetString("login") is not { } verifiedLogin || !GitHubLogin().IsMatch(verifiedLogin)
+                || !ContractFields.RequiredString(gh.Get("name"), 50) || !ContractFields.RequiredString(gh.Get("email"), 255)
+                || gh.Get("gsmEmailVerified") is not { ValueKind: JsonValueKind.True }) return null;
+            command = command with { GitHubIdentity = new(id, verifiedLogin, gh.GetString("name")!, gh.GetString("email")!) };
         }
         if (provider == "GITHUB")
             return DecimalId(subject) && payload.Get("student") is { ValueKind: JsonValueKind.Null }
@@ -86,6 +102,6 @@ public static partial class IdentityCommandContract
         ContractFields.String(value) is { } text && Guid.TryParseExact(text, "D", out var guid) && guid.ToString("D") == text ? text : null;
 
     /// <summary>Version of the command hash rule; inbox rows record it so a rule change never invalidates stored hashes.</summary>
-    /// <remarks>Version 4 adds the command type and the LINK account to the version 3 fields.</remarks>
-    public const int HashVersion = 4;
+    /// <remarks>Version 5 includes the GitHub identity verified before DataGSM login.</remarks>
+    public const int HashVersion = 5;
 }

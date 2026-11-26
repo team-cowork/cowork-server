@@ -124,7 +124,7 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 			wantErr:         ErrIdentityAlreadyLinked,
 		},
 		{
-			name:            "학교 이메일로 처음 GitHub 로그인하면 DataGSM 로그인 필요 오류로 거부한다",
+			name:            "학교 이메일 로그인에 필요한 DataGSM 인증을 호출자에게 알린다",
 			findResults:     []findResult{{operation: identityOperation(domain.UserIdentityFailed, nil, stringPointer("DATAGSM_LOGIN_REQUIRED"))}},
 			waitTimeout:     time.Second,
 			wantErrContains: "user identity command failed: DATAGSM_LOGIN_REQUIRED",

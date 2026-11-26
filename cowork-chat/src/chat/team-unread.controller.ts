@@ -22,7 +22,7 @@ export class TeamUnreadController {
 	constructor(private readonly chatService: ChatService) {}
 
 	@httpGet('unread')
-	@apiOperation({summary: '팀 채널별 읽지 않은 메시지 수 조회'})
+	@apiOperation({summary: '팀 채널별 읽지 않은 메시지 수 조회', description: '팀 가입 후 도착한 메시지 중 아직 읽지 않은 메시지만 셉니다.'})
 	@apiEnvelopeResponse(200, '요청 처리 성공', {type: 'array', items: {$ref: getSchemaPath(UnreadCountItemDto)}})
 	@apiEnvelopeResponse(400, '팀 ID 형식 오류')
 	@apiEnvelopeResponse(403, '팀 접근 권한 없음')

@@ -56,9 +56,6 @@ export class NotificationTriggerProducer extends LazyKafkaProducer {
 	}
 
 	async send(event: NotificationTriggerEvent): Promise<void> {
-		await this.publish({
-			topic: 'notification.trigger',
-			messages: [{value: JSON.stringify(event)}],
-		});
+		await this.publish([{topic: 'notification.trigger', value: JSON.stringify(event)}]);
 	}
 }

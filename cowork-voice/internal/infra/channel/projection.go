@@ -63,20 +63,14 @@ type CurrentHighChecker interface {
 type StateStore interface {
 	Apply(context.Context, State) error
 }
-type stateLookup interface {
-	State(context.Context, string) (State, bool, error)
-}
 type Projection struct {
 	col           *mongo.Collection
-	lookup        stateLookup
 	currentHighMu sync.RWMutex
 	currentHigh   CurrentHighChecker
 }
 
 func NewProjection(db *mongo.Database) *Projection {
-	p := &Projection{col: db.Collection(permissionCollection)}
-	p.lookup = p
-	return p
+	return &Projection{col: db.Collection(permissionCollection)}
 }
 func (p *Projection) SetCurrentHighChecker(c CurrentHighChecker) {
 	p.currentHighMu.Lock()
@@ -88,14 +82,6 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	return err
 }
 
-func (p *Projection) State(ctx context.Context, key string) (State, bool, error) {
-	var state State
-	err := p.col.FindOne(ctx, bson.M{"_id": key}).Decode(&state)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return state, false, nil
-	}
-	return state, err == nil, err
-}
 func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
 	check, err := p.CurrentConnectCheck(ctx)
 	if err != nil {
@@ -129,12 +115,13 @@ func (p *Projection) CurrentConnectCheck(ctx context.Context) (permission.Connec
 }
 
 func (p *Projection) lookupState(ctx context.Context, key string) (*State, error) {
-	state, found, err := p.lookup.State(ctx, key)
+	var state State
+	err := p.col.FindOne(ctx, bson.M{"_id": key}).Decode(&state)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
-	}
-	if !found {
-		return nil, nil
 	}
 	return &state, nil
 }
@@ -195,6 +182,7 @@ func (p *Projection) Apply(ctx context.Context, s State) error {
 	accepted := bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}
 	if s.Kind == "member" {
 		// Members stored before authorization versions were kept take the field from the replayed record.
+		// TODO: Remove this branch once the rollback window closes and all stored members have authorization_version.
 		accepted = append(accepted, bson.M{"source_version": s.Version, "authorization_version": bson.M{"$exists": false}})
 	}
 	filter := bson.M{"_id": s.Key, "$or": accepted}
