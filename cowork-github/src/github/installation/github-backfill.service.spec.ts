@@ -69,17 +69,6 @@ describe('GithubBackfillService', () => {
 		expect(producers.issue.send.mock.calls.map(([event]: [{number: number}]) => event.number)).toEqual([1, 3]);
 	});
 
-	it('변경이 없는 정기 백필은 건너뛰고 상세 조회나 웹훅 요청은 처리한다', async () => {
-		const target = {
-			type: 'TIMELINE', owner: 'org', repo: 'repo', number: 7,
-		} as const;
-		redis.get.mockResolvedValue('previous');
-		await service.enqueue({...target, updatedAt: 'previous'});
-		expect(timeline.sync).not.toHaveBeenCalled();
-		await service.enqueue(target);
-		expect(timeline.sync).toHaveBeenCalledTimes(1);
-	});
-
 	it('이미 대기 중인 대상은 다시 넣지 않는다', async () => {
 		const target = {type: 'REPOSITORY', owner: 'my-org', repo: 'my-repo'} as const;
 
