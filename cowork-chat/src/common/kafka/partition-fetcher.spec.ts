@@ -15,7 +15,7 @@ class FakeConsumer {
 	readonly topics = {track: jest.fn()};
 	readonly logs = new Map<number, string[]>([[0, []], [1, []]]);
 	readonly logStart = new Map<number, number>();
-	readonly fetchOffsets: Array<[number, bigint]> = [];
+	readonly fetchOffsets: Array<[number, bigint, string]> = [];
 	readonly committed = new Map<number, bigint>();
 	readonly commits: bigint[] = [];
 	/**
@@ -23,6 +23,10 @@ class FakeConsumer {
 	 */
 	readonly lookupGates: Array<Promise<void>> = [];
 	generationId?: number;
+	/**
+	 바꾸면 같은 이름의 topic을 다시 만든 것처럼, 이전 UUID로 온 fetch에 UNKNOWN_TOPIC_ID를 돌려준다.
+	 */
+	topicId = topicId;
 	leaders = [1, 1];
 	failingNode?: number;
 
@@ -45,7 +49,7 @@ class FakeConsumer {
 	}
 
 	async metadata() {
-		return {topics: new Map([[topic, {id: topicId, partitions: this.leaders.map(leader => ({leader}))}]])};
+		return {topics: new Map([[topic, {id: this.topicId, partitions: this.leaders.map(leader => ({leader}))}]])};
 	}
 
 	async listOffsets({partitions, timestamp}: {partitions: Record<string, number[]>; timestamp: bigint}) {
@@ -83,7 +87,11 @@ class FakeConsumer {
 			responses: topics.map(request => ({
 				topicId: request.topicId,
 				partitions: request.partitions.map(({partition, fetchOffset}) => {
-					this.fetchOffsets.push([partition, fetchOffset]);
+					this.fetchOffsets.push([partition, fetchOffset, request.topicId]);
+					if (request.topicId !== this.topicId) {
+						return {partitionIndex: partition, errorCode: protocolErrors.UNKNOWN_TOPIC_ID.code, records: []};
+					}
+
 					if (fetchOffset < BigInt(this.logStart.get(partition) ?? 0)) {
 						return {partitionIndex: partition, errorCode: protocolErrors.OFFSET_OUT_OF_RANGE.code, records: []};
 					}
@@ -269,6 +277,22 @@ describe('PartitionFetcher', () => {
 		expect(consumer.fetchOffsets.every(([, offset]) => offset === 0n)).toBe(true);
 	});
 
+	it('resetTo가 없으면 topic을 같은 이름으로 다시 만들어도 새 topic으로 건너가지 않는다', async () => {
+		const {consumer, fetcher, handled} = await start();
+		consumer.logs.set(0, ['a']);
+		consumer.assign([0]);
+		fetcher.seek(0, {topicId, offset: 0n});
+		fetcher.resume([0]);
+		await waitFor(() => handled.length === 1);
+
+		consumer.topicId = 'recreated-topic-uuid';
+		consumer.logs.set(0, ['x']);
+		const fetchCount = consumer.fetchOffsets.length;
+		await waitFor(() => consumer.fetchOffsets.length > fetchCount + 1);
+		expect(handled).toEqual(['a']);
+		expect(consumer.fetchOffsets.every(fetched => fetched[2] === topicId)).toBe(true);
+	});
+
 	it('커밋 offset 모드는 보존 범위를 벗어난 위치를 resetTo 위치로 옮긴다', async () => {
 		const {consumer, fetcher, handled} = await start({resetTo: 'earliest'});
 		consumer.logs.set(0, ['a', 'b', 'c']);
@@ -393,6 +417,21 @@ describe('createCommittedFetcher', () => {
 		consumer.logs.get(0)!.push('c');
 		await waitFor(() => handled.length === 1);
 		expect(handled).toEqual(['c']);
+	});
+
+	it('topic을 같은 이름으로 다시 만들면 재시작 없이 새 topic의 시작 위치부터 이어 처리하고 커밋한다', async () => {
+		const {consumer, handled} = await start(true);
+		consumer.logs.set(0, ['a', 'b']);
+		consumer.assign([0]);
+		await waitFor(() => handled.length === 2);
+
+		// Kafka는 topic을 지울 때 그 topic의 group offset도 지운다.
+		consumer.topicId = 'recreated-topic-uuid';
+		consumer.committed.clear();
+		consumer.logs.set(0, ['x']);
+		await waitFor(() => handled.length === 3);
+		expect(handled).toEqual(['a', 'b', 'x']);
+		await waitFor(() => consumer.commits.at(-1) === 1n);
 	});
 
 	it('조회하는 사이 generation이 바뀌면 이전 조회 결과로 시작하지 않는다', async () => {

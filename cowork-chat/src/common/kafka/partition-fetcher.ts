@@ -24,6 +24,7 @@ const PARTITION_MAX_BYTES = 1_048_576;
  */
 const FETCH_MAX_WAIT_MS = 500;
 const OFFSET_OUT_OF_RANGE = protocolErrors.OFFSET_OUT_OF_RANGE.code;
+const UNKNOWN_TOPIC_ID = protocolErrors.UNKNOWN_TOPIC_ID.code;
 
 type FetchResponse = Awaited<ReturnType<Consumer['fetch']>>;
 
@@ -70,7 +71,7 @@ type FetcherOptions = {
 	concurrency: number;
 	handle(record: ConsumedRecord): Promise<void>;
 	/**
-	 커밋 offset 모드에서만 둔다. 없으면 보존 범위를 벗어난 위치로 건너뛰지 않고 같은 위치를 다시 시도한다.
+	 커밋 offset 모드에서만 둔다. 없으면 보존 범위를 벗어난 위치나 다시 만든 topic으로 건너뛰지 않고 같은 위치를 다시 시도한다.
 	 */
 	resetTo?: 'earliest' | 'latest';
 	/**
@@ -241,6 +242,10 @@ export class PartitionFetcher implements KafkaConsumerHandle {
 				return this.handleOffsetOutOfRange(partition, position);
 			}
 
+			if (partitionResponse.errorCode === UNKNOWN_TOPIC_ID && this.options.resetTo !== undefined) {
+				return this.handleUnknownTopicId(partition, position, this.options.resetTo);
+			}
+
 			if (partitionResponse.errorCode !== 0) {
 				this.options.logger.warn(
 					`Kafka fetch partition error [topic=${this.options.topic}, partition=${partition}, offset=${position.offset}, `
@@ -366,6 +371,31 @@ export class PartitionFetcher implements KafkaConsumerHandle {
 
 		logger.warn(`Kafka offset out of range, resetting to ${resetTo} [topic=${topic}, partition=${partition}, from=${position.offset}, to=${offset}]`);
 		this.seek(partition, {topicId: position.topicId, offset});
+		return false;
+	}
+
+	/**
+	 같은 이름으로 다시 만든 topic은 UUID가 달라 이전 UUID의 fetch가 끝없이 실패한다. 커밋 offset 모드는 새 topic의
+	 커밋 offset(없으면 `resetTo` 위치)으로 옮긴다. Broker metadata가 아직 이전 UUID이거나 topic이 없으면 backoff 뒤 다시 시도한다.
+	 */
+	private async handleUnknownTopicId(partition: number, position: FetchPosition, resetTo: 'earliest' | 'latest'): Promise<boolean> {
+		const {topic, logger} = this.options;
+		const {topicId, offsets} = await readCommittedPositions(this.consumer, topic, [partition], resetTo);
+		if (topicId === position.topicId) {
+			logger.warn(`Kafka fetch reports an unknown topic UUID that broker metadata still lists, retrying [topic=${topic}, partition=${partition}, topicId=${topicId}]`);
+			return true;
+		}
+
+		if (!this.isCurrent(partition, position)) {
+			return true;
+		}
+
+		const offset = offsets.get(partition)!;
+		logger.warn(
+			`Kafka topic was recreated, moving to the new topic [topic=${topic}, partition=${partition}, `
+			+ `from=${position.topicId}@${position.offset}, to=${topicId}@${offset}]`,
+		);
+		this.seek(partition, {topicId, offset});
 		return false;
 	}
 
@@ -561,26 +591,48 @@ async function startFromCommittedOffsets(
 		return;
 	}
 
-	const [metadata, committed, fallback] = await Promise.all([
-		consumer.metadata({topics: [topic]}),
-		consumer.listCommittedOffsets({topics: [{topic, partitions}]}),
-		consumer.listOffsets({
-			topics: [topic],
-			partitions: {[topic]: partitions},
-			timestamp: input.resetTo === 'earliest' ? ListOffsetTimestamps.EARLIEST : ListOffsetTimestamps.LATEST,
-		}),
-	]);
+	const {topicId, offsets} = await readCommittedPositions(consumer, topic, partitions, input.resetTo);
 	if (consumer.generationId !== input.generationId) {
 		return;
 	}
 
-	const topicId = metadata.topics.get(topic)!.id;
-	for (const partition of partitions) {
-		const offset = committed.get(topic)?.[partition] ?? -1n;
-		fetcher.seek(partition, {topicId, offset: offset >= 0n ? offset : fallback.get(topic)![partition]});
+	for (const [partition, offset] of offsets) {
+		fetcher.seek(partition, {topicId, offset});
 	}
 
 	fetcher.resume(partitions);
+}
+
+/**
+ 파티션마다 group에 커밋된 offset을, 없으면 `resetTo` 위치를 읽는다. Topic UUID는 broker metadata를 새로 읽어 정한다.
+ */
+async function readCommittedPositions(
+	consumer: Consumer,
+	topic: string,
+	partitions: number[],
+	resetTo: 'earliest' | 'latest',
+): Promise<{topicId: string; offsets: Map<number, bigint>}> {
+	const [metadata, committed, fallback] = await Promise.all([
+		consumer.metadata({topics: [topic], forceUpdate: true}),
+		consumer.listCommittedOffsets({topics: [{topic, partitions}]}),
+		consumer.listOffsets({
+			topics: [topic],
+			partitions: {[topic]: partitions},
+			timestamp: resetTo === 'earliest' ? ListOffsetTimestamps.EARLIEST : ListOffsetTimestamps.LATEST,
+		}),
+	]);
+	const topicId = metadata.topics.get(topic)?.id;
+	if (topicId === undefined) {
+		throw new Error(`Kafka topic is missing from broker metadata: ${topic}`);
+	}
+
+	return {
+		topicId,
+		offsets: new Map(partitions.map(partition => {
+			const offset = committed.get(topic)?.[partition] ?? -1n;
+			return [partition, offset >= 0n ? offset : fallback.get(topic)![partition]];
+		})),
+	};
 }
 
 function describe(error: unknown): string {
