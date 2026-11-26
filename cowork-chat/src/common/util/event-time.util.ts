@@ -91,3 +91,22 @@ export function parseEventTime(value: unknown): Nullable<ParsedEventTime> {
 		sourceVersion: mongo.Long.fromBigInt(epochNanos),
 	};
 }
+
+/**
+인가 version이 없는 기록은 모든 권한을 거부해야 한다. 인가 version은 0보다 크고 멤버십 version 이하다.
+계약을 어기면 undefined를 반환한다.
+*/
+export function parseAuthorizationVersion(
+	value: unknown,
+	membershipVersion: mongo.Long,
+	hasAnyGrant: boolean,
+): Nullable<mongo.Long> | undefined {
+	if (value === null) {
+		return hasAnyGrant ? undefined : null;
+	}
+
+	const authorization = parseEventTime(value)?.sourceVersion;
+	return authorization && authorization.greaterThan(mongo.Long.ZERO) && !authorization.greaterThan(membershipVersion)
+		? authorization
+		: undefined;
+}
