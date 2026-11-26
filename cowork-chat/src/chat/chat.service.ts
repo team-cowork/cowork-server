@@ -716,7 +716,7 @@ export class ChatService {
      메시지를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
      */
-	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto): Promise<void> {
+	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto, isAgent = false): Promise<void> {
 		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
 		const attachmentCount = dto.attachments?.length ?? 0;
 		if (attachmentCount === 0 && dto.content.trim() === '') {
@@ -726,6 +726,10 @@ export class ChatService {
 		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
 		const parentMessageId = presentString(dto.parentMessageId);
 		const threadId = dto.threadId ?? undefined;
+		if (isAgent && threadId === undefined) {
+			throw new ForbiddenException('에이전트는 스레드에만 메시지를 보낼 수 있습니다');
+		}
+
 		const requestedClientMessageId = presentString(dto.clientMessageId);
 		const scope = await this.requireSendable(ctx, {
 			parentMessageId, threadId, attachmentCount, revealDm: true,
