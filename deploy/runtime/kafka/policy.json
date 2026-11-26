@@ -575,7 +575,6 @@
         "voice.event",
         "notification.trigger",
         "preference.team-access.state.v1",
-        "preference.team-role.state.v2",
         "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
@@ -680,7 +679,6 @@
         "github.issue.result",
         "notification.trigger",
         "preference.team-access.state.v1",
-        "preference.team-role.state.v2",
         "preference.github-repo.setting.command",
         "preference.github-repo.setting.state",
         "preference.github-repo.setting.result",
@@ -710,8 +708,7 @@
         "team.member.event",
         "team.member.event-dlt",
         "preference.account-role.state.v1",
-        "preference.team-access.state.v1",
-        "preference.team-role.state.v2"
+        "preference.team-access.state.v1"
       ]
     },
     "cowork-team": {
