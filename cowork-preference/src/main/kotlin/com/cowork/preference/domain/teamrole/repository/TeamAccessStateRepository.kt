@@ -1,9 +1,11 @@
 package com.cowork.preference.domain.teamrole.repository
 
+import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.teamrole.model.TeamAccessPermissions
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
@@ -19,11 +21,15 @@ class TeamAccessStateRepository(private val outbox: PreferenceOutboxRepository) 
             "SELECT * FROM tb_team_access_states WHERE team_id = $1 AND ($2::bigint IS NULL OR account_id = $2)",
         ).execute(Tuple.of(teamId, accountId)).coAwait().associateBy { it.getLong("account_id") }
         (inputs.memberIds + existing.keys).sorted().forEach { memberId ->
-            val permissions = TeamAccessPermissions.resolve(inputs.roles(memberId), inputs.isActive(memberId))
             val membershipVersion = inputs.membershipVersion(memberId)
             val authorizationVersion = inputs.authorizationVersion(memberId)
+            val active = inputs.isActive(memberId) && authorizationVersion != null
+            val roles = inputs.roles(memberId)
+            // 기본 권한 변경도 이전 발행자와 같은 버전 비교에 포함한다.
+            val permissions = JsonObject(TeamAccessPermissions.resolve(roles, active))
+            TeamAccessPermissions.baseGrants(roles, active).forEach { permissions.put(it, true) }
             val previous = existing[memberId]
-            if (previous != null && previous.getJsonObject("permissions") == JsonObject(permissions) &&
+            if (previous != null && previous.getJsonObject("permissions") == permissions &&
                 previous.getOffsetDateTime("source_membership_version").toInstant() == membershipVersion.toInstant() &&
                 previous.getOffsetDateTime("source_authorization_version")?.toInstant() ==
                 authorizationVersion?.toInstant()
@@ -44,7 +50,7 @@ class TeamAccessStateRepository(private val outbox: PreferenceOutboxRepository) 
                 RETURNING *
                 """.trimIndent(),
             ).execute(
-                Tuple.tuple().addLong(teamId).addLong(memberId).addValue(JsonObject(permissions))
+                Tuple.tuple().addLong(teamId).addLong(memberId).addValue(permissions)
                     .addOffsetDateTime(membershipVersion).addOffsetDateTime(authorizationVersion),
             ).coAwait()
             rows.forEach { outbox.enqueue(client, event(it)) }
@@ -66,12 +72,15 @@ class TeamAccessStateRepository(private val outbox: PreferenceOutboxRepository) 
         val teamId = row.getLong("team_id")
         val accountId = row.getLong("account_id")
         val version = row.getOffsetDateTime("state_occurred_at").toInstant()
+        val permissions = row.getJsonObject("permissions")
+        val (teamKeys, baseGrants) = permissions.fieldNames().partition { it in PermissionKeys.TEAM_SCOPED }
         return PreferenceEvent(
             PreferenceTopics.TEAM_ACCESS_STATE_TOPIC,
             "$teamId:$accountId",
             JsonObject().put("eventType", "UPSERT")
                 .put("teamId", teamId).put("accountId", accountId)
-                .put("permissions", row.getJsonObject("permissions"))
+                .put("permissions", JsonObject(teamKeys.associateWith { permissions.getBoolean(it) }))
+                .put("baseGrants", JsonArray(baseGrants.filter { permissions.getBoolean(it) == true }.sorted()))
                 .put(
                     "sourceMembershipVersion",
                     row.getOffsetDateTime("source_membership_version").toInstant().toString(),
