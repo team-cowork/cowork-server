@@ -54,6 +54,9 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
         return Optional.ofNullable(role);
     }
 
+    // TODO(#1111): Once all active rows and writers have authorization versions,
+    // remove this check, its wiring and the null-version upsert branches.
+    // Drop the lookup index in a new migration.
     @Override
     public boolean allActiveMembersHaveAuthorizationVersion() {
         return entityManager.createNativeQuery("""
@@ -61,7 +64,8 @@ public class JpaTeamMemberProjectionRepository implements TeamMemberProjectionRe
                 WHERE active AND authorization_version IS NULL LIMIT 1
                 """, Integer.class)
                 .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
-                .getResultList().isEmpty();
+                .getResultList()
+                .isEmpty();
     }
 
     @Override
