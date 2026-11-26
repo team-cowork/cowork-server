@@ -7,6 +7,7 @@ import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache.j
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
 import {ProjectBoardSyncService} from '../project-board/project-board-sync.service.js';
+import {TimelineSyncService} from '../timeline/timeline-sync.service.js';
 import {PullRequestService} from '../pull-request/pull-request.service.js';
 import {InstallationApiClient} from './client/installation-api.client.js';
 import {IssueCommentStateEvent} from './kafka/event/issue-comment-state.js';
@@ -17,15 +18,22 @@ import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper.js
 export type GithubSyncTarget =
 	| {type: 'ORG_REPOSITORIES'; installationId: number; owner: string}
 	| {type: 'REPOSITORY'; owner: string; repo: string}
+	| {type: 'TIMELINE'; owner: string; repo: string; number: number; updatedAt?: string}
 	| {type: 'PROJECT'; owner: string; projectNumber: number};
 
-// MVP: 락을 갱신하지 않는다. 동기화가 TTL보다 오래 걸리면 다른 레플리카가 같은 대상을 다시 돌 수 있지만,
-// state 레코드는 버전으로 멱등 반영되므로 결과는 같다. 대상이 커져 TTL을 넘기기 시작하면 갱신을 추가한다.
+// 타임라인은 페이지와 완료 레코드를 발행하기 전에 락을 갱신한다.
 const SYNC_LOCK_TTL_MS = 30 * 60 * 1000;
+// 목록의 updated_at이 같아도 하루마다 누락된 변경을 다시 확인한다.
+const TIMELINE_BACKFILL_TTL_SECONDS = 24 * 60 * 60;
+const RENEW_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end';
 const RELEASE_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
 
 const syncTargetKey = (target: GithubSyncTarget): string => {
 	switch (target.type) {
+		case 'TIMELINE': {
+			return `timeline:${target.owner.toLowerCase()}/${target.repo.toLowerCase()}#${target.number}`;
+		}
+
 		case 'REPOSITORY': {
 			return `repo:${target.owner}/${target.repo}`;
 		}
@@ -58,7 +66,7 @@ const mergeByNumber = <T extends {number: number}>(...lists: T[][]): T[] => {
  스냅샷이 cowork-project projection의 초기 상태이자 주기적 재동기화 경로다. 무엇을 언제 동기화할지는
  cowork-project가 정하고(`github.sync.command.v1`), 설치 콜백은 repo 목록만 바로 요청한다.
 
- MVP: 각 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
+ 저장소, PR, 이슈 보드 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
  100개를 초과하는 repo/PR/이슈는 초과분이 동기화되지 않으며, 페이지네이션 지원과 함께 후속 과제로 남긴다.
  이슈/PR은 `all` 최신 100건에서 빠지는 오래된 열린 항목이 보드에서 사라지지 않게 `open` 100건을 따로 받아 합친다.
  */
@@ -76,6 +84,9 @@ export class GithubBackfillService {
 
 	@inject(PullRequestService)
 	private readonly pullRequestService!: PullRequestService;
+
+	@inject(TimelineSyncService)
+	private readonly timelineSyncService!: TimelineSyncService;
 
 	@inject(LabelHttpService)
 	private readonly labelHttpService!: LabelHttpService;
@@ -99,13 +110,32 @@ export class GithubBackfillService {
 		}
 
 		try {
-			await this.sync(target);
+			if (target.type === 'TIMELINE') {
+				const versionKey = githubCacheKeys.timelineBackfillVersion(key);
+				if (target.updatedAt !== undefined && await this.redis.get(versionKey) === target.updatedAt) {
+					return;
+				}
+
+				const renew = async () => {
+					const renewed = await this.redis.eval(RENEW_LOCK_SCRIPT, 1, lockKey, token, SYNC_LOCK_TTL_MS);
+					if (renewed !== 1) {
+						throw new Error('Lost GitHub timeline sync lock');
+					}
+				};
+
+				await this.timelineSyncService.sync(target.owner, target.repo, target.number, renew);
+				if (target.updatedAt !== undefined) {
+					await this.redis.set(versionKey, target.updatedAt, 'EX', TIMELINE_BACKFILL_TTL_SECONDS);
+				}
+			} else {
+				await this.sync(target);
+			}
 		} finally {
 			await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
 		}
 	}
 
-	private async sync(target: GithubSyncTarget): Promise<void> {
+	private async sync(target: Exclude<GithubSyncTarget, {type: 'TIMELINE'}>): Promise<void> {
 		switch (target.type) {
 			case 'REPOSITORY': {
 				await this.syncRepository(target.owner, target.repo);
@@ -192,8 +222,8 @@ export class GithubBackfillService {
 				deleted: false,
 				sourceOccurredAt: issue.updatedAt,
 			});
-			await this.syncComments({
-				owner, repo, parentNumber: issue.number, parentType: 'ISSUE',
+			await this.syncDiscussion({
+				owner, repo, parentNumber: issue.number, updatedAt: issue.updatedAt, parentType: 'ISSUE',
 			});
 		});
 	}
@@ -236,19 +266,23 @@ export class GithubBackfillService {
 				sourceOccurredAt: summary.updatedAt,
 				files: fileStates,
 			});
-			await this.syncComments({
-				owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',
+			await this.syncDiscussion({
+				owner, repo, parentNumber: summary.number, updatedAt: summary.updatedAt, parentType: 'PULL_REQUEST',
 			});
 		});
 	}
 
-	private async syncComments(parameters: {
+	private async syncDiscussion(parameters: {
 		owner: string;
 		repo: string;
 		parentNumber: number;
 		parentType: IssueCommentStateEvent['parentType'];
+		updatedAt: string;
 	}): Promise<void> {
 		const {owner, repo, parentNumber, parentType} = parameters;
+		void this.enqueue({
+			type: 'TIMELINE', owner, repo, number: parentNumber, updatedAt: parameters.updatedAt,
+		});
 		const comments = await this.issueHttpService.listComments(owner, repo, parentNumber);
 		await Promise.all(comments.map(async comment => this.producers.issueComment.send({
 			owner,
@@ -273,12 +307,19 @@ export class GithubBackfillService {
      */
 	async enqueue(target: GithubSyncTarget): Promise<void> {
 		const key = syncTargetKey(target);
-		if (this.queued.has(key)) {
+		// 정기 백필이 캐시를 확인하고 종료하더라도 웹훅으로 요청된 갱신은 실행한다.
+		const queueKey = target.type === 'TIMELINE' && target.updatedAt !== undefined ? `${key}:backfill` : key;
+		if (this.queued.has(queueKey)) {
 			return this.queue;
 		}
 
-		this.queued.add(key);
+		this.queued.add(queueKey);
 		this.queue = this.queue.then(async () => {
+			// 타임라인을 읽는 동안 도착한 변경은 읽기가 끝난 뒤 한 번 더 동기화한다.
+			if (target.type === 'TIMELINE') {
+				this.queued.delete(queueKey);
+			}
+
 			try {
 				await this.runWithLock(key, target);
 			} catch (error) {
@@ -287,7 +328,9 @@ export class GithubBackfillService {
 					error instanceof Error ? error.stack : String(error),
 				);
 			} finally {
-				this.queued.delete(key);
+				if (target.type !== 'TIMELINE') {
+					this.queued.delete(queueKey);
+				}
 			}
 		});
 		return this.queue;

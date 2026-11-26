@@ -12,7 +12,8 @@ describe('GithubBackfillService', () => {
 	let producers: Record<'repo' | 'issue' | 'pullRequest' | 'label' | 'issueComment', ReturnType<typeof producer>>;
 	let labelHttpService: {listLabels: jest.Mock};
 	let issueHttpService: {listIssues: jest.Mock; listComments: jest.Mock};
-	let redis: {set: jest.Mock; eval: jest.Mock};
+	let timeline: {sync: jest.Mock};
+	let redis: {get: jest.Mock; set: jest.Mock; eval: jest.Mock};
 	let service: GithubBackfillService;
 
 	beforeEach(() => {
@@ -20,7 +21,8 @@ describe('GithubBackfillService', () => {
 			repo: producer(), issue: producer(), pullRequest: producer(), label: producer(), issueComment: producer(),
 		};
 		labelHttpService = {listLabels: jest.fn().mockResolvedValue([{name: 'bug', color: 'd73a4a'}])};
-		redis = {set: jest.fn().mockResolvedValue('OK'), eval: jest.fn()};
+		timeline = {sync: jest.fn()};
+		redis = {get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue('OK'), eval: jest.fn()};
 		issueHttpService = {
 			listIssues: jest.fn().mockResolvedValue([{number: 1, updatedAt: '2026-01-01T00:00:00Z'}]),
 			listComments: jest.fn().mockResolvedValue([{id: 10, updatedAt: '2026-01-01T00:00:00Z'}]),
@@ -31,6 +33,7 @@ describe('GithubBackfillService', () => {
 			listPullRequestFiles: jest.fn().mockResolvedValue([]),
 		};
 		service = Object.assign(new GithubBackfillService(), {
+			timelineSyncService: timeline,
 			installationApiClient: {listRepositories: jest.fn().mockResolvedValue([])} as unknown as InstallationApiClient,
 			issueHttpService: issueHttpService as unknown as IssueHttpService,
 			pullRequestService: pullRequestService as unknown as PullRequestService,
@@ -64,6 +67,17 @@ describe('GithubBackfillService', () => {
 		await service.enqueue({type: 'REPOSITORY', owner: 'my-org', repo: 'my-repo'});
 
 		expect(producers.issue.send.mock.calls.map(([event]: [{number: number}]) => event.number)).toEqual([1, 3]);
+	});
+
+	it('변경이 없는 정기 백필은 건너뛰고 상세 조회나 웹훅 요청은 처리한다', async () => {
+		const target = {
+			type: 'TIMELINE', owner: 'org', repo: 'repo', number: 7,
+		} as const;
+		redis.get.mockResolvedValue('previous');
+		await service.enqueue({...target, updatedAt: 'previous'});
+		expect(timeline.sync).not.toHaveBeenCalled();
+		await service.enqueue(target);
+		expect(timeline.sync).toHaveBeenCalledTimes(1);
 	});
 
 	it('이미 대기 중인 대상은 다시 넣지 않는다', async () => {
