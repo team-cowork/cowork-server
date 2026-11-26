@@ -518,6 +518,13 @@
         "retention.ms": "604800000"
       }
     },
+    "user.identity.command.v4": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
     "user.identity.result.v2": {
       "partitions": 1,
       "config": {
@@ -545,6 +552,7 @@
         "user.data.sync",
         "user.presence.event",
         "user.identity.command.v3",
+        "user.identity.command.v4",
         "user.identity.result.v2",
         "user.identity.result.v2-dlt"
       ]
@@ -763,6 +771,7 @@
         "team.member.event",
         "team.member.event-dlt",
         "user.identity.command.v3",
+        "user.identity.command.v4",
         "user.identity.result.v2"
       ]
     },
