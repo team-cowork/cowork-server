@@ -4,10 +4,13 @@ import com.cowork.project.domain.github.presentation.data.request.CreateGithubCo
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubCommentReqDto
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubIssueLabelsReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubTimelineResDto
+import com.cowork.project.domain.github.repository.GithubTimelineParent
 import com.cowork.project.domain.github.service.CreateGithubCommentService
 import com.cowork.project.domain.github.service.DeleteGithubCommentService
 import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.domain.github.service.ListGithubCommentsService
+import com.cowork.project.domain.github.service.QueryGithubTimelineService
 import com.cowork.project.domain.github.service.UpdateGithubCommentService
 import com.cowork.project.domain.github.service.UpdateGithubIssueLabelsService
 import io.swagger.v3.oas.annotations.Operation
@@ -27,9 +30,11 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
+import java.util.UUID
 
 @Tag(name = "GitHub 이슈", description = "프로젝트에 연결된 GitHub 저장소의 이슈 조회/생성 API")
 @ApiResponses(
@@ -52,12 +57,46 @@ import team.themoment.sdk.response.CommonApiResponse
 @RestController
 @RequestMapping("/projects/{projectId}/github-repos/{repoId}/issues/{issueNumber}")
 class GithubIssueController(
+    private val queryGithubTimelineService: QueryGithubTimelineService,
     private val updateGithubIssueLabelsService: UpdateGithubIssueLabelsService,
     private val listGithubCommentsService: ListGithubCommentsService,
     private val createGithubCommentService: CreateGithubCommentService,
     private val updateGithubCommentService: UpdateGithubCommentService,
     private val deleteGithubCommentService: DeleteGithubCommentService,
 ) {
+
+    @Operation(
+        summary = "이슈 활동 이력 조회",
+        description = "발생 시각이 같은 활동은 식별자 순으로 반환합니다. 다음 페이지는 같은 size와 snapshotId로 요청하십시오.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "활동 이력 조회 성공"),
+        ApiResponse(responseCode = "400", description = "잘못된 번호 또는 페이지 범위"),
+        ApiResponse(responseCode = "403", description = "프로젝트 읽기 권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트, 저장소 또는 이슈 없음"),
+        ApiResponse(responseCode = "409", description = "요청한 스냅샷 만료"),
+        ApiResponse(responseCode = "503", description = "동기화 진행 중. 잠시 후 다시 조회하십시오."),
+    )
+    @GetMapping("/timeline")
+    fun getTimeline(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
+        @PathVariable issueNumber: Int,
+        @Parameter(schema = Schema(minimum = "0")) @RequestParam(defaultValue = "0") page: Int,
+        @Parameter(schema = Schema(minimum = "1", maximum = "100")) @RequestParam(defaultValue = "30") size: Int,
+        @RequestParam(required = false) snapshotId: UUID?,
+    ): GithubTimelineResDto = queryGithubTimelineService.execute(
+        userId,
+        projectId,
+        repoId,
+        GithubTimelineParent.ISSUE,
+        issueNumber,
+        page,
+        size,
+        snapshotId,
+    )
 
     @Operation(
         summary = "이슈 라벨 교체 요청",
