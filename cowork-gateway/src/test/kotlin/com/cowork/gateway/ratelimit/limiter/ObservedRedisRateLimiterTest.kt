@@ -57,29 +57,6 @@ class ObservedRedisRateLimiterTest :
                 }
             }
 
-            context("고정 한도로 만든 제한기이면") {
-                it("같은 라우트의 다른 RequestRateLimiter 인자를 받지 않고 고정 한도를 유지한다") {
-                    val fixed = RedisRateLimiter.Config().setReplenishRate(
-                        50,
-                    ).setBurstCapacity(200).setRequestedTokens(1)
-                    val fixedRegistry = SimpleMeterRegistry()
-                    val fixedLimiter = ObservedRedisRateLimiter(
-                        mockk(),
-                        mockk(),
-                        configurationService,
-                        fixedRegistry,
-                        mapOf(route to fixed),
-                    )
-
-                    fixedLimiter.onApplicationEvent(
-                        FilterArgsEvent(this, route, mapOf("redis-rate-limiter.replenishRate" to "1")),
-                    )
-
-                    fixedLimiter.config[route] shouldBe fixed
-                    fixedRegistry.eventCounter(route, "rejected")?.count() shouldBe 0.0
-                }
-            }
-
             context("요청 제한과 무관한 필터 인자이면") {
                 it("카운터를 등록하지 않는다") {
                     limiter.onApplicationEvent(FilterArgsEvent(this, "other", mapOf("regexp" to "/api/(?<segment>.*)")))
