@@ -46,18 +46,25 @@ class RateLimitConfig {
     fun anonymousKeyResolver(): KeyResolver = KeyResolver { Mono.just("anonymous") }
 
     /**
-     * 에이전트 토큰 교환의 토큰별 버킷 키. 제출된 토큰의 SHA-256 해시를 쓰므로 같은 토큰의 반복 요청만 한 버킷을 쓴다.
-     * 해시는 Authorization이 저장하는 token_hash와 같은 값이고, 토큰 원문은 Redis 키에 남지 않는다.
-     * 헤더가 없는 요청은 하나의 버킷을 같이 쓴다. Authorization이 이 요청을 400으로 거부한다.
+     * 에이전트 토큰 교환의 토큰별 버킷 키. 토큰 원문은 Redis 키에 남지 않는다.
+     * - Authorization이 발급하는 형식(`cwa_` + 소문자 hex 64자)이 아니거나 헤더가 없는 요청은 버킷 하나를 같이 쓴다.
+     *   Authorization이 모두 거부할 요청이므로 Redis 상태를 늘리지 않고 전체 상한도 거의 쓰지 못한다.
+     * - 형식이 맞는 토큰은 SHA-256 해시 앞 4자리로 버킷을 정한다. 존재하지 않는 토큰을 gateway에서 가려낼 수 없으므로
+     *   버킷 수를 65,536개로 묶어 무작위 토큰 수에 비례해 Redis 상태가 늘지 않게 한다. 서로 다른 토큰이 드물게 버킷을 같이 쓴다.
      *
-     * 한계: 형식이 잘못된 무작위 토큰은 요청마다 새 버킷을 쓰므로 이 버킷에 걸리지 않는다. 그런 요청이 몰리면
-     * [agentTokenExchangeGlobalRateLimiter]의 전체 상한에 걸려 정상 교환도 429를 받을 수 있다.
+     * 한계: 형식이 맞는 무작위 토큰이 몰리면 [agentTokenExchangeGlobalRateLimiter]의 전체 상한에 걸려 정상 교환도 429를 받을 수 있다.
      * 입구 프록시가 실제 발신 주소를 넘기지 않는 동안에는 요청자별로 막을 방법이 없다.
      */
     @Bean
     fun agentTokenExchangeKeyResolver(): KeyResolver = KeyResolver { exchange ->
         val token = exchange.request.headers.getFirst(AuthHeaderMutatingFilter.AGENT_TOKEN_HEADER)
-        Mono.just(if (token.isNullOrEmpty()) "agent-token:missing" else "agent-token:${sha256Hex(token)}")
+        Mono.just(
+            if (token != null && AGENT_TOKEN_FORMAT.matches(token)) {
+                "agent-token:${sha256Hex(token).take(AGENT_TOKEN_BUCKET_HEX_LENGTH)}"
+            } else {
+                "agent-token:invalid"
+            },
+        )
     }
 
     /**
@@ -111,6 +118,10 @@ class RateLimitConfig {
         // 교환은 색인 조회 한 번, 갱신 한 번, HMAC 서명 한 번이라 로그인보다 가볍다.
         private const val AGENT_TOKEN_EXCHANGE_GLOBAL_REPLENISH_RATE = 50
         private const val AGENT_TOKEN_EXCHANGE_GLOBAL_BURST_CAPACITY = 200L
+
+        // Authorization의 GenerateAgentToken 형식과 같다
+        private val AGENT_TOKEN_FORMAT = Regex("^cwa_[0-9a-f]{64}$")
+        private const val AGENT_TOKEN_BUCKET_HEX_LENGTH = 4
 
         private fun sha256Hex(value: String): String = HexFormat.of().formatHex(
             MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8)),
