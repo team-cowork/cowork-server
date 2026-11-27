@@ -21,9 +21,9 @@ class PlatformFunctionController @Inject() (
     Ok(Json.toJson(queryPlatformFunctionsService.execute().map(PlatformFunctionResDto.from)))
   }
 
-  def invoke(appletId: String, functionName: String): Action[JsValue] = Action.async(parse.json) { request =>
+  def invoke(teamId: Long, appletId: String, functionName: String): Action[JsValue] = Action.async(parse.json) { request =>
     val arguments = RequestBodies.read[JsObject](request.body)
     invokePlatformFunctionService
-      .execute(RequestUser.id(request), appletId, functionName, arguments)
+      .execute(RequestUser.id(request), teamId, appletId, functionName, arguments)
       .map(result => Ok(Json.obj("result" -> result)))
   }

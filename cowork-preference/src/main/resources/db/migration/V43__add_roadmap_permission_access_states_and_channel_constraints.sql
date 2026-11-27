@@ -1,4 +1,4 @@
--- 운영 DB에 적용되기 전인 V43~V46을 하나로 합친 마이그레이션입니다.
+-- 운영 DB에 적용되기 전인 마이그레이션을 하나로 합친 마이그레이션입니다.
 
 -- 1. 로드맵 관리 권한 manage_roadmaps
 -- TODO(2026-11-24T00:00:00Z): Remove this one-time backfill when migration history is consolidated.
@@ -25,13 +25,13 @@ CREATE TABLE tb_team_access_states (
     CONSTRAINT tb_team_access_states_pkey PRIMARY KEY (team_id, account_id)
 );
 
-COMMENT ON TABLE tb_team_access_states IS 'preference.team-access.state.v1로 발행하는 팀 권한 판정 결과. 탈퇴한 멤버와 삭제된 팀은 모든 권한이 false인 행으로 보존한다';
+COMMENT ON TABLE tb_team_access_states IS 'preference.team-access.state.v2로 발행하는 팀 권한 판정 결과. 탈퇴한 멤버와 삭제된 팀은 모든 권한이 false인 행으로 보존한다';
 
 COMMENT ON COLUMN tb_team_access_states.team_id IS 'cowork-team의 tb_teams.id';
 
 COMMENT ON COLUMN tb_team_access_states.account_id IS 'cowork-user.tb_accounts.id';
 
-COMMENT ON COLUMN tb_team_access_states.permissions IS 'PermissionKeys.TEAM_SCOPED의 모든 키에 대한 판정 결과';
+COMMENT ON COLUMN tb_team_access_states.permissions IS '모든 팀 권한 판정과 역할 부여 및 리소스 생성에 쓰는 채널 및 프로젝트 기본 허용 키';
 
 COMMENT ON COLUMN tb_team_access_states.source_membership_version IS '판정에 사용한 cowork-team 멤버 상태의 source mutation version. 활성 멤버가 아니면 1970-01-01';
 
@@ -84,3 +84,16 @@ ALTER TABLE tb_channel_lifecycle_projections
 COMMENT ON COLUMN tb_channel_lifecycle_projections.is_private IS 'cowork-channel의 tb_channels.is_private';
 
 COMMENT ON COLUMN tb_channel_lifecycle_projections.channel_type IS 'cowork-channel의 tb_channels.type';
+
+-- 5. 앱 사용 권한 use_applets
+-- TODO(2026-11-26T00:00:00Z): Remove this one-time backfill when migration history is consolidated.
+-- Installed applets need `use_applets`, so every member keeps running them through the default @everyone role.
+-- Other unmanaged roles get the key as false to keep the full permission state.
+-- Managed owner and admin policies keep only `administrator`, which already allows applet use.
+-- The startup snapshot republishes every team role, and the newer updated_at makes consumers apply it.
+-- Preserve applied Flyway checksums until that consolidation.
+UPDATE tb_team_role_definitions
+SET permissions = permissions || jsonb_build_object('use_applets', is_default),
+    updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
+WHERE managed_policy IS NULL
+  AND NOT permissions ? 'use_applets';

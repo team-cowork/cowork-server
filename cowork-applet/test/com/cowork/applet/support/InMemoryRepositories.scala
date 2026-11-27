@@ -15,6 +15,7 @@ import com.cowork.applet.domain.team.projection.TeamProjectionReadiness
 import com.cowork.applet.domain.team.repository.TeamProjectionRepository
 import com.cowork.applet.global.outbound.{OutboundHttpClient, OutboundRequest, OutboundResponse}
 import java.time.Instant
+import play.api.libs.json.Json
 import scala.collection.mutable
 import scala.concurrent.Future
 
@@ -62,28 +63,52 @@ final class InMemoryAppletVersionRepository(appletRepository: InMemoryAppletRepo
 final class InMemoryAppletStorageRepository extends AppletStorageRepository:
   val entries: mutable.ListBuffer[StorageEntry] = mutable.ListBuffer.empty
 
-  private def matches(e: StorageEntry, appletId: String, scope: StorageScope, ownerId: String) =
-    e.appletId == appletId && e.scope == scope && e.ownerId == ownerId
+  private def matches(e: StorageEntry, appletId: String, teamId: Long, scope: StorageScope, ownerId: String) =
+    e.appletId == appletId && e.teamId == teamId && e.scope == scope && e.ownerId == ownerId
 
-  override def find(appletId: String, scope: StorageScope, ownerId: String, key: String): Future[Option[StorageEntry]] =
-    Future.successful(entries.find(e => matches(e, appletId, scope, ownerId) && e.key == key))
-  override def list(appletId: String, scope: StorageScope, ownerId: String, prefix: String, limit: Int): Future[Seq[StorageEntry]] =
-    Future.successful(entries.filter(e => matches(e, appletId, scope, ownerId) && e.key.startsWith(prefix)).sortBy(_.key).take(limit).toSeq)
-  override def count(appletId: String): Future[Int] = Future.successful(entries.count(_.appletId == appletId))
-  override def countOwned(appletId: String, scope: StorageScope, ownerId: String): Future[Int] =
-    Future.successful(entries.count(e => matches(e, appletId, scope, ownerId)))
+  override def find(appletId: String, teamId: Long, scope: StorageScope, ownerId: String, key: String): Future[Option[StorageEntry]] =
+    Future.successful(entries.find(e => matches(e, appletId, teamId, scope, ownerId) && e.key == key))
+  override def list(
+      appletId: String,
+      teamId: Long,
+      scope: StorageScope,
+      ownerId: String,
+      prefix: String,
+      limit: Int
+  ): Future[Seq[StorageEntry]] =
+    Future.successful(
+      entries.filter(e => matches(e, appletId, teamId, scope, ownerId) && e.key.startsWith(prefix)).sortBy(_.key).take(limit).toSeq
+    )
+  override def count(appletId: String, teamId: Long): Future[Int] =
+    Future.successful(entries.count(e => e.appletId == appletId && e.teamId == teamId))
+  override def countOwned(appletId: String, teamId: Long, scope: StorageScope, ownerId: String): Future[Int] =
+    Future.successful(entries.count(e => matches(e, appletId, teamId, scope, ownerId)))
   override def upsert(entry: StorageEntry): Future[Unit] =
-    entries.filterInPlace(e => !(matches(e, entry.appletId, entry.scope, entry.ownerId) && e.key == entry.key))
+    entries.filterInPlace(e => !(matches(e, entry.appletId, entry.teamId, entry.scope, entry.ownerId) && e.key == entry.key))
     entries += entry
     Future.successful(())
-  override def delete(appletId: String, scope: StorageScope, ownerId: String, key: String): Future[Boolean] =
+  override def delete(appletId: String, teamId: Long, scope: StorageScope, ownerId: String, key: String): Future[Boolean] =
     val before = entries.size
-    entries.filterInPlace(e => !(matches(e, appletId, scope, ownerId) && e.key == key))
+    entries.filterInPlace(e => !(matches(e, appletId, teamId, scope, ownerId) && e.key == key))
     Future.successful(entries.size != before)
 
 object Fixtures:
   val Owner = "1"
   val Other = "2"
+  val TeamA = 3L
+  val TeamB = 4L
+
+  // Every member of TeamA and TeamB may use applets through the default role, except the members of NoUseTeam.
+  val NoUseTeam = 5L
+
+  def appletUsers(members: Set[(Long, Long)]): InMemoryTeamProjectionRepository =
+    val policies = Seq(TeamA, TeamB).map(team =>
+      TeamRolePolicy(s"role:$team:1", team, "ROLE", Some(1), None, true, Json.obj("use_applets" -> true), false, 1)
+    )
+    InMemoryTeamProjectionRepository(members, policies)
+
+  def version(permissions: Seq[String] = Nil, versionId: String = "version-1"): AppletVersion =
+    AppletVersion(versionId, "applet-1", 1, AppletVersionStatus.APPROVED, Nil, Nil, Instant.parse("2026-11-24T00:00:00Z"), permissions)
 
   def applet(published: Boolean = false, appletId: String = "applet-1"): Applet =
     val now = Instant.parse("2026-11-24T00:00:00Z")
@@ -142,6 +167,12 @@ final class InMemoryAppletInstallationRepository extends AppletInstallationRepos
 
   override def findByTeam(teamId: Long): Future[Seq[AppletInstallation]] =
     Future.successful(installations.filter(_.teamId == teamId).toSeq)
+  override def find(teamId: Long, appletId: String): Future[Option[AppletInstallation]] =
+    Future.successful(installations.find(i => i.teamId == teamId && i.appletId == appletId))
+  override def updateGrantedPermissions(teamId: Long, appletId: String, permissions: Seq[String]): Future[Boolean] =
+    val index = installations.indexWhere(i => i.teamId == teamId && i.appletId == appletId)
+    if index >= 0 then installations.update(index, installations(index).copy(grantedPermissions = permissions))
+    Future.successful(index >= 0)
   override def create(installation: AppletInstallation): Future[Unit] =
     if !installations.exists(i => i.teamId == installation.teamId && i.appletId == installation.appletId) then installations += installation
     Future.successful(())

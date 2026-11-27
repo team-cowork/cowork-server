@@ -2,7 +2,8 @@ package com.cowork.applet.domain.applet.service.impl
 
 import com.cowork.applet.domain.applet.model.{AppletVersion, AppletVersionStatus, BundleFile}
 import com.cowork.applet.domain.applet.repository.AppletVersionRepository
-import com.cowork.applet.domain.applet.service.{AppletReader, SubmitAppletVersionService, VersionRetention}
+import com.cowork.applet.domain.applet.service.{AppletPermissions, AppletReader, SubmitAppletVersionService, VersionRetention}
+import com.cowork.applet.domain.function.service.PlatformFunctionRegistry
 import com.cowork.applet.domain.review.service.BundleReviewer
 import java.time.Instant
 import java.util.UUID
@@ -14,17 +15,20 @@ import scala.util.control.NonFatal
 // The review runs before storage. A passing version becomes the published version at once;
 // a rejected version keeps only its findings so that rejected code is not stored.
 // Each upload then applies VersionRetention to bound the stored bundles per applet.
+// A version that requests new app permissions still publishes at once. Teams keep only what they already granted.
 @Singleton
 class SubmitAppletVersionServiceImpl @Inject() (
     appletReader: AppletReader,
-    appletVersionRepository: AppletVersionRepository
+    appletVersionRepository: AppletVersionRepository,
+    platformFunctionRegistry: PlatformFunctionRegistry
 )(using ExecutionContext)
     extends SubmitAppletVersionService:
 
   private val logger = Logger(getClass)
 
-  override def execute(userId: String, appletId: String, files: Seq[BundleFile]): Future[AppletVersion] =
+  override def execute(userId: String, appletId: String, files: Seq[BundleFile], permissions: Seq[String]): Future[AppletVersion] =
     appletReader.owned(appletId, userId).flatMap { applet =>
+      val requested = AppletPermissions.requested(permissions, platformFunctionRegistry.permissions)
       val findings = BundleReviewer.review(files)
       val approved = BundleReviewer.passes(findings)
       appletVersionRepository.nextNumber(applet.appletId).flatMap { number =>
@@ -36,7 +40,8 @@ class SubmitAppletVersionServiceImpl @Inject() (
           status = if approved then AppletVersionStatus.APPROVED else AppletVersionStatus.REJECTED,
           findings = findings,
           files = if approved then files else Nil,
-          createdAt = now
+          createdAt = now,
+          permissions = requested
         )
         val stored =
           if approved then appletVersionRepository.createAndPublish(version, now)

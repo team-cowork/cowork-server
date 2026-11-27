@@ -7,4 +7,4 @@ import scala.concurrent.Future
 
 @ImplementedBy(classOf[InstallAppletServiceImpl])
 trait InstallAppletService:
-  def execute(userId: String, teamId: Long, appletId: String): Future[InstalledApplet]
+  def execute(userId: String, teamId: Long, appletId: String, permissions: Seq[String]): Future[InstalledApplet]

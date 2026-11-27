@@ -1,7 +1,13 @@
 package com.cowork.applet.domain.installation.service
 
+import com.cowork.applet.domain.applet.service.AppletPermissions
 import com.cowork.applet.domain.installation.model.AppletInstallation
-import com.cowork.applet.domain.installation.service.impl.{InstallAppletServiceImpl, QueryTeamAppletsServiceImpl, UninstallAppletServiceImpl}
+import com.cowork.applet.domain.installation.service.impl.{
+  ApproveAppletPermissionsServiceImpl,
+  InstallAppletServiceImpl,
+  QueryTeamAppletsServiceImpl,
+  UninstallAppletServiceImpl
+}
 import com.cowork.applet.domain.team.model.TeamRolePolicy
 import com.cowork.applet.domain.team.service.TeamAccess
 import com.cowork.applet.global.error.ExpectedException
@@ -10,6 +16,7 @@ import com.cowork.applet.support.{
   FixedTeamProjectionReadiness,
   InMemoryAppletInstallationRepository,
   InMemoryAppletRepository,
+  InMemoryAppletVersionRepository,
   InMemoryTeamProjectionRepository
 }
 import java.time.Instant
@@ -32,9 +39,14 @@ class InstallationServicesTest extends munit.FunSuite:
 
   private final class Context(ready: Boolean = true):
     val applets = InMemoryAppletRepository(Fixtures.applet(published = true), Fixtures.applet(appletId = "draft"))
+    val versions = InMemoryAppletVersionRepository(applets)
+    versions.versions += Fixtures.version(Seq("read_projects", "write_projects"))
     val installations = InMemoryAppletInstallationRepository()
     val access = TeamAccess(FixedTeamProjectionReadiness(ready), InMemoryTeamProjectionRepository(Set(teamId -> 7L, teamId -> 8L), policies))
-    val install = InstallAppletServiceImpl(access, applets, installations)
+    val permissions = AppletPermissions(versions)
+    val install = InstallAppletServiceImpl(access, applets, permissions, installations)
+    val installed = InstalledAppletAccess(access, applets, installations)
+    val approve = ApproveAppletPermissionsServiceImpl(access, installed, permissions, installations)
     val uninstall = UninstallAppletServiceImpl(access, installations)
     val query = QueryTeamAppletsServiceImpl(access, applets, installations)
 
@@ -45,7 +57,7 @@ class InstallationServicesTest extends munit.FunSuite:
     val context = Context()
 
     // When
-    context.install.execute(manager, teamId, "applet-1").map { installed =>
+    context.install.execute(manager, teamId, "applet-1", Nil).map { installed =>
       // Then
       assertEquals(installed.installation.installedBy, manager)
       assertEquals(context.installations.installations.map(_.appletId).toList, List("applet-1"))
@@ -58,8 +70,8 @@ class InstallationServicesTest extends munit.FunSuite:
 
     // When
     for
-      first <- context.install.execute(manager, teamId, "applet-1")
-      second <- context.install.execute(manager, teamId, "applet-1")
+      first <- context.install.execute(manager, teamId, "applet-1", Nil)
+      second <- context.install.execute(manager, teamId, "applet-1", Nil)
     yield
       // Then
       assertEquals(second.installation, first.installation)
@@ -71,7 +83,7 @@ class InstallationServicesTest extends munit.FunSuite:
     val context = Context()
 
     // When
-    Future.sequence(Seq(member, outsider, "abc").map(user => status(context.install.execute(user, teamId, "applet-1")))).map { codes =>
+    Future.sequence(Seq(member, outsider, "abc").map(user => status(context.install.execute(user, teamId, "applet-1", Nil)))).map { codes =>
       // Then
       assertEquals(codes, Seq(403, 403, 403))
       assert(context.installations.installations.isEmpty)
@@ -83,7 +95,7 @@ class InstallationServicesTest extends munit.FunSuite:
     val context = Context()
 
     // When
-    status(context.install.execute(manager, teamId, "draft")).map { code =>
+    status(context.install.execute(manager, teamId, "draft", Nil)).map { code =>
       // Then
       assertEquals(code, 404)
     }
@@ -95,7 +107,7 @@ class InstallationServicesTest extends munit.FunSuite:
     (1 to AppletInstallation.MaxPerTeam).foreach(i => context.installations.installations += AppletInstallation(teamId, s"a$i", manager, Instant.EPOCH))
 
     // When
-    status(context.install.execute(manager, teamId, "applet-1")).map { code =>
+    status(context.install.execute(manager, teamId, "applet-1", Nil)).map { code =>
       // Then
       assertEquals(code, 400)
     }
@@ -106,7 +118,7 @@ class InstallationServicesTest extends munit.FunSuite:
     val context = Context(ready = false)
 
     // When
-    status(context.install.execute(manager, teamId, "applet-1")).map { code =>
+    status(context.install.execute(manager, teamId, "applet-1", Nil)).map { code =>
       // Then
       assertEquals(code, 503)
     }
@@ -152,4 +164,57 @@ class InstallationServicesTest extends munit.FunSuite:
       // Then
       assert(context.installations.installations.isEmpty)
       assertEquals(missing, 404)
+  }
+
+  test("install / 게시 버전이 요청한 앱 권한을 지정 / 지정한 권한만 승인해 설치한다") {
+    // Given
+    val context = Context()
+
+    // When
+    context.install.execute(manager, teamId, "applet-1", Seq("read_projects")).map { installed =>
+      // Then
+      assertEquals(installed.installation.grantedPermissions, Seq("read_projects"))
+      assertEquals(context.installations.installations.head.grantedPermissions, Seq("read_projects"))
+    }
+  }
+
+  test("install / 게시 버전이 요청하지 않은 앱 권한 / 설치하지 않고 409로 거부한다") {
+    // Given
+    val context = Context()
+
+    // When
+    status(context.install.execute(manager, teamId, "applet-1", Seq("delete_team"))).map { code =>
+      // Then
+      assertEquals(code, 409)
+      assert(context.installations.installations.isEmpty)
+    }
+  }
+
+  test("approvePermissions / 앱 관리 권한이 있는 멤버 / 승인한 앱 권한을 지정한 목록으로 바꾼다") {
+    // Given
+    val context = Context()
+    context.installations.installations += AppletInstallation(teamId, "applet-1", manager, Instant.EPOCH, Seq("read_projects"))
+
+    // When
+    context.approve.execute(manager, teamId, "applet-1", Seq("write_projects")).map { installed =>
+      // Then
+      assertEquals(installed.installation.grantedPermissions, Seq("write_projects"))
+      assertEquals(context.installations.installations.head.grantedPermissions, Seq("write_projects"))
+    }
+  }
+
+  test("approvePermissions / 권한 없는 멤버, 요청하지 않은 권한, 설치되지 않은 앱 / 403, 409, 404로 거부한다") {
+    // Given
+    val context = Context()
+    context.installations.installations += AppletInstallation(teamId, "applet-1", manager, Instant.EPOCH)
+
+    // When
+    for
+      forbidden <- status(context.approve.execute(member, teamId, "applet-1", Seq("read_projects")))
+      conflict <- status(context.approve.execute(manager, teamId, "applet-1", Seq("delete_team")))
+      missing <- status(context.approve.execute(manager, teamId, "draft", Nil))
+    yield
+      // Then
+      assertEquals(Seq(forbidden, conflict, missing), Seq(403, 409, 404))
+      assertEquals(context.installations.installations.head.grantedPermissions, Nil)
   }

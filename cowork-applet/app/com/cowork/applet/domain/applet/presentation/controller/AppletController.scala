@@ -1,7 +1,7 @@
 package com.cowork.applet.domain.applet.presentation.controller
 
 import com.cowork.applet.domain.applet.presentation.data.request.{CreateAppletReqDto, UpdateAppletReqDto}
-import com.cowork.applet.domain.applet.presentation.data.response.{AppletLaunchResDto, AppletResDto}
+import com.cowork.applet.domain.applet.presentation.data.response.{AppletDetailResDto, AppletLaunchResDto, AppletResDto}
 import com.cowork.applet.domain.applet.service.{
   CreateAppletService,
   DeleteAppletService,
@@ -40,7 +40,7 @@ class AppletController @Inject() (
   }
 
   def detail(appletId: String): Action[AnyContent] = Action.async { request =>
-    queryAppletService.execute(RequestUser.id(request), appletId).map(applet => Ok(Json.toJson(AppletResDto.from(applet))))
+    queryAppletService.execute(RequestUser.id(request), appletId).map(detail => Ok(Json.toJson(AppletDetailResDto.from(detail))))
   }
 
   def update(appletId: String): Action[JsValue] = Action.async(parse.json) { request =>
@@ -54,6 +54,8 @@ class AppletController @Inject() (
     deleteAppletService.execute(RequestUser.id(request), appletId).map(_ => NoContent)
   }
 
-  def launch(appletId: String): Action[AnyContent] = Action.async { request =>
-    launchAppletService.execute(RequestUser.id(request), appletId).map(launch => Ok(Json.toJson(AppletLaunchResDto.from(launch))))
+  def launch(teamId: Long, appletId: String): Action[AnyContent] = Action.async { request =>
+    launchAppletService
+      .execute(RequestUser.id(request), teamId, appletId)
+      .map(launch => Ok(Json.toJson(AppletLaunchResDto.from(launch))))
   }

@@ -19,6 +19,14 @@ class SurrealAppletInstallationRepository @Inject() (surrealClient: SurrealClien
       )
       .map(results => results.head.as[Seq[AppletInstallation]])
 
+  override def find(teamId: Long, appletId: String): Future[Option[AppletInstallation]] =
+    surrealClient
+      .query(
+        "SELECT * OMIT id FROM applet_installation WHERE teamId = $teamId AND appletId = $appletId LIMIT 1;",
+        Json.obj("teamId" -> teamId, "appletId" -> appletId)
+      )
+      .map(results => results.head.as[Seq[AppletInstallation]].headOption)
+
   override def create(installation: AppletInstallation): Future[Unit] =
     val statements =
       """LET $existing = (SELECT teamId FROM applet_installation WHERE teamId = $installation.teamId AND appletId = $installation.appletId);
@@ -30,5 +38,13 @@ class SurrealAppletInstallationRepository @Inject() (surrealClient: SurrealClien
       .query(
         "DELETE applet_installation WHERE teamId = $teamId AND appletId = $appletId RETURN BEFORE;",
         Json.obj("teamId" -> teamId, "appletId" -> appletId)
+      )
+      .map(results => results.head.as[JsArray].value.nonEmpty)
+
+  override def updateGrantedPermissions(teamId: Long, appletId: String, permissions: Seq[String]): Future[Boolean] =
+    surrealClient
+      .query(
+        "UPDATE applet_installation SET grantedPermissions = $permissions WHERE teamId = $teamId AND appletId = $appletId RETURN BEFORE;",
+        Json.obj("teamId" -> teamId, "appletId" -> appletId, "permissions" -> permissions)
       )
       .map(results => results.head.as[JsArray].value.nonEmpty)

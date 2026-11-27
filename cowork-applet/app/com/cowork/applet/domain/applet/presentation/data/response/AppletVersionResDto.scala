@@ -24,6 +24,7 @@ final case class AppletVersionResDto(
     number: Int,
     status: String,
     findings: Seq[ReviewFindingResDto],
+    permissions: Seq[String],
     createdAt: Instant
 )
 
@@ -35,5 +36,6 @@ object AppletVersionResDto:
     version.number,
     version.status.toString,
     version.findings.map(ReviewFindingResDto.from),
+    version.permissions,
     version.createdAt
   )

@@ -24,21 +24,27 @@ class TeamAccess @Inject() (teamProjectionReadiness: TeamProjectionReadiness, te
     }
 
   def requireAppletManager(teamId: Long, userId: String): Future[Unit] =
+    requirePermission(teamId, userId, TeamAccess.ManageApplets, "팀의 앱 관리 권한이 필요합니다.")
+
+  def requireAppletUser(teamId: Long, userId: String): Future[Unit] =
+    requirePermission(teamId, userId, TeamAccess.UseApplets, "팀의 앱 사용 권한이 필요합니다.")
+
+  private def requirePermission(teamId: Long, userId: String, permission: String, message: String): Future[Unit] =
     requireMember(teamId, userId).flatMap { _ =>
       TeamAccess.requireReady(teamProjectionReadiness.policiesReady)
       val account = TeamAccess.accountId(userId)
       teamProjectionRepository.policiesFor(teamId, account).map { policies =>
-        if !TeamAccess.canManageApplets(policies, account) then
-          throw ExpectedException(FORBIDDEN, "팀의 앱 관리 권한이 필요합니다.")
+        if !TeamAccess.grants(policies, account, permission) then throw ExpectedException(FORBIDDEN, message)
       }
     }
 
 object TeamAccess:
   val ManageApplets = "manage_applets"
+  val UseApplets = "use_applets"
   val Administrator = "administrator"
 
-  def canManageApplets(policies: Seq[TeamRolePolicy], userId: Long): Boolean =
-    TeamRolePolicy.allows(policies, userId, Administrator) || TeamRolePolicy.allows(policies, userId, ManageApplets)
+  def grants(policies: Seq[TeamRolePolicy], userId: Long, permission: String): Boolean =
+    TeamRolePolicy.allows(policies, userId, Administrator) || TeamRolePolicy.allows(policies, userId, permission)
 
   private def requireReady(ready: Boolean): Unit =
     if !ready then throw ExpectedException(SERVICE_UNAVAILABLE, "팀 권한 정보를 동기화하는 중입니다.")

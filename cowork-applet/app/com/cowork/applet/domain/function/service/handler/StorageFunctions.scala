@@ -9,8 +9,8 @@ import javax.inject.{Inject, Singleton}
 import play.api.libs.json.{JsNull, JsValue, Json}
 import scala.concurrent.{ExecutionContext, Future}
 
-// Key-value storage is the free database tier. Applets that need more connect their own database later
-// through the secret-aware HTTP function.
+// Key-value storage is the free database tier. Every team that installed the applet has its own storage.
+// Applets that need more connect their own database later through the secret-aware HTTP function.
 @Singleton
 class StorageFunctions @Inject() (appletStorageRepository: AppletStorageRepository)(using ExecutionContext):
 
@@ -29,14 +29,14 @@ class StorageFunctions @Inject() (appletStorageRepository: AppletStorageReposito
       val scope = StorageFunctions.scope(arguments)
       val key = StorageLimits.key(arguments.required[String]("key"))
       appletStorageRepository
-        .find(context.appletId, scope, StorageEntry.ownerOf(scope, context.userId), key)
+        .find(context.appletId, context.teamId, scope, StorageEntry.ownerOf(scope, context.userId), key)
         .map(entry => Json.obj("value" -> entry.map(_.value).getOrElse[JsValue](JsNull)))
 
   private object SetFunction extends PlatformFunctionHandler:
     val definition: PlatformFunction = PlatformFunction(
       name = "storage.set",
       category = "storage",
-      description = "키에 JSON 값을 저장합니다. 같은 키가 있으면 값을 바꿉니다. 앱 전체 1000개, USER 범위는 사용자 한 명당 100개까지 저장할 수 있습니다.",
+      description = "키에 JSON 값을 저장합니다. 같은 키가 있으면 값을 바꿉니다. 팀마다 1000개, USER 범위는 사용자 한 명당 100개까지 저장할 수 있습니다.",
       parameters = Seq(
         StorageFunctions.KeyParameter,
         FunctionParameter("value", "json", required = true, "저장할 JSON 값입니다. 16KB 이하여야 합니다."),
@@ -52,14 +52,14 @@ class StorageFunctions @Inject() (appletStorageRepository: AppletStorageReposito
       val ownerId = StorageEntry.ownerOf(scope, context.userId)
       // The capacity check and the write are separate queries, so concurrent writes can pass the limit slightly.
       for
-        existing <- appletStorageRepository.find(context.appletId, scope, ownerId, key)
-        count <- if existing.isDefined then Future.successful(0) else appletStorageRepository.count(context.appletId)
+        existing <- appletStorageRepository.find(context.appletId, context.teamId, scope, ownerId, key)
+        count <- if existing.isDefined then Future.successful(0) else appletStorageRepository.count(context.appletId, context.teamId)
         _ = StorageLimits.requireCapacity(existing.isDefined, count)
         owned <-
           if existing.isDefined || scope != StorageScope.USER then Future.successful(0)
-          else appletStorageRepository.countOwned(context.appletId, scope, ownerId)
+          else appletStorageRepository.countOwned(context.appletId, context.teamId, scope, ownerId)
         _ = StorageLimits.requireUserCapacity(existing.isDefined, owned)
-        entry = StorageEntry(context.appletId, scope, ownerId, key, value, Instant.now())
+        entry = StorageEntry(context.appletId, context.teamId, scope, ownerId, key, value, Instant.now())
         _ <- appletStorageRepository.upsert(entry)
       yield Json.obj("updatedAt" -> entry.updatedAt)
 
@@ -76,7 +76,7 @@ class StorageFunctions @Inject() (appletStorageRepository: AppletStorageReposito
       val scope = StorageFunctions.scope(arguments)
       val key = StorageLimits.key(arguments.required[String]("key"))
       appletStorageRepository
-        .delete(context.appletId, scope, StorageEntry.ownerOf(scope, context.userId), key)
+        .delete(context.appletId, context.teamId, scope, StorageEntry.ownerOf(scope, context.userId), key)
         .map(deleted => Json.obj("deleted" -> deleted))
 
   private object ListFunction extends PlatformFunctionHandler:
@@ -97,7 +97,7 @@ class StorageFunctions @Inject() (appletStorageRepository: AppletStorageReposito
       val prefix = StorageLimits.prefix(arguments.optional[String]("prefix").getOrElse(""))
       val limit = StorageLimits.listLimit(arguments.optional[Int]("limit"))
       appletStorageRepository
-        .list(context.appletId, scope, StorageEntry.ownerOf(scope, context.userId), prefix, limit)
+        .list(context.appletId, context.teamId, scope, StorageEntry.ownerOf(scope, context.userId), prefix, limit)
         .map(entries =>
           Json.obj("entries" -> entries.map(e => Json.obj("key" -> e.key, "value" -> e.value, "updatedAt" -> e.updatedAt)))
         )
@@ -110,7 +110,7 @@ object StorageFunctions:
     "scope",
     "string",
     required = false,
-    "USER는 호출한 사용자만 보는 값이고 APPLET은 앱 사용자 전체가 공유하는 값입니다. 기본값은 USER입니다.",
+    "USER는 호출한 사용자만 보는 값이고 APPLET은 같은 팀의 앱 사용자가 공유하는 값입니다. 팀마다 저장소가 따로 있습니다. 기본값은 USER입니다.",
     StorageScope.values.toSeq.map(_.toString)
   )
 

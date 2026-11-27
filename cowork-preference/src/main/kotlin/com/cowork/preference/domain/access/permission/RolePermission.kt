@@ -65,7 +65,13 @@ enum class RolePermission(
         PermissionKeys.MANAGE_APPLETS,
         RolePermissionGroup.TEAM,
         "앱 관리",
-        "게시된 앱을 팀에 설치하거나 팀에서 제거할 수 있습니다.",
+        "게시된 앱을 팀에 설치하거나 팀에서 제거하고, 설치한 앱이 요청한 권한을 승인할 수 있습니다.",
+    ),
+    USE_APPLETS(
+        PermissionKeys.USE_APPLETS,
+        RolePermissionGroup.TEAM,
+        "앱 사용",
+        "팀에 설치된 앱을 실행할 수 있습니다. 앱이 팀 리소스에 접근하는 범위는 이 권한이 아니라 팀이 앱에 승인한 권한으로 정해집니다.",
     ),
     MANAGE_NICKNAME_FORMAT(
         PermissionKeys.MANAGE_NICKNAME_FORMAT,

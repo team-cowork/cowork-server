@@ -8,7 +8,8 @@ final case class BundleFileReqDto(path: String, content: String, encoding: Optio
 object BundleFileReqDto:
   given Reads[BundleFileReqDto] = Json.reads[BundleFileReqDto]
 
-final case class SubmitAppletVersionReqDto(files: Seq[BundleFileReqDto])
+// permissions are the app permissions that the version requests. They default to none.
+final case class SubmitAppletVersionReqDto(files: Seq[BundleFileReqDto], permissions: Option[Seq[String]])
 
 object SubmitAppletVersionReqDto:
   given Reads[SubmitAppletVersionReqDto] = Json.reads[SubmitAppletVersionReqDto]

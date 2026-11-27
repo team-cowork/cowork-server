@@ -5,10 +5,10 @@ import java.nio.charset.StandardCharsets.UTF_8
 import play.api.http.Status.BAD_REQUEST
 import play.api.libs.json.{JsValue, Json}
 
-// Free tier limits for the storage that the platform provides to every applet.
+// Free tier limits for the storage that the platform provides to every team that installed an applet.
 object StorageLimits:
-  val MaxEntriesPerApplet = 1000
-  // USER entries of one user. Without it one user could fill the applet limit for everyone.
+  val MaxEntriesPerTeam = 1000
+  // USER entries of one user. Without it one user could fill the team limit for everyone.
   val MaxEntriesPerUser = 100
   val MaxValueBytes = 16 * 1024
   val DefaultListLimit = 50
@@ -35,8 +35,8 @@ object StorageLimits:
     case Some(_) => throw ExpectedException(BAD_REQUEST, "조회 개수는 1 이상 100 이하로 입력하십시오.")
 
   def requireCapacity(exists: Boolean, count: Int): Unit =
-    if !exists && count >= MaxEntriesPerApplet then
-      throw ExpectedException(BAD_REQUEST, "앱 저장소에는 최대 1000개까지 저장할 수 있습니다.")
+    if !exists && count >= MaxEntriesPerTeam then
+      throw ExpectedException(BAD_REQUEST, "팀의 앱 저장소에는 최대 1000개까지 저장할 수 있습니다.")
 
   def requireUserCapacity(exists: Boolean, count: Int): Unit =
     if !exists && count >= MaxEntriesPerUser then

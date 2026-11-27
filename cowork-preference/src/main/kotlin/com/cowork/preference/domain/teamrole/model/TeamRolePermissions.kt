@@ -15,6 +15,7 @@ object TeamRolePermissions {
             PermissionKeys.PROJECT_READ to true,
             PermissionKeys.PROJECT_BOARD_READ to true,
             PermissionKeys.CALENDAR_EVENT_CREATE to true,
+            PermissionKeys.USE_APPLETS to true,
         ),
     )
 
