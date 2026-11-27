@@ -12,7 +12,7 @@ import (
 const AgentTokenUse = "agent"
 
 // AgentScopes must match the scope allowlist in Gateway.
-var AgentScopes = []string{"chat:read", "chat:write"}
+var AgentScopes = []string{"workspace:read", "chat:read", "chat:write"}
 
 var ErrInvalidAgentScope = errors.New("invalid agent token scope")
 

@@ -32,11 +32,11 @@ func TestAgentTokenExchangeableRejectsRevokedAndExpiredTokens(t *testing.T) {
 func TestNormalizeAgentScopesSortsAndDeduplicates(t *testing.T) {
 	t.Parallel()
 
-	got, err := NormalizeAgentScopes([]string{"chat:write", "chat:read", "chat:write"})
+	got, err := NormalizeAgentScopes([]string{"chat:write", "workspace:read", "chat:read", "chat:write"})
 	if err != nil {
 		t.Fatalf("NormalizeAgentScopes() error = %v", err)
 	}
-	if want := []string{"chat:read", "chat:write"}; !slices.Equal(got, want) {
+	if want := []string{"chat:read", "chat:write", "workspace:read"}; !slices.Equal(got, want) {
 		t.Fatalf("NormalizeAgentScopes() = %v, want %v", got, want)
 	}
 }

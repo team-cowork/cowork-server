@@ -70,8 +70,8 @@ func schemas() openapi3.Schemas {
 }
 
 func agentScopeSchema() *openapi3.Schema {
-	schema := openapi3.NewStringSchema().WithEnum("chat:read", "chat:write")
-	schema.Description = "chat:read는 채널 메시지 조회, chat:write는 스레드 메시지 전송을 허용합니다."
+	schema := openapi3.NewStringSchema().WithEnum("workspace:read", "chat:read", "chat:write")
+	schema.Description = "workspace:read는 내 팀/팀의 채널/채널의 스레드 목록 조회, chat:read는 채널 메시지 조회, chat:write는 스레드 메시지 전송을 허용합니다."
 	return schema
 }
 
