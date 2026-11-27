@@ -263,10 +263,19 @@ type tableExpectation struct {
 	columns []string
 }
 
-// V11 is the squashed baseline of the former V1 to V11 migrations. It only
-// creates tables, and MySQL creates each table atomically, so the presence of
-// every table and column shows that the baseline completed.
+// V11 is the squashed baseline of the former V1 to V11 migrations. V11 and V12
+// only create tables, and MySQL creates each table atomically, so the presence
+// of every table and column shows that the migration completed.
 func migrationExpectations(version int) ([]tableExpectation, bool) {
+	if version == 12 {
+		return []tableExpectation{{
+			name: "tb_agent_tokens",
+			columns: []string{
+				"id", "user_id", "name", "token_hash", "scopes", "expires_at",
+				"last_used_at", "revoked_at", "created_at",
+			},
+		}}, true
+	}
 	if version != 11 {
 		return nil, false
 	}
