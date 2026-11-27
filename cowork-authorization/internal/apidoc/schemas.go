@@ -75,14 +75,21 @@ func agentScopeSchema() *openapi3.Schema {
 	return schema
 }
 
+// nullableDateTimeSchema lists null in type because OpenAPI 3.2 ignores the 3.0 nullable keyword.
+func nullableDateTimeSchema() *openapi3.Schema {
+	schema := openapi3.NewDateTimeSchema()
+	schema.Type = &openapi3.Types{openapi3.TypeString, openapi3.TypeNull}
+	return schema
+}
+
 func agentTokenInfoSchema(issued bool) *openapi3.SchemaRef {
 	schema := openapi3.NewObjectSchema().
 		WithProperty("id", openapi3.NewInt64Schema()).
 		WithProperty("name", openapi3.NewStringSchema()).
 		WithProperty("scopes", openapi3.NewArraySchema().WithItems(agentScopeSchema())).
 		WithProperty("expires_at", openapi3.NewDateTimeSchema()).
-		WithProperty("last_used_at", openapi3.NewDateTimeSchema().WithNullable()).
-		WithProperty("revoked_at", openapi3.NewDateTimeSchema().WithNullable()).
+		WithProperty("last_used_at", nullableDateTimeSchema()).
+		WithProperty("revoked_at", nullableDateTimeSchema()).
 		WithProperty("created_at", openapi3.NewDateTimeSchema())
 	required := []string{"id", "name", "scopes", "expires_at", "last_used_at", "revoked_at", "created_at"}
 	if issued {
