@@ -45,6 +45,8 @@ class AgentScopeWebFilterTest :
                         .first shouldBe true
                     run(HttpMethod.POST, "/api/chat/chat/channels/7/messages", agent(AgentScope.CHAT_WRITE))
                         .first shouldBe true
+                    listOf("/api/team/teams", "/api/channel/teams/3/channels", "/api/channel/channels/7/threads")
+                        .forEach { run(HttpMethod.GET, it, agent(AgentScope.WORKSPACE_READ)).first shouldBe true }
                 }
             }
 
@@ -62,6 +64,15 @@ class AgentScopeWebFilterTest :
                         Triple(HttpMethod.POST, "/api/auth/ws-cookie", all),
                         Triple(HttpMethod.POST, "/api/authorization/auth/agent-tokens", all),
                         Triple(HttpMethod.GET, "/api/storage/bucket/chat-files/a", all),
+                        Triple(HttpMethod.GET, "/api/chat/chat/channels/7/messages", agent(AgentScope.WORKSPACE_READ)),
+                        Triple(HttpMethod.GET, "/api/team/teams", agent(AgentScope.CHAT_READ, AgentScope.CHAT_WRITE)),
+                        Triple(HttpMethod.POST, "/api/team/teams", all),
+                        Triple(HttpMethod.POST, "/api/channel/teams/3/channels", all),
+                        Triple(HttpMethod.POST, "/api/channel/channels/7/threads", all),
+                        Triple(HttpMethod.GET, "/api/team/teams/3", all),
+                        Triple(HttpMethod.GET, "/api/team/teams/3/members", all),
+                        Triple(HttpMethod.GET, "/api/channel/teams/3/channels/archived", all),
+                        Triple(HttpMethod.GET, "/api/channel/channels/7/threads/9", all),
                     )
                     denied.forEach { (method, path, authentication) ->
                         run(method, path, authentication) shouldBe (false to HttpStatus.FORBIDDEN)

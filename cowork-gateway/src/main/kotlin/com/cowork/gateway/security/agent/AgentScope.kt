@@ -13,16 +13,24 @@ import org.springframework.web.util.pattern.PathPatternParser
  * 값은 cowork-authorization의 `domain.AgentScopes`와 같아야 한다.
  * 목록에 없는 요청은 [AgentScopeWebFilter]가 거부하므로, 경로는 대소문자와 끝 슬래시까지 정확히 일치해야 통과한다.
  */
-enum class AgentScope(val value: String, private val method: HttpMethod, pattern: String) {
-    CHAT_READ("chat:read", HttpMethod.GET, "/api/chat/chat/channels/*/messages"),
-    CHAT_WRITE("chat:write", HttpMethod.POST, "/api/chat/chat/channels/*/messages"),
+enum class AgentScope(val value: String, vararg requests: Pair<HttpMethod, String>) {
+    WORKSPACE_READ(
+        "workspace:read",
+        HttpMethod.GET to "/api/team/teams",
+        HttpMethod.GET to "/api/channel/teams/*/channels",
+        HttpMethod.GET to "/api/channel/channels/*/threads",
+    ),
+    CHAT_READ("chat:read", HttpMethod.GET to "/api/chat/chat/channels/*/messages"),
+    CHAT_WRITE("chat:write", HttpMethod.POST to "/api/chat/chat/channels/*/messages"),
     ;
 
-    private val pathPattern: PathPattern = PathPatternParser.defaultInstance.parse(pattern)
+    private val requests: List<Pair<HttpMethod, PathPattern>> =
+        requests.map { (method, pattern) -> method to PathPatternParser.defaultInstance.parse(pattern) }
 
     val authority: GrantedAuthority = SimpleGrantedAuthority("SCOPE_$value")
 
-    fun allows(method: HttpMethod, path: PathContainer): Boolean = this.method == method && pathPattern.matches(path)
+    fun allows(method: HttpMethod, path: PathContainer): Boolean =
+        requests.any { (allowed, pattern) -> allowed == method && pattern.matches(path) }
 
     companion object {
         const val TOKEN_USE_CLAIM = "token_use"
