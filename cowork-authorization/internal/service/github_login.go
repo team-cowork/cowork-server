@@ -21,16 +21,6 @@ import (
 
 const githubScope = "user:email"
 
-// GitHubIdentity is the verified GitHub account. ID is the immutable account number; Login can change.
-type GitHubIdentity struct {
-	ID    int64
-	Login string
-	Name  string
-	Email string
-	// GSMEmailVerified is true when the primary or any secondary verified email uses the GSM school domain.
-	GSMEmailVerified bool
-}
-
 // GitHubLogin runs the GitHub OAuth web flow. GitHub OAuth is not OpenID Connect, so state and PKCE
 // protect the request, and the access token reads the account from the REST API.
 type GitHubLogin struct {
@@ -71,7 +61,7 @@ func (g *GitHubLogin) AllowsOrigin(origin string) bool {
 	return false
 }
 
-// Begin creates a login attempt. A positive linkUserID makes it a link attempt for that Cowork user.
+// Begin creates a login attempt. A positive linkUserID makes it a link attempt for that cowork user.
 func (g *GitHubLogin) Begin(ctx context.Context, redirectURI string, linkUserID int64) (string, string, error) {
 	if !g.redirects[redirectURI] {
 		return "", "", loginFailure("redirect_uri", ErrInvalidLoginRequest)
@@ -87,7 +77,7 @@ func (g *GitHubLogin) Begin(ctx context.Context, redirectURI string, linkUserID 
 	return authorizationURL, session, nil
 }
 
-func (g *GitHubLogin) CompleteAttempt(ctx context.Context, attempt LoginAttempt, callback url.Values) (*GitHubIdentity, error) {
+func (g *GitHubLogin) CompleteAttempt(ctx context.Context, attempt LoginAttempt, callback url.Values) (*domain.GitHubIdentity, error) {
 	if attempt.Provider != ProviderGitHub || !g.redirects[attempt.RedirectURI] {
 		return nil, loginFailure("attempt_purpose", ErrAuthenticationRejected)
 	}
@@ -112,26 +102,32 @@ func (g *GitHubLogin) CompleteAttempt(ctx context.Context, attempt LoginAttempt,
 	if user.GetID() <= 0 || !domain.ValidGitHubLogin(user.GetLogin()) {
 		return nil, loginFailure("userinfo_account", ErrAuthenticationRejected)
 	}
-	// The email can be private, so read the account's addresses and use only the verified primary one.
-	emails, _, err := client.Users.ListEmails(ctx, &github.ListOptions{PerPage: 100})
-	if err != nil {
-		return nil, loginFailure("email_request", g.apiError(err))
-	}
+	// A verified secondary address can require DataGSM even when the primary address is private.
 	email, gsm := "", false
-	for _, candidate := range emails {
-		if !candidate.GetVerified() {
-			continue
+	for page := 1; page != 0; {
+		emails, response, err := client.Users.ListEmails(ctx, &github.ListOptions{Page: page, PerPage: 100})
+		if err != nil {
+			return nil, loginFailure("email_request", g.apiError(err))
 		}
-		address := strings.TrimSpace(candidate.GetEmail())
-		gsm = gsm || isGSMSchoolEmail(address)
-		if candidate.GetPrimary() {
-			email = address
+		for _, candidate := range emails {
+			if !candidate.GetVerified() {
+				continue
+			}
+			address := strings.TrimSpace(candidate.GetEmail())
+			gsm = gsm || isGSMSchoolEmail(address)
+			if candidate.GetPrimary() {
+				email = address
+			}
 		}
+		if gsm && email != "" {
+			break
+		}
+		page = response.NextPage
 	}
 	if email == "" || utf8.RuneCountInString(email) > 255 {
 		return nil, loginFailure("email_unverified", ErrAuthenticationRejected)
 	}
-	return &GitHubIdentity{ID: user.GetID(), Login: user.GetLogin(), Name: githubDisplayName(user.Name, user.GetLogin()), Email: email,
+	return &domain.GitHubIdentity{ID: user.GetID(), Login: user.GetLogin(), Name: githubDisplayName(user.Name, user.GetLogin()), Email: email,
 		GSMEmailVerified: gsm}, nil
 }
 

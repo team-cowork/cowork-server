@@ -28,13 +28,11 @@ LiveKit 기반 음성 채널과 1:N 라이브 룸을 관리합니다.
 | 변수                                                          | 설명                                             |
 |---------------------------------------------------------------|--------------------------------------------------|
 | `PORT`                                                        | HTTP 포트                                        |
-| `DB_HOST`                                                     | MongoDB 호스트. 개별 DB 입력 5개를 모두 지정하거나 `MONGODB_URI`와 `MONGODB_DB` 사용 |
-| `DB_PORT`                                                     | MongoDB 포트. 개별 DB 입력 5개를 모두 지정하거나 `MONGODB_URI`와 `MONGODB_DB` 사용 |
-| `DB_NAME`                                                     | MongoDB 데이터베이스 이름. 개별 DB 입력 5개를 모두 지정하거나 `MONGODB_URI`와 `MONGODB_DB` 사용 |
-| `DB_USERNAME`                                                 | MongoDB 사용자명. 개별 DB 입력 5개를 모두 지정하거나 `MONGODB_URI`와 `MONGODB_DB` 사용 |
-| `DB_PASSWORD`                                                 | MongoDB 비밀번호. 개별 DB 입력 5개를 모두 지정하거나 `MONGODB_URI`와 `MONGODB_DB` 사용 |
-| `MONGODB_URI`                                                 | 개별 DB 입력이 없을 때 필수인 MongoDB URI      |
-| `MONGODB_DB`                                                  | 개별 DB 입력이 없을 때 필수인 MongoDB 데이터베이스 이름 |
+| `DB_HOST`                                                     | 필수 MongoDB 호스트                              |
+| `DB_PORT`                                                     | 필수 MongoDB 포트                                |
+| `DB_NAME`                                                     | 필수 MongoDB 데이터베이스 이름                   |
+| `DB_USERNAME`                                                 | 필수 MongoDB 사용자명                            |
+| `DB_PASSWORD`                                                 | 필수 MongoDB 비밀번호                            |
 | `LIVEKIT_URL`                                                 | 필수 LiveKit 내부 API 주소               |
 | `LIVEKIT_WS_URL`                                              | 필수 LiveKit 클라이언트 공개 WebSocket 주소   |
 | `LIVEKIT_API_KEY`                                             | 필수 LiveKit API 키                           |

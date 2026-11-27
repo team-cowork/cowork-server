@@ -1,8 +1,7 @@
 import process from 'node:process';
-import {type PartitionOffset} from 'kafkajs';
 import {type ProjectionAssignmentLease, type ProjectionCheckpointOffset, type ProjectionCheckpointRepository} from './projection-checkpoint.repository.js';
 import {type ProjectionDatasetState} from './projection-dataset.repository.js';
-import {type StartupPartitionOffset} from './projection-streams.js';
+import {type PartitionOffset, type StartupPartitionOffset} from './projection-streams.js';
 
 const MIN_DOCUMENT_COUNT_DROP = Number(process.env.CHAT_PROJECTION_PARTIAL_LOSS_MIN_DOCUMENTS ?? 20);
 const MIN_DOCUMENT_COUNT_DROP_RATIO = Number(process.env.CHAT_PROJECTION_PARTIAL_LOSS_MIN_RATIO ?? 0.2);
@@ -170,11 +169,37 @@ export function hasCompletedSnapshotBarriers(
 }
 
 /**
+ Dataset이 기록한 topic UUID가 broker의 현재 topic UUID와 다르면 재구축 사유를 반환한다.
+ 같은 이름으로 다시 만든 topic은 UUID가 다르고, UUID가 없는 기존 dataset은 같은 topic임을 증명하지 못한다.
+ */
+export function describeTopicIdentityProblem(
+	topic: string,
+	dataset: Pick<ProjectionDatasetState, 'topicId'>,
+	brokerTopicId: string,
+): string | undefined {
+	return dataset.topicId === brokerTopicId
+		? undefined
+		: `Kafka projection topic UUID mismatch: ${topic} dataset=${dataset.topicId ?? 'missing'} broker=${brokerTopicId}`;
+}
+
+/**
+Topic UUID가 없는 기존 checkpoint나 dataset은 같은 topic임을 증명하지 못하므로 일치로 보지 않는다.
+*/
+function isSameDataset(
+	checkpoint: ProjectionCheckpointOffset,
+	dataset: Pick<ProjectionDatasetState, 'datasetGeneration' | 'topicId'>,
+): boolean {
+	return checkpoint.datasetGeneration === dataset.datasetGeneration
+		&& dataset.topicId !== undefined
+		&& checkpoint.topicId === dataset.topicId;
+}
+
+/**
  실행 중 checkpoint를 순서대로 확인해 처음 발견한 복구 불가 사유를 반환한다. 문제가 없으면 `undefined`를 반환한다.
  */
 export function describeActiveCheckpointProblem(
 	topic: string,
-	dataset: Pick<ProjectionDatasetState, 'datasetGeneration' | 'sourceGeneration'>,
+	dataset: Pick<ProjectionDatasetState, 'datasetGeneration' | 'topicId'>,
 	storedCheckpoints: ProjectionCheckpointOffset[],
 	currentByPartition: Map<number, StartupPartitionOffset>,
 ): string | undefined {
@@ -186,9 +211,8 @@ export function describeActiveCheckpointProblem(
 				+ `retained=${current?.low ?? 'missing'}-${current?.high ?? 'missing'}`;
 		}
 
-		if (checkpoint.datasetGeneration !== dataset.datasetGeneration
-			|| checkpoint.sourceGeneration !== dataset.sourceGeneration) {
-			return `Kafka projection checkpoint generation mismatch: ${topic}[${checkpoint.partition}]`;
+		if (!isSameDataset(checkpoint, dataset)) {
+			return `Kafka projection checkpoint topic UUID or dataset generation mismatch: ${topic}[${checkpoint.partition}]`;
 		}
 	}
 
@@ -207,9 +231,8 @@ export function describeStartupCheckpointProblem(
 	const targetByPartition = new Map(targets.map(target => [target.partition, target]));
 	for (const checkpoint of checkpoints) {
 		const target = targetByPartition.get(checkpoint.partition);
-		if (checkpoint.datasetGeneration !== dataset.datasetGeneration
-			|| checkpoint.sourceGeneration !== dataset.sourceGeneration) {
-			return `Projection checkpoint generation mismatch: ${topic}[${checkpoint.partition}]`;
+		if (!isSameDataset(checkpoint, dataset)) {
+			return `Projection checkpoint topic UUID or dataset generation mismatch: ${topic}[${checkpoint.partition}]`;
 		}
 
 		if (!target || !isCheckpointWithinRetainedRange(checkpoint.offset, target)) {

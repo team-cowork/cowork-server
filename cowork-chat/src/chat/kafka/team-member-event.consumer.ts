@@ -6,17 +6,16 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
 import {mongo} from 'mongoose';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
-import {TeamMemberProjectionRepository, ChannelProjectionRepository, TeamRoleProjectionRepository} from '../repository/index.js';
+import {TeamMemberProjectionRepository, ChannelProjectionRepository} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 type TeamMemberEvent = {
@@ -26,6 +25,7 @@ type TeamMemberEvent = {
 	role: string;
 	teamName: string;
 	nickname?: Nullable<string>;
+	joinedAt?: Nullable<string>;
 	occurredAt: string;
 	authorizationVersion: string;
 	snapshot?: boolean;
@@ -34,7 +34,7 @@ type TeamMemberEvent = {
 @injectable()
 export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TeamMemberEventConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 	private io?: Server;
 
 	@inject()
@@ -51,9 +51,6 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 	@inject()
 	private readonly channelMessageReadAccess!: ChannelMessageReadAccessService;
-
-	@inject()
-	private readonly roleRepository!: TeamRoleProjectionRepository;
 
 	private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
 		if (!this.isTeamMemberEvent(payload)) {
@@ -76,11 +73,9 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 		const authorizationVersion = parseEventTime(payload.authorizationVersion)!.sourceVersion;
 		let isApplied: boolean;
 		if (payload.eventType === 'DELETE') {
-			const isRemoved = await this.memberRepository.remove({
+			isApplied = await this.memberRepository.remove({
 				teamId: payload.teamId, userId: payload.userId, occurredAt, sourceVersion, authorizationVersion, role: payload.role,
 			});
-			const isCascaded = await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
-			isApplied = isRemoved || isCascaded;
 		} else {
 			isApplied = await this.memberRepository.upsert({
 				teamId: payload.teamId,
@@ -88,6 +83,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 				role: payload.role,
 				teamName: payload.teamName,
 				nickname: payload.nickname ?? null,
+				joinedAt: parseEventTime(payload.joinedAt)?.occurredAt ?? null,
 				occurredAt,
 				sourceVersion,
 				authorizationVersion,
@@ -133,8 +129,8 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return true;
 		}
 
-		return typeof event.role === 'string' && event.role.length > 0
-			&& typeof event.teamName === 'string' && event.teamName.length > 0
+		return typeof event.teamName === 'string' && event.teamName.length > 0
+			&& (event.joinedAt === undefined || parseEventTime(event.joinedAt) !== null)
 			&& (event.nickname === undefined || event.nickname === null || typeof event.nickname === 'string');
 	}
 
@@ -143,20 +139,15 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-chat-team-member-event',
-			...getKafkaClientConfig(this.configService),
-		});
 		const stream = PROJECTION_STREAMS.teamMember;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-team-member-event', readiness: this.projectionReadiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }
 

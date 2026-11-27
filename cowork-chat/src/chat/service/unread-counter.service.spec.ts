@@ -1,6 +1,8 @@
 import type {ConfigService} from '@nestjs/config';
 import {UnreadCounterService} from './unread-counter.service.js';
 
+const createdAt = new Date(2000);
+
 describe('UnreadCounterService.incrementIfPresent', () => {
 	const createService = () => {
 		const script = jest.fn();
@@ -14,23 +16,23 @@ describe('UnreadCounterService.incrementIfPresent', () => {
 		const {service, script} = createService();
 		const userIds = Array.from({length: 150}, (_, i) => 150 - i);
 
-		await service.incrementIfPresent(3, userIds, 'message-1');
+		await service.incrementIfPresent(3, userIds, createdAt, 'message-1');
 
 		expect(script).toHaveBeenCalledTimes(2);
 		const calls = script.mock.calls as unknown[][];
-		expect(calls.map(call => call.slice(0, 4))).toEqual([
-			['3', 'unread:applied-chunks:message-1', 86_400, 0],
-			['3', 'unread:applied-chunks:message-1', 86_400, 1],
+		expect(calls.map(call => call.slice(0, 5))).toEqual([
+			['3', 'unread:applied-chunks:v3:message-1', 86_400, 0, 2000],
+			['3', 'unread:applied-chunks:v3:message-1', 86_400, 1, 2000],
 		]);
-		expect(calls.flatMap(call => call.slice(4))).toEqual(userIds.toReversed().map(id => `unread:v2:${id}`));
+		expect(calls.flatMap(call => call.slice(5))).toEqual(userIds.toReversed().map(id => `unread:v3:${id}`));
 	});
 
 	it('eventId가 없으면 적용 기록 없이 증가한다', async () => {
 		const {service, script} = createService();
 
-		await service.incrementIfPresent(3, [7]);
+		await service.incrementIfPresent(3, [7], createdAt);
 
-		expect(script).toHaveBeenCalledWith('3', '', 86_400, 0, 'unread:v2:7');
+		expect(script).toHaveBeenCalledWith('3', '', 86_400, 0, 2000, 'unread:v3:7');
 	});
 });
 
@@ -46,9 +48,9 @@ describe('UnreadCounterService 정확한 값 기록', () => {
 	it('읽음 처리 값은 기준 읽음 위치와 함께 같은 위치면 덮어쓰도록 기록한다', async () => {
 		const {service, script} = createService();
 
-		const applied = await service.set(3, 7, {count: 2, readCursor: 'aa'});
+		const applied = await service.set(3, 7, {count: 2, joinedAt: new Date(1000), readCursor: 'aa'});
 
-		expect(script).toHaveBeenCalledWith('unread:v2:7', '3', '3:cursor', 'aa', '2', 86_400, '1');
+		expect(script).toHaveBeenCalledWith('unread:v3:7', '3', '3:cursor', 'aa', '2', 86_400, '1', 1000);
 		expect(applied).toBe(true);
 	});
 
@@ -74,8 +76,17 @@ describe('UnreadCounterService 정확한 값 기록', () => {
 		]));
 
 		expect(script.mock.calls).toEqual([
-			['unread:v2:7', '3', '3:cursor', '', '4', 86_400, '0'],
-			['unread:v2:7', '5', '5:cursor', 'bb', '0', 86_400, '0'],
+			['unread:v3:7', '3', '3:cursor', '', '4', 86_400, '0', 0],
+			['unread:v3:7', '5', '5:cursor', 'bb', '0', 86_400, '0', 0],
 		]);
 	});
+});
+
+it('재가입 전 캐시는 다시 계산하고 현재 가입 기간에 채운 값만 반환한다', async () => {
+	const service = new UnreadCounterService({} as ConfigService);
+	const hmget = jest.fn().mockResolvedValue(['9', '1000', '2', '2000']);
+	Object.assign(service, {client: {hmget}});
+
+	await expect(service.getMany(7, [3, 4], new Date(2000))).resolves.toEqual({hits: new Map([[4, 2]]), misses: [3]});
+	expect(hmget).toHaveBeenCalledWith('unread:v3:7', '3', '3:joinedAt', '4', '4:joinedAt');
 });

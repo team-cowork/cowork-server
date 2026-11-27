@@ -32,6 +32,7 @@ import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/p
 import {toRepoIdentity} from '../kafka/event/repo-identity.js';
 import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers.js';
 import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper.js';
+import {GithubBackfillService} from '../github-backfill.service.js';
 import {RepoEventProducer} from '../kafka/repo-event.producer.js';
 import {TeamGithubProducer} from '../kafka/team-github.producer.js';
 import type {GithubWebhookPayload} from './github-webhook-payload.js';
@@ -46,6 +47,9 @@ export class GithubWebhookController {
 	private static readonly DISCONNECT_ACTIONS = new Set(['deleted']);
 
 	private readonly logger = new Logger(GithubWebhookController.name);
+
+	@inject(GithubBackfillService)
+	private readonly backfillService!: GithubBackfillService;
 
 	@inject(TeamGithubProducer)
 	private readonly producer!: TeamGithubProducer;
@@ -464,11 +468,24 @@ export class GithubWebhookController {
 		}
 	}
 
+	private enqueueTimeline(payload: GithubWebhookPayload): void {
+		const number = payload.issue?.number ?? payload.pull_request?.number;
+		const fullName = payload.repository?.full_name;
+		if (number === undefined || fullName === undefined || fullName === '') {
+			return;
+		}
+
+		const [owner, repo] = fullName.split('/', 2);
+		void this.backfillService.enqueue({
+			type: 'TIMELINE', owner, repo, number,
+		});
+	}
+
 	@httpPost()
 	@httpCode(200)
 	@apiOperation({
 		summary: 'GitHub 웹훅 수신',
-		description: 'installation/installation_repositories/repository/push/issues/pull_request/label/issue_comment/projects_v2/projects_v2_item 이벤트를 처리합니다. 그 외 이벤트는 무시하고 HTTP 200을 반환합니다.',
+		description: 'GitHub 앱 설치, 저장소, 푸시, 이슈, PR, 라벨, 댓글, 리뷰, 프로젝트 이벤트를 처리합니다. 그 외 이벤트는 무시하고 HTTP 200을 반환합니다.',
 	})
 	@apiHeader({
 		name: 'X-GitHub-Event', description: 'GitHub 이벤트 이름', required: true, schema: {type: 'string', example: 'issues'},
@@ -532,6 +549,7 @@ export class GithubWebhookController {
 						this.logNotificationFailure(eventName, error);
 					}),
 				]);
+				this.enqueueTimeline(payload);
 				break;
 			}
 
@@ -543,6 +561,7 @@ export class GithubWebhookController {
 						this.logNotificationFailure(eventName, error);
 					}),
 				]);
+				this.enqueueTimeline(payload);
 				break;
 			}
 
@@ -571,8 +590,15 @@ export class GithubWebhookController {
 				break;
 			}
 
+			case 'pull_request_review_comment':
+			case 'pull_request_review': {
+				this.enqueueTimeline(payload);
+				break;
+			}
+
 			case 'issue_comment': {
 				await this.handleIssueCommentState(payload);
+				this.enqueueTimeline(payload);
 				break;
 			}
 

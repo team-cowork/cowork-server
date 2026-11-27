@@ -68,12 +68,27 @@ class TeamController(
                 ),
             ],
         ),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 관리 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping("/icon/presigned")
     fun generateIconPresignedUrl(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: IconPresignedUrlRequest,
-    ): IconPresignedUrlResponse = generateIconPresignedUrlService.execute(userId, request.contentType)
+    ): IconPresignedUrlResponse = generateIconPresignedUrlService.execute(userId, request.teamId, request.contentType)
 
     @Operation(summary = "팀 아이콘 업로드 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

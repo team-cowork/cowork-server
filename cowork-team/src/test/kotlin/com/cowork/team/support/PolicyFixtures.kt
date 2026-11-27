@@ -1,7 +1,7 @@
 package com.cowork.team.support
 
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
-import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
+import com.cowork.team.global.policy.TeamAccessProjection
 import io.mockk.every
 import io.mockk.mockk
 
@@ -10,15 +10,8 @@ fun policyRole(permissions: Map<String, Boolean>, priority: Int = 10, teamId: Lo
     mentionable = false, permissions = permissions, createdAt = null, updatedAt = null, isDefault = false,
 )
 
-fun policyReader(teamId: Long, grants: Map<Long, Map<String, Boolean>>): TeamRoleProjectionReader =
-    mockk<TeamRoleProjectionReader>().also { reader ->
-        every { reader.getMemberRoles(any(), any()) } answers {
-            if (firstArg<Long>() ==
-                teamId
-            ) {
-                grants[secondArg<Long>()]?.let { listOf(policyRole(it, teamId = teamId)) }.orEmpty()
-            } else {
-                emptyList()
-            }
-        }
+fun policyReader(teamId: Long, grants: Map<Long, Map<String, Boolean>>): TeamAccessProjection =
+    mockk<TeamAccessProjection> {
+        every { permissions(any(), any()) } returns emptySet()
+        every { permissions(teamId, any()) } answers { grants[secondArg<Long>()].orEmpty().filterValues { it }.keys }
     }

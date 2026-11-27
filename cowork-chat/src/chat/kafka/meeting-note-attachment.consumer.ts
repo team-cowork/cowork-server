@@ -5,9 +5,8 @@ import {
 	OnModuleDestroy,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
@@ -40,7 +39,7 @@ export function parseMeetingNoteAttachmentEvent(payload: unknown, key?: string) 
 @injectable()
 export class MeetingNoteAttachmentConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(MeetingNoteAttachmentConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 
 	constructor(
 		private readonly config: ConfigService,
@@ -49,16 +48,14 @@ export class MeetingNoteAttachmentConsumer implements OnModuleInit, OnModuleDest
 	) {}
 
 	async onModuleInit() {
-		const kafka = new Kafka({clientId: 'cowork-chat-meeting-note-attachments', ...getKafkaClientConfig(this.config)});
 		const stream = PROJECTION_STREAMS.meetingNoteAttachment;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.readiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.config, clientId: 'cowork-chat-meeting-note-attachments', readiness: this.readiness, stream,
 			handleEvent: async (payload, key) => this.repository.apply(parseMeetingNoteAttachmentEvent(payload, key)),
 		});
 	}
 
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

@@ -16,10 +16,12 @@ import (
 var ErrIdentityResultRejected = errors.New("identity command result permanently rejected")
 
 const (
-	UserIdentityCommandSchemaVersion = 3
+	UserIdentityCommandSchemaVersion = 4
 	UserIdentityResultSchemaVersion  = 2
 	UserIdentityCommandUpsert        = "UPSERT"
 	UserIdentityCommandLink          = "LINK"
+	UserIdentityCommandSchoolLogin   = "SCHOOL_LOGIN"
+	UserIdentityCommandSignIn        = "SIGN_IN"
 	UserIdentityPending              = "PENDING"
 	UserIdentitySucceeded            = "SUCCEEDED"
 	UserIdentityFailed               = "FAILED"
@@ -45,9 +47,20 @@ type UserIdentityCommand struct {
 	GithubLogin *string `json:"githubLogin,omitempty"`
 	// GSMEmailVerified is set only for the GITHUB provider. It is true when any verified email uses the GSM school domain.
 	GSMEmailVerified *bool `json:"gsmEmailVerified,omitempty"`
-	// AccountID is set only for LINK. cowork-user adds the login method to this account.
+	// GitHubIdentity is the proof from the first step of SCHOOL_LOGIN.
+	GitHubIdentity *GitHubIdentity `json:"githubIdentity,omitempty"`
+	// AccountID is set only for LINK.
 	AccountID  *int64    `json:"accountId,omitempty"`
 	OccurredAt time.Time `json:"occurredAt"`
+}
+
+// GitHubIdentity is obtained from GitHub OAuth. ID stays the same when the login changes.
+type GitHubIdentity struct {
+	ID               int64  `json:"id"`
+	Login            string `json:"login"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	GSMEmailVerified bool   `json:"gsmEmailVerified"`
 }
 
 type StudentIdentity struct {
@@ -123,7 +136,7 @@ func NewUUID() (string, error) {
 
 func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	if command.SchemaVersion != UserIdentityCommandSchemaVersion {
-		return fmt.Errorf("command schemaVersion must be 3")
+		return fmt.Errorf("command schemaVersion must be 4")
 	}
 	if !ValidUUID(command.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
@@ -132,7 +145,20 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 		utf8.RuneCountInString(command.IdempotencyKey) > MaxIdentityIdempotencyKeyLength {
 		return fmt.Errorf("idempotencyKey must contain at most %d characters", MaxIdentityIdempotencyKeyLength)
 	}
+	if command.CommandType != UserIdentityCommandSchoolLogin && command.GitHubIdentity != nil {
+		return errors.New("githubIdentity requires SCHOOL_LOGIN")
+	}
 	switch command.CommandType {
+	case UserIdentityCommandSchoolLogin:
+		gh := command.GitHubIdentity
+		if command.AccountID != nil || command.Provider != "DATAGSM" || gh == nil || !gh.GSMEmailVerified ||
+			gh.ID <= 0 || !ValidGitHubLogin(gh.Login) || !validText(gh.Name, 50) || !validText(gh.Email, 255) {
+			return errors.New("SCHOOL_LOGIN requires verified GitHub and DataGSM identities")
+		}
+	case UserIdentityCommandSignIn:
+		if command.AccountID != nil || command.Provider != "DATAGSM" {
+			return errors.New("SIGN_IN requires DATAGSM")
+		}
 	case UserIdentityCommandUpsert:
 		if command.AccountID != nil {
 			return errors.New("accountId is only allowed for LINK")
@@ -142,7 +168,7 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 			return errors.New("LINK requires a positive accountId and the GITHUB or DATAGSM provider")
 		}
 	default:
-		return fmt.Errorf("commandType must be UPSERT or LINK")
+		return errors.New("unsupported identity command type")
 	}
 	if !validText(command.Name, 50) || !validText(command.Email, 255) {
 		return errors.New("invalid account profile")

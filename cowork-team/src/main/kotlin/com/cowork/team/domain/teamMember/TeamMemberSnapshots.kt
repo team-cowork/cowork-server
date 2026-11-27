@@ -19,7 +19,7 @@ class TeamMemberSnapshots(
             afterUserId,
             PageRequest.of(0, pageSize),
         )
-        states.forEach(teamMemberEventPublisher::publishSnapshot)
-        return states.lastOrNull()?.let { it.teamId to it.userId }
+        states.forEach { teamMemberEventPublisher.publishSnapshot(it.state, it.joinedAt) }
+        return states.lastOrNull()?.state?.let { it.teamId to it.userId }
     }
 }

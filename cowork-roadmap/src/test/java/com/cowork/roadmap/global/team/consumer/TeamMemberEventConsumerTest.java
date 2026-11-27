@@ -30,7 +30,8 @@ class TeamMemberEventConsumerTest {
             2L,
             "MEMBER",
             "team",
-            Instant.parse("2026-01-01T00:00:00Z"));
+            Instant.parse("2026-01-01T00:00:00Z"),
+            null);
     private static final String MARKER_KEY = ProjectionSnapshotCompletion.KEY_PREFIX + 0;
     private static final String SNAPSHOT_ID = "8f14e45f-ceea-467a-9575-6b5d1c1a2b3c";
 

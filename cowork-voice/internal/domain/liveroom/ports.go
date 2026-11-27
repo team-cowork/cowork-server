@@ -16,20 +16,13 @@ type service interface {
 
 type Repository interface {
 	FindActiveSession(ctx context.Context, channelID int64) (*Session, error)
-	FindSessionByRoomName(ctx context.Context, roomName string) (*Session, error)
 	// CreateSession 메서드는 새 라이브 세션을 만들고 (session, created=true)를 반환한다.
 	// 동시 start 경쟁으로 이미 활성 세션이 존재하면 (기존 session, created=false)를 반환한다.
 	CreateSession(ctx context.Context, channelID, teamID, hostUserID int64) (*Session, bool, error)
 	// EndSession 메서드는 active 세션을 ended로 전환하고, 실제로 전환이 일어났으면 true를 반환한다.
-	// 보상 정리 전용이며 외부로 알려야 하는 정상 종료에는 EndSessionAndEnqueue를 사용한다.
+	// 방 생성 또는 토큰 발급 실패를 정리할 때 사용한다.
 	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
-	// MarkSessionStartedAndEnqueue 메서드와 아래 *AndEnqueue 메서드는 authoritative 상태와 outbox event를 같은 Mongo document update에 기록한다.
-	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
-	RecordViewerJoinedAndEnqueue(ctx context.Context, v *Viewer, occurrenceID string, event any) (bool, error)
 	MarkViewerLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
-	// EndSessionAndEnqueue 메서드는 enqueueOnlyIfStarted=true이면 실제 저장 문서에 started_event_sent_at이 있을 때만 event를 함께 적재한다.
-	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any, enqueueOnlyIfStarted bool) (bool, error)
-	CleanupOrphanViewers(ctx context.Context, sessionID string, now time.Time) (int64, error)
 	GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
 	// CountActiveViewers 메서드는 세션의 현재 활성(left_at=null) 시청자 수를 반환한다.
 	CountActiveViewers(ctx context.Context, sessionID string) (int, error)

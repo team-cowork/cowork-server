@@ -123,7 +123,7 @@ public static partial class Accounts
 
         var found = fresh.Select(d => d.Id).ToHashSet();
         await PersistCacheAsync(
-            fresh.Select(d => (d.Id, JsonSerializer.Serialize(new { name = d.Name, nickname = d.Nickname }, Json.Event), DisplayNameCacheTtlSeconds))
+            fresh.Select(d => (d.Id, Json.Encode(new { name = d.Name, nickname = d.Nickname }), DisplayNameCacheTtlSeconds))
                 .Concat(missing.Where(id => !found.Contains(id)).Select(id => (id, NotFoundMarker, DisplayNameNotFoundTtlSeconds))));
 
         return cached.Values.OfType<DisplayName>().Concat(fresh).ToList();
@@ -386,7 +386,7 @@ public static partial class Accounts
         {
             if (rawExpires.ValueKind == JsonValueKind.Null) expiresAt = null;
             else if (rawExpires.ValueKind == JsonValueKind.String && rawExpires.GetString()!.Trim() == "") expiresAt = null;
-            else if (rawExpires.ValueKind == JsonValueKind.String && Iso8601.TryParse(rawExpires.GetString(), out var parsed, out _, assumeUtc: true))
+            else if (rawExpires.ValueKind == JsonValueKind.String && Iso8601.TryParse(rawExpires.GetString(), out var parsed, assumeUtc: true))
                 expiresAt = parsed.AddTicks(-(parsed.Ticks % TimeSpan.TicksPerSecond));
             else errors.Add("status_expires_at", "is invalid");
         }
@@ -466,12 +466,17 @@ public static partial class Accounts
         if (command.CommandType == "LINK") return await ApplyLinkCommandAsync(connection, transaction, command);
 
         var binding = await FindIdentityAsync(connection, transaction, command);
-        var id = binding?.Id;
+        if (command.CommandType == "SCHOOL_LOGIN")
+            return await CompleteSchoolLoginAsync(connection, transaction, command, binding?.Id);
+        if (command.CommandType == "SIGN_IN" && binding is null) return (null, IdentityCommand.GitHubLoginRequiredCode);
 
-        // A GSM student who signs up with GitHub first gets an account without student information. Send the student to
-        // DataGSM, and let them link GitHub from that account. A GitHub account that is already linked signs in as usual.
-        if (binding is null && command.Provider == "GITHUB" && command.GsmEmailVerified)
+        if (command.Provider == "GITHUB" && command.GsmEmailVerified &&
+            (binding is null || !await connection.ExecuteScalarAsync<bool>("""
+                SELECT EXISTS (SELECT 1 FROM tb_account_identities WHERE account_id = @id AND provider = 'DATAGSM')
+                """, new { id = binding.Value.Id }, transaction)))
             return (null, IdentityCommand.DataGsmLoginRequiredCode);
+
+        var id = binding?.Id;
 
         if (binding is { } existing && !CanApplyLoginCommand(existing.LastCommandAt, command.OccurredAt))
             return (await ReadSessionIdentityAsync(connection, transaction, existing.Id), null);
@@ -481,19 +486,7 @@ public static partial class Accounts
         var isNew = id is null;
         try
         {
-            if (isNew)
-            {
-                id = await connection.ExecuteScalarAsync<long>("""
-                    INSERT INTO tb_accounts (name, email, github, presence_updated_at)
-                    VALUES (@Name, @Email, @github, '1970-01-01 00:00:00');
-                    SELECT LAST_INSERT_ID();
-                    """, new { command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
-                await connection.ExecuteAsync("""
-                    INSERT INTO tb_account_identities (account_id, provider, provider_subject) VALUES (@id, @Provider, @ProviderSubject);
-                    INSERT INTO tb_profiles (account_id) VALUES (@id);
-                    UPDATE tb_accounts SET created_by = @id, last_modified_by = @id WHERE id = @id;
-                    """, new { id, command.Provider, command.ProviderSubject }, transaction);
-            }
+            if (isNew) id = await InsertLoginAccountAsync(connection, transaction, command);
 
             // GitHub and developer logins never overwrite the profile or student information of an existing account.
             if (command.Provider == "DATAGSM")
@@ -535,6 +528,81 @@ public static partial class Accounts
                                    WHERE (a.email = @Email OR a.github = @github) AND s.account_id IS NULL)
                     """, new { command.Email, github = NullIfBlank(command.GithubId) }, transaction))
                 return (null, IdentityCommand.GitHubLoginRequiredCode);
+            return (null, IdentityCommand.NotLinkedCode);
+        }
+    }
+
+    static async Task<long> InsertLoginAccountAsync(
+        MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
+    {
+        var id = await connection.ExecuteScalarAsync<long>("""
+            INSERT INTO tb_accounts (name, email, github, presence_updated_at)
+            VALUES (@Name, @Email, @github, '1970-01-01 00:00:00');
+            SELECT LAST_INSERT_ID();
+            """, new { command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
+        await connection.ExecuteAsync("""
+            INSERT INTO tb_account_identities (account_id, provider, provider_subject, last_login_command_at)
+              VALUES (@id, @Provider, @ProviderSubject, @OccurredAt);
+            INSERT INTO tb_profiles (account_id) VALUES (@id);
+            UPDATE tb_accounts SET created_by = @id, last_modified_by = @id WHERE id = @id;
+            """, new { id, command.Provider, command.ProviderSubject, command.OccurredAt }, transaction);
+        return id;
+    }
+
+    internal enum SchoolLoginAction { Create, LinkGitHub, LinkDataGsm, SignIn, Conflict }
+
+    internal static SchoolLoginAction ResolveSchoolLogin(long? githubAccount, long? dataGsmAccount) =>
+        (githubAccount, dataGsmAccount) switch
+        {
+            (null, null) => SchoolLoginAction.Create,
+            (null, _) => SchoolLoginAction.LinkGitHub,
+            (_, null) => SchoolLoginAction.LinkDataGsm,
+            _ when githubAccount == dataGsmAccount => SchoolLoginAction.SignIn,
+            _ => SchoolLoginAction.Conflict
+        };
+
+    static async Task<(SessionIdentity? Identity, string? FailureCode)> CompleteSchoolLoginAsync(
+        MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command dataGsm, long? dataGsmAccount)
+    {
+        var proof = dataGsm.GitHubIdentity!;
+        var github = dataGsm with
+        {
+            Provider = "GITHUB", ProviderSubject = proof.Id.ToString(CultureInfo.InvariantCulture),
+            Name = proof.Name, Email = proof.Email, GithubId = proof.Login, GitHubIdentity = null
+        };
+        var githubAccount = (await FindIdentityAsync(connection, transaction, github))?.Id;
+        if (dataGsmAccount is not null && await connection.ExecuteScalarAsync<bool>("""
+                SELECT EXISTS (SELECT 1 FROM tb_gsm_student_info
+                    WHERE (account_id = @dataGsmAccount AND datagsm_student_id <> @studentId)
+                       OR (datagsm_student_id = @studentId AND account_id <> @dataGsmAccount))
+                """, new { dataGsmAccount, studentId = dataGsm.DatagsmStudentId }, transaction))
+            return (null, IdentityCommand.AlreadyLinkedCode);
+
+        switch (ResolveSchoolLogin(githubAccount, dataGsmAccount))
+        {
+            case SchoolLoginAction.Conflict:
+                return (null, IdentityCommand.AlreadyLinkedCode);
+            case SchoolLoginAction.SignIn:
+                return (await ReadSessionIdentityAsync(connection, transaction, githubAccount!.Value), null);
+            case SchoolLoginAction.LinkGitHub:
+                return await ApplyLinkCommandAsync(connection, transaction, github with { AccountId = dataGsmAccount });
+            case SchoolLoginAction.LinkDataGsm:
+                return await ApplyLinkCommandAsync(connection, transaction, dataGsm with { AccountId = githubAccount });
+        }
+
+        // A student ID collision must also roll back the new GitHub account and profile.
+        await transaction.SaveAsync("school_login");
+        try
+        {
+            var id = await InsertLoginAccountAsync(connection, transaction, github);
+            await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, id);
+            var result = await ApplyLinkCommandAsync(connection, transaction, dataGsm with { AccountId = id });
+            if (result.Identity is null) await transaction.RollbackAsync("school_login");
+            return result;
+        }
+        catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
+        {
+            await transaction.RollbackAsync("school_login");
             return (null, IdentityCommand.NotLinkedCode);
         }
     }
@@ -623,7 +691,7 @@ public static partial class Accounts
         // UserSyncContract has already validated the payload shape.
         var studentId = payload.Get("datagsm_student_id").Integer();
         var studentRole = payload.GetString("student_role");
-        Iso8601.TryParse(payload.GetString("occurred_at"), out var occurredAt, out _);
+        Iso8601.TryParse(payload.GetString("occurred_at"), out var occurredAt);
 
         return await App.TransactionAsync(async (connection, transaction) =>
         {

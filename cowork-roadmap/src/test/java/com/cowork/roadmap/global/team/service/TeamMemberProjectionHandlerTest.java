@@ -60,19 +60,19 @@ class TeamMemberProjectionHandlerTest {
 
     static Stream<TeamMemberEvent> invalidEvents() {
         return Stream.of(null,
-                new TeamMemberEvent(null, 1L, 2L, "MEMBER", "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", null, 2L, "MEMBER", "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 0L, 2L, "MEMBER", "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, null, "MEMBER", "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, 0L, "MEMBER", "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, 2L, null, "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, 2L, "GUEST", "team", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, 2L, "MEMBER", null, OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, 2L, "MEMBER", " ", OCCURRED_AT),
-                new TeamMemberEvent("UPSERT", 1L, 2L, "MEMBER", "team", null));
+                new TeamMemberEvent(null, 1L, 2L, "MEMBER", "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", null, 2L, "MEMBER", "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 0L, 2L, "MEMBER", "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, null, "MEMBER", "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, 0L, "MEMBER", "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, 2L, null, "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, 2L, "GUEST", "team", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, 2L, "MEMBER", null, OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, 2L, "MEMBER", " ", OCCURRED_AT, null),
+                new TeamMemberEvent("UPSERT", 1L, 2L, "MEMBER", "team", null, null));
     }
 
     private static TeamMemberEvent event(String eventType) {
-        return new TeamMemberEvent(eventType, 1L, 2L, "MEMBER", "team", OCCURRED_AT);
+        return new TeamMemberEvent(eventType, 1L, 2L, "MEMBER", "team", OCCURRED_AT, null);
     }
 }

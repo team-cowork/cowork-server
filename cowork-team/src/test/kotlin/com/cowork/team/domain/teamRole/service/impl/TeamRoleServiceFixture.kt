@@ -11,6 +11,7 @@ import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
 import com.cowork.team.domain.teamRole.service.support.TeamRoleLookupSupport
 import com.cowork.team.global.policy.PermissionKeys
+import com.cowork.team.global.policy.TeamAccessProjection
 import io.mockk.every
 import io.mockk.mockk
 
@@ -21,13 +22,15 @@ class TeamRoleServiceFixture {
     val membershipDirectory: MembershipDirectory = mockk()
     val roleReader: TeamRoleProjectionReader = mockk()
     val commandSubmission: TeamRoleCommandSubmission = mockk()
-    val guard = TeamRoleAccessGuard(teamDirectory, membershipDirectory, roleReader)
+    val access = mockk<TeamAccessProjection>()
+    val guard = TeamRoleAccessGuard(teamDirectory, membershipDirectory, access, roleReader)
     val lookup = TeamRoleLookupSupport(roleReader)
     val accepted = TeamRoleOperationResponse("operation-1", TeamRoleOperationStatus.PENDING)
 
     init {
         every { teamDirectory.lock(TEAM_ID) } returns team
         every { membershipDirectory.exists(TEAM_ID, any()) } returns true
+        every { access.permissions(TEAM_ID, any()) } returns emptySet()
         every { roleReader.findRole(TEAM_ID, any()) } returns null
         every {
             commandSubmission.submit(any(), any(), any(), any(), any(), any(), any(), any())
@@ -38,6 +41,8 @@ class TeamRoleServiceFixture {
     }
 
     fun givenOwner() {
+        every { access.permissions(TEAM_ID, OWNER_ID) } returns
+            setOf("manage_roles", "administrator", "transfer_team_ownership")
         every { roleReader.getMemberRoles(TEAM_ID, OWNER_ID) } returns
             listOf(
                 role(
@@ -54,6 +59,7 @@ class TeamRoleServiceFixture {
         priority: Int = MANAGER_PRIORITY,
         permissions: Map<String, Boolean> = mapOf(PermissionKeys.MANAGE_ROLES to true),
     ) {
+        every { access.permissions(TEAM_ID, MANAGER_ID) } returns permissions.filterValues { it }.keys
         every { roleReader.getMemberRoles(TEAM_ID, MANAGER_ID) } returns
             listOf(role(id = 99L, priority = priority, permissions = permissions))
     }

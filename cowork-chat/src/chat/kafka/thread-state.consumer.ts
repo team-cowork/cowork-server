@@ -5,10 +5,9 @@ import {
 	OnModuleInit,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
@@ -103,7 +102,7 @@ export function threadSocketEvent(state: ThreadState, {applied, previous}: Threa
 @injectable()
 export class ThreadStateConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(ThreadStateConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 	private io?: Server;
 
 	constructor(
@@ -140,16 +139,14 @@ export class ThreadStateConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({clientId: 'cowork-chat-thread-state', ...getKafkaClientConfig(this.config)});
 		const stream = PROJECTION_STREAMS.thread;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.readiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.config, clientId: 'cowork-chat-thread-state', readiness: this.readiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

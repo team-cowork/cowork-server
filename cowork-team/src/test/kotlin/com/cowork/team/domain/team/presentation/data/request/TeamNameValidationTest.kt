@@ -9,7 +9,7 @@ class TeamNameValidationTest :
     DescribeSpec({
         val validator = Validation.buildDefaultValidatorFactory().validator
 
-        fun createErrors(name: String) = validator.validate(CreateTeamRequest(name, null, null)).map { it.message }
+        fun createErrors(name: String) = validator.validate(CreateTeamRequest(name, null)).map { it.message }
 
         fun updateErrors(name: String?) = validator.validate(UpdateTeamRequest(name, null, null)).map { it.message }
 
@@ -82,7 +82,7 @@ class TeamNameValidationTest :
 
             it("앞뒤 공백을 제거하고 가운데 공백은 유지한다") {
                 listOf(" 개발  팀 ", "\t개발  팀\n", "\u00A0\u3000개발  팀\u3000\u00A0").forEach { name ->
-                    CreateTeamRequest(name, null, null).name shouldBe "개발  팀"
+                    CreateTeamRequest(name, null).name shouldBe "개발  팀"
                     UpdateTeamRequest(name, null, null).name shouldBe "개발  팀"
                 }
             }

@@ -5,14 +5,13 @@ namespace CoworkUser.Platform;
 
 public static class Json
 {
-    // Jason, the previous encoder, wrote non-ASCII text without \u escapes.
-    public static readonly JsonSerializerOptions Api = new()
+    // Stored command hashes depend on the encoded bytes, including how non-ASCII text is written.
+    static readonly JsonSerializerOptions Event = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    public static readonly JsonSerializerOptions Api = new(Event)
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
-
-    public static readonly JsonSerializerOptions Event = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     public static string Encode(object value) => JsonSerializer.Serialize(value, Event);
 
@@ -75,10 +74,9 @@ public static class Json
     public static string? GetString(this JsonElement element, string name) =>
         element.Get(name) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
 
-    /// <summary>The first non-null value among the given keys, like `Map.get(a) || Map.get(b)`.</summary>
-    public static JsonElement? GetEither(this JsonElement element, string camel, string? snake) =>
+    /// <summary>The first non-null value among the given keys.</summary>
+    public static JsonElement? GetEither(this JsonElement element, string camel, string snake) =>
         element.Get(camel) is { ValueKind: not JsonValueKind.Null } value ? value
-        : snake is null ? null
         : element.Get(snake) is { ValueKind: not JsonValueKind.Null } other ? other : null;
 
     /// <summary>A JSON integer (no fraction or exponent) that fits in a long.</summary>

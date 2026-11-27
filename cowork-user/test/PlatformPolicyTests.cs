@@ -55,24 +55,31 @@ public class HttpPolicyTests
         Assert.Equal("유효한 ids가 없습니다.", Assert.Throws<ApiError>(() => Router.ParseIds("a,0")).Message);
     }
 
-    [Fact]
-    public void Iso8601_keeps_the_fraction_precision_it_was_given()
+    [Theory]
+    [InlineData("2026-10-18T10:00:00+09:00", "2026-10-18T01:00:00.000000Z")]
+    [InlineData("2026-10-18T10:00:00.5+09:00", "2026-10-18T01:00:00.500000Z")]
+    [InlineData("2026-10-18T10:00:00.123456789+09:00", "2026-10-18T01:00:00.123456Z")]
+    public void Timestamps_are_normalized_to_utc_microseconds(string input, string expected)
     {
-        Assert.True(Iso8601.TryParse("2026-10-18T10:00:00.5+09:00", out var parsed, out var precision));
-        Assert.Equal("2026-10-18T01:00:00.5Z", Iso8601.Format(parsed, precision));
-        Assert.False(Iso8601.TryParse("2026-10-18T10:00:00", out _, out _));
-        Assert.True(Iso8601.TryParse("2026-10-18 10:00:00", out var naive, out _, assumeUtc: true));
+        Assert.True(Iso8601.TryParse(input, out var parsed));
+        Assert.Equal(expected, Iso8601.Format(parsed));
+    }
+
+    [Fact]
+    public void Timestamps_without_an_offset_require_an_explicit_utc_default()
+    {
+        Assert.False(Iso8601.TryParse("2026-10-18T10:00:00", out _));
+        Assert.True(Iso8601.TryParse("2026-10-18 10:00:00", out var naive, assumeUtc: true));
         Assert.Equal(new DateTime(2026, 10, 18, 10, 0, 0, DateTimeKind.Utc), naive);
-        Assert.Equal("2026-10-18T01:00:00.000000Z", Iso8601.Format(parsed.AddTicks(-5_000_000)));
     }
 
     [Fact]
     public void Iso8601_rejects_zone_offsets_outside_23_59()
     {
-        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+99:99", out _, out _));
-        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+24:00", out _, out _));
-        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+23:60", out _, out _));
-        Assert.True(Iso8601.TryParse("2026-05-01T00:00:00-23:59", out var west, out _));
+        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+99:99", out _));
+        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+24:00", out _));
+        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+23:60", out _));
+        Assert.True(Iso8601.TryParse("2026-05-01T00:00:00-23:59", out var west));
         Assert.Equal(new DateTime(2026, 5, 1, 23, 59, 0, DateTimeKind.Utc), west);
     }
 }

@@ -81,8 +81,11 @@ func NewAuthService(
 	}
 }
 
-// BeginLogin starts a login with DataGSM, the default provider, or with GitHub when it is configured.
+// BeginLogin defaults to GitHub when configured.
 func (s *AuthService) BeginLogin(ctx context.Context, provider, redirectURI string) (string, string, error) {
+	if provider == "" && s.github != nil {
+		provider = ProviderGitHub
+	}
 	switch provider {
 	case "", ProviderDataGSM:
 		return s.login.Begin(ctx, redirectURI, 0)
@@ -111,7 +114,14 @@ func (s *AuthService) AllowsLoginOrigin(origin string) bool {
 	return s.login.AllowsOrigin(origin) || s.github != nil && s.github.AllowsOrigin(origin)
 }
 
-func (s *AuthService) CompleteLogin(ctx context.Context, session string, callback url.Values) (*TokenPair, error) {
+type LoginResult struct {
+	Tokens           *TokenPair
+	AuthorizationURL string
+	Session          string
+}
+
+// CompleteLogin either issues tokens or starts the one-time DataGSM step bound to this GitHub proof.
+func (s *AuthService) CompleteLogin(ctx context.Context, session string, callback url.Values, dataGSMRedirectURI string) (*LoginResult, error) {
 	attempt, err := s.login.take(ctx, session)
 	if err != nil {
 		return nil, err
@@ -129,17 +139,42 @@ func (s *AuthService) CompleteLogin(ctx context.Context, session string, callbac
 		if err != nil {
 			return nil, err
 		}
-		return s.commitIdentityAndIssueSession(ctx, command)
+		tokens, err := s.commitIdentityAndIssueSession(ctx, command)
+		if errors.Is(err, ErrDataGSMLoginRequired) && identity.GSMEmailVerified {
+			if dataGSMRedirectURI == "" {
+				dataGSMRedirectURI = attempt.RedirectURI
+			}
+			location, nextSession, err := s.login.begin(ctx, dataGSMRedirectURI, LoginAttempt{Provider: providerSchoolLogin, GitHubIdentity: identity})
+			if err != nil {
+				return nil, err
+			}
+			return &LoginResult{AuthorizationURL: location, Session: nextSession}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &LoginResult{Tokens: tokens}, nil
 	}
 	userInfo, err := s.login.CompleteAttempt(ctx, attempt, callback)
 	if err != nil {
 		return nil, err
 	}
-	command, err := s.dataGSMCommand(domain.UserIdentityCommandUpsert, userInfo, nil)
+	commandType := domain.UserIdentityCommandUpsert
+	switch {
+	case attempt.Provider == providerSchoolLogin:
+		commandType = domain.UserIdentityCommandSchoolLogin
+	case s.github != nil:
+		commandType = domain.UserIdentityCommandSignIn
+	}
+	command, err := s.dataGSMCommand(commandType, userInfo, nil, attempt.GitHubIdentity)
 	if err != nil {
 		return nil, err
 	}
-	return s.commitIdentityAndIssueSession(ctx, command)
+	tokens, err := s.commitIdentityAndIssueSession(ctx, command)
+	if err != nil {
+		return nil, err
+	}
+	return &LoginResult{Tokens: tokens}, nil
 }
 
 // CompleteLink adds the authenticated login method to the user who started the link attempt.
@@ -166,7 +201,7 @@ func (s *AuthService) CompleteLink(ctx context.Context, userID int64, session st
 		if err != nil {
 			return err
 		}
-		if command, err = s.dataGSMCommand(domain.UserIdentityCommandLink, userInfo, &userID); err != nil {
+		if command, err = s.dataGSMCommand(domain.UserIdentityCommandLink, userInfo, &userID, nil); err != nil {
 			return err
 		}
 	}
@@ -180,14 +215,14 @@ func (s *AuthService) CompleteLink(ctx context.Context, userID int64, session st
 	return nil
 }
 
-func (s *AuthService) completeGitHub(ctx context.Context, attempt LoginAttempt, callback url.Values) (*GitHubIdentity, error) {
+func (s *AuthService) completeGitHub(ctx context.Context, attempt LoginAttempt, callback url.Values) (*domain.GitHubIdentity, error) {
 	if s.github == nil {
 		return nil, loginFailure("provider", ErrAuthenticationRejected)
 	}
 	return s.github.CompleteAttempt(ctx, attempt, callback)
 }
 
-func (s *AuthService) githubCommand(commandType string, identity *GitHubIdentity, accountID *int64) (domain.UserIdentityCommand, error) {
+func (s *AuthService) githubCommand(commandType string, identity *domain.GitHubIdentity, accountID *int64) (domain.UserIdentityCommand, error) {
 	command, err := s.identityCommand(ProviderGitHub, strconv.FormatInt(identity.ID, 10), identity.Name, identity.Email, nil)
 	if err != nil {
 		return command, err
@@ -202,7 +237,7 @@ func (s *AuthService) githubCommand(commandType string, identity *GitHubIdentity
 }
 
 // dataGSMCommand builds the command for a verified DataGSM student.
-func (s *AuthService) dataGSMCommand(commandType string, userInfo *oauth.UserInfo, accountID *int64) (domain.UserIdentityCommand, error) {
+func (s *AuthService) dataGSMCommand(commandType string, userInfo *oauth.UserInfo, accountID *int64, githubIdentity *domain.GitHubIdentity) (domain.UserIdentityCommand, error) {
 	var command domain.UserIdentityCommand
 	if userInfo.ObjectType == nil || *userInfo.ObjectType != "STUDENT" || userInfo.Student == nil {
 		return command, fmt.Errorf("non-student users are not supported")
@@ -237,7 +272,7 @@ func (s *AuthService) dataGSMCommand(commandType string, userInfo *oauth.UserInf
 	if command, err = s.identityCommand(ProviderDataGSM, strconv.FormatInt(userInfo.ID, 10), st.Name, userInfo.Email, student); err != nil {
 		return command, err
 	}
-	command.CommandType, command.AccountID = commandType, accountID
+	command.CommandType, command.AccountID, command.GitHubIdentity = commandType, accountID, githubIdentity
 	if domain.ValidateUserIdentityCommand(command) != nil {
 		return command, ErrAuthenticationRejected
 	}

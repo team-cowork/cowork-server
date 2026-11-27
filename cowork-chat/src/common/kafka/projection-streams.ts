@@ -1,5 +1,3 @@
-import process from 'node:process';
-import {type PartitionOffset} from 'kafkajs';
 import {type ProjectionStreamName} from './projection-dataset.repository.js';
 
 export type ProjectionStream = {
@@ -7,18 +5,14 @@ export type ProjectionStream = {
 	topic: string;
 	groupId: string;
 	expectedSource: string;
-	sourceGeneration: string;
 };
+
+export type PartitionOffset = {partition: number; offset: string};
 
 export type StartupPartitionOffset = {
 	low: string;
 	high: string;
 } & PartitionOffset;
-
-const DEFAULT_SOURCE_GENERATION = process.env.CHAT_PROJECTION_SOURCE_GENERATION ?? '1';
-const sourceGeneration = (name: string): string => (
-	process.env[`CHAT_PROJECTION_${name}_SOURCE_GENERATION`] ?? DEFAULT_SOURCE_GENERATION
-);
 
 export const PROJECTION_STREAMS = {
 	accountPolicy: {
@@ -26,105 +20,90 @@ export const PROJECTION_STREAMS = {
 		topic: 'preference.account-role.state.v1',
 		groupId: 'cowork-chat-account-role-v1-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('ACCOUNT_POLICY'),
 	},
 	meetingNoteAttachment: {
 		name: 'meetingNoteAttachment',
 		topic: 'channel.meeting-note-attachments.state.v1',
 		groupId: 'cowork-chat-meeting-note-attachments-v1-projection',
 		expectedSource: 'cowork-channel',
-		sourceGeneration: sourceGeneration('MEETING_NOTE_ATTACHMENT'),
 	},
 	thread: {
 		name: 'thread',
 		topic: 'channel.thread.state.v1',
 		groupId: 'cowork-chat-thread-state-v1-projection',
 		expectedSource: 'cowork-channel',
-		sourceGeneration: sourceGeneration('THREAD'),
 	},
 	channel: {
 		name: 'channel',
 		topic: 'channel.event.v2',
 		groupId: 'cowork-chat-channel-event-v2-projection',
 		expectedSource: 'cowork-channel',
-		sourceGeneration: sourceGeneration('CHANNEL'),
 	},
 	project: {
 		name: 'project',
 		topic: 'project.event.v2',
 		groupId: 'cowork-chat-project-event-v2-projection',
 		expectedSource: 'cowork-project',
-		sourceGeneration: sourceGeneration('PROJECT'),
 	},
 	dmParticipant: {
 		name: 'dmParticipant',
 		topic: 'channel.dm-participant.state.v1',
 		groupId: 'cowork-chat-dm-participant-v1-projection',
 		expectedSource: 'cowork-channel',
-		sourceGeneration: sourceGeneration('DM_PARTICIPANT'),
 	},
 	projectPermission: {
 		name: 'projectPermission',
 		topic: 'preference.project-access.state.v1',
 		groupId: 'cowork-chat-project-permission-v1-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('PROJECT_PERMISSION'),
 	},
 	projectGithubRepo: {
 		name: 'projectGithubRepo',
 		topic: 'project.github-repo.event',
 		groupId: 'cowork-chat-project-github-repo-event-v1-projection',
 		expectedSource: 'cowork-project',
-		sourceGeneration: sourceGeneration('PROJECT_GITHUB_REPO'),
 	},
 	teamMember: {
 		name: 'teamMember',
 		topic: 'team.member.event',
 		groupId: 'cowork-chat-team-member-event-v1-projection',
 		expectedSource: 'cowork-team',
-		sourceGeneration: sourceGeneration('TEAM_MEMBER'),
 	},
-	teamRole: {
-		name: 'teamRole',
-		topic: 'preference.team-role.state.v2',
-		groupId: 'cowork-chat-team-role-state-v2-projection',
+	teamAccess: {
+		name: 'teamAccess',
+		topic: 'preference.team-access.state.v2',
+		groupId: 'cowork-chat-team-access-state-v2-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('TEAM_ROLE'),
 	},
 	channelAccess: {
 		name: 'channelAccess',
 		topic: 'preference.channel-access.state.v1',
 		groupId: 'cowork-chat-channel-access-state-v1-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('CHANNEL_ACCESS'),
 	},
 	textChannelSetting: {
 		name: 'textChannelSetting',
 		topic: 'preference.text-channel-setting.state.v1',
 		groupId: 'cowork-chat-text-channel-setting-state-v1-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('TEXT_CHANNEL_SETTING'),
 	},
 	teamSetting: {
 		name: 'teamSetting',
 		topic: 'preference.team-setting.state.v1',
 		groupId: 'cowork-chat-team-setting-state-v1-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('TEAM_SETTING'),
 	},
 	webhook: {
 		name: 'webhook',
 		topic: 'preference.webhook.state.v2',
 		groupId: 'cowork-chat-webhook-state-v2-projection',
 		expectedSource: 'cowork-preference',
-		sourceGeneration: sourceGeneration('WEBHOOK'),
 	},
 	userProfile: {
 		name: 'userProfile',
 		topic: 'user.profile.event.v2',
 		groupId: 'cowork-chat-user-profile-event-v2-projection',
 		expectedSource: 'cowork-user',
-		sourceGeneration: sourceGeneration('USER_PROFILE'),
 	},
 } as const satisfies Record<ProjectionStreamName, ProjectionStream>;
 

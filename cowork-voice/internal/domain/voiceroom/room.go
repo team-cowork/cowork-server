@@ -7,16 +7,9 @@ import (
 
 const roomNamePrefix = "voice-"
 
-type NameFormat string
-
-const (
-	NameFormatScoped NameFormat = "scoped"
-)
-
 type ParsedRoomName struct {
 	ChannelID int64
 	SessionID string
-	Format    NameFormat
 }
 
 func Name(channelID int64, sessionID string) string {
@@ -41,6 +34,5 @@ func ParseRoomName(roomName string) (*ParsedRoomName, bool) {
 	return &ParsedRoomName{
 		ChannelID: id,
 		SessionID: sessionPart,
-		Format:    NameFormatScoped,
 	}, true
 }

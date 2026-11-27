@@ -5,12 +5,10 @@ import {
 	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Kafka, Consumer} from 'kafkajs';
 import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
 import {Server} from 'socket.io';
 import {DmParticipant} from '../chat/schema/dm-participant.schema.js';
-import {getKafkaClientConfig} from '../common/config/config.util.js';
 import {parseEventTime} from '../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util.js';
 import {CHANNEL_PERMISSION_STREAMS, PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
@@ -24,12 +22,13 @@ import {
 	PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util.js';
 import {startProjectionConsumer} from '../common/kafka/projection-consumer.js';
+import {type KafkaConsumerHandle} from '../common/kafka/partition-fetcher.js';
 import {DmParticipantEvent} from './event/dm-participant.event.js';
 
 @injectable()
 export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(DmParticipantConsumer.name);
-	private consumer!: Consumer;
+	private consumer?: KafkaConsumerHandle;
 	private io?: Server;
 	private readAccessEvaluator?: (channelId: number, userId: number) => Promise<boolean>;
 	private readableEmitter?: (channelId: number, event: string, payload: unknown) => Promise<void>;
@@ -217,19 +216,14 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-chat-dm-participant',
-			...getKafkaClientConfig(this.configService),
-		});
 		const stream = PROJECTION_STREAMS.dmParticipant;
-		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await startProjectionConsumer({
-			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+		this.consumer = await startProjectionConsumer({
+			logger: this.logger, configService: this.configService, clientId: 'cowork-chat-dm-participant', readiness: this.projectionReadiness, stream,
 			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
 	}
 
 	async onModuleDestroy() {
-		await this.consumer.disconnect();
+		await this.consumer?.close();
 	}
 }

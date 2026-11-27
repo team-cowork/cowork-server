@@ -5,6 +5,7 @@ import com.cowork.team.domain.teamAccess.TeamDirectory
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.global.policy.PermissionKeys
+import com.cowork.team.global.policy.TeamAccessProjection
 import com.cowork.team.support.policyRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -18,21 +19,23 @@ class TeamRoleAccessGuardTest :
     DescribeSpec({
         lateinit var teamDirectory: TeamDirectory
         lateinit var membershipDirectory: MembershipDirectory
+        lateinit var access: TeamAccessProjection
         lateinit var roleReader: TeamRoleProjectionReader
         lateinit var guard: TeamRoleAccessGuard
 
         beforeEach {
             teamDirectory = mockk()
             membershipDirectory = mockk()
+            access = mockk()
             roleReader = mockk()
-            guard = TeamRoleAccessGuard(teamDirectory, membershipDirectory, roleReader)
+            guard = TeamRoleAccessGuard(teamDirectory, membershipDirectory, access, roleReader)
         }
 
         describe("TeamRoleAccessGuard 클래스의 requireManageRoles 메서드는") {
             context("일반 멤버에게 manage_roles 권한이 없으면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { membershipDirectory.exists(1L, 20L) } returns true
-                    every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(priority = 5))
+                    every { access.permissions(1L, 20L) } returns emptySet()
 
                     val error = shouldThrow<ExpectedException> { guard.requireManageRoles(1L, 20L) }
 
@@ -43,6 +46,7 @@ class TeamRoleAccessGuardTest :
             context("일반 멤버에게 manage_roles 권한이 있으면") {
                 it("보유 역할 중 가장 높은 우선순위를 관리 한도로 사용한다") {
                     every { membershipDirectory.exists(1L, 20L) } returns true
+                    every { access.permissions(1L, 20L) } returns setOf("manage_roles")
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(
                         role(priority = 5, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)),
                         role(priority = 9, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)),
@@ -57,7 +61,8 @@ class TeamRoleAccessGuardTest :
 
         it("관리자도 소유자 정책을 일반 역할처럼 부여하거나 변경할 수 없다") {
             val actor = ManageRoleContext(
-                listOf(policyRole(mapOf("administrator" to true))),
+                10,
+                setOf("administrator"),
             )
             val owner = role(Int.MAX_VALUE, mapOf("administrator" to true, "transfer_team_ownership" to true))
             shouldThrow<ExpectedException> { guard.requireCustomRole(owner) }
@@ -70,7 +75,8 @@ class TeamRoleAccessGuardTest :
             context("커스텀 역할 관리자가 자신의 최상위 역할과 같거나 높은 역할을 관리하면") {
                 it("FORBIDDEN으로 거부한다") {
                     val actor = ManageRoleContext(
-                        listOf(role(priority = 10, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true))),
+                        10,
+                        setOf("manage_roles"),
                     )
 
                     val error = shouldThrow<ExpectedException> {
@@ -84,12 +90,8 @@ class TeamRoleAccessGuardTest :
             context("OWNER가 높은 우선순위 역할을 관리하면") {
                 it("우선순위 제한 없이 허용한다") {
                     val actor = ManageRoleContext(
-                        listOf(
-                            policyRole(
-                                mapOf("administrator" to true, "transfer_team_ownership" to true),
-                                Int.MAX_VALUE,
-                            ),
-                        ),
+                        Int.MAX_VALUE,
+                        setOf("administrator", "transfer_team_ownership"),
                     )
 
                     guard.requireManageablePriority(actor, role(priority = 100))
