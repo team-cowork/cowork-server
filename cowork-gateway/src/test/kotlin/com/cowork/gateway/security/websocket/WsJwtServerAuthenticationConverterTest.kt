@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.websocket
 
+import com.cowork.gateway.security.agent.AgentScope
 import com.cowork.gateway.security.config.JwtProperties
 import com.cowork.gateway.security.jwt.JwtAuthenticationSupport
 import io.jsonwebtoken.Jwts
@@ -66,6 +67,20 @@ class WsJwtServerAuthenticationConverterTest :
                             cookie = "cookie.token.value",
                         ),
                     ).block() shouldBe null
+                }
+            }
+
+            context("agent JWT가 주어지면") {
+                it("헤더와 쿠키 모두 인증하지 않는다") {
+                    val agent = UsernamePasswordAuthenticationToken(
+                        "7",
+                        "agent.token.value",
+                        listOf(AgentScope.AGENT_AUTHORITY, AgentScope.CHAT_READ.authority),
+                    )
+                    every { support.parse("agent.token.value") } returns agent
+
+                    converter.convert(exchange(header = "Bearer agent.token.value")).block() shouldBe null
+                    converter.convert(exchange(cookie = "agent.token.value")).block() shouldBe null
                 }
             }
 

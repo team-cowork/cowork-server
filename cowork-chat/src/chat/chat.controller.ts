@@ -29,6 +29,7 @@ import {
 } from '../common/decorator/user.decorator.js';
 import {throttle} from '../common/decorator/throttle.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
+import {AGENT_REQUEST_HEADER} from '../common/util/request-context.util.js';
 import {ObjectIdPipe} from '../common/pipe/object-id.pipe.js';
 import {ChatService} from './chat.service.js';
 import {AttachmentDownloadService} from './service/attachment-download.service.js';
@@ -173,7 +174,7 @@ export class ChatController {
 	})
 	@apiOperation({summary: '메시지 전송 요청', description: 'queued가 true이면 요청을 접수한 상태입니다. 메시지는 비동기로 처리합니다.'})
 	@apiEnvelopeResponse(201, '요청 처리 성공', SendMessageResponseDto)
-	@apiEnvelopeResponse(403, '메시지 읽기/작성 권한 없음, 답글의 thread_reply 또는 첨부의 file_attach 권한 없음, DM 수신자가 차단함')
+	@apiEnvelopeResponse(403, '메시지 읽기/작성 권한 없음, 답글의 thread_reply 또는 첨부의 file_attach 권한 없음, DM 수신자가 차단함, 에이전트 토큰으로 threadId 없이 보냄')
 	@apiEnvelopeResponse(429, '메시지 전송 요청이 너무 많음')
 	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	@apiEnvelopeResponse(404, '채널 또는 답장 대상 메시지 없음')
@@ -181,8 +182,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SendMessageDto,
 		@currentUserId() userId: number,
+		@requestHeader(AGENT_REQUEST_HEADER) agentHeader?: string,
 	): Promise<SendMessageResponseDto> {
-		await this.chatService.sendMessage({channelId, userId}, dto);
+		await this.chatService.sendMessage({channelId, userId}, dto, agentHeader === 'true');
 		return {queued: true};
 	}
 

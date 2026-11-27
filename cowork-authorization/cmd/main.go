@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -156,13 +158,20 @@ func main() {
 	}()
 
 	authHandler := handler.NewAuthHandler(authSvc)
+	agentTokenHandler := handler.NewAgentTokenHandler(
+		service.NewAgentTokenService(repository.NewAgentTokenRepository(db), tokenSvc),
+	)
 	eventHandler := handler.NewEventHandler(eventSvc)
 
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{healthPath, healthTrailingPath, metricsPath, metricsTrailingPath},
 	}))
-	router.Use(gin.Recovery())
+	// gin.Recovery's request dump masks only Authorization, so it would log X-Cowork-Agent-Token in plain text.
+	router.Use(gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, rec any) {
+		slog.Error("Panic recovered", "panic", rec, "stack", string(debug.Stack()))
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 	router.Use(monitoring.HTTPMetricsMiddleware())
 
 	router.GET(healthPath, handler.Health)
@@ -179,6 +188,10 @@ func main() {
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
 		auth.POST("/link/authorize", handler.RequireUserID(), authHandler.LinkAuthorize)
 		auth.POST("/link/callback", handler.RequireUserID(), authHandler.LinkCallback)
+		auth.POST("/agent-tokens", handler.RequireUserID(), agentTokenHandler.Create)
+		auth.GET("/agent-tokens", handler.RequireUserID(), agentTokenHandler.List)
+		auth.DELETE("/agent-tokens/:id", handler.RequireUserID(), agentTokenHandler.Revoke)
+		auth.POST("/agent-tokens/exchange", agentTokenHandler.Exchange)
 	}
 
 	events := router.Group("/events")

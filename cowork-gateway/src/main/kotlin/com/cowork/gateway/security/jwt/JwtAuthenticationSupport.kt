@@ -1,10 +1,14 @@
 package com.cowork.gateway.security.jwt
 
+import com.cowork.gateway.security.agent.AgentScope
 import com.cowork.gateway.security.config.JwtProperties
+import io.jsonwebtoken.Claims
+import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
+import org.springframework.security.core.GrantedAuthority
 import org.springframework.stereotype.Component
 import java.nio.charset.StandardCharsets
 
@@ -27,8 +31,21 @@ class JwtAuthenticationSupport(private val jwtProperties: JwtProperties) {
             .parseSignedClaims(token)
             .payload
 
-        val auth = UsernamePasswordAuthenticationToken(claims.subject, token, emptyList())
+        val auth = UsernamePasswordAuthenticationToken(claims.subject, token, authorities(claims))
         auth.details = claims.expiration?.let { mapOf("expiresAt" to it.toInstant().epochSecond.toString()) }
         return auth
+    }
+
+    // 용도 claim이 없는 로그인 JWT는 권한 없이 사용자 전체 세션으로 인증한다.
+    private fun authorities(claims: Claims): List<GrantedAuthority> = when (claims[AgentScope.TOKEN_USE_CLAIM]) {
+        null -> emptyList()
+
+        AgentScope.AGENT_TOKEN_USE -> {
+            val scopes = AgentScope.parse(claims[AgentScope.SCOPE_CLAIM] as? String)
+                ?: throw JwtException("Agent JWT has a missing or unknown scope")
+            listOf(AgentScope.AGENT_AUTHORITY) + scopes.map { it.authority }
+        }
+
+        else -> throw JwtException("JWT has an unknown token_use")
     }
 }
