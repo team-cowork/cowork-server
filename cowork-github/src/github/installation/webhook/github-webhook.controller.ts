@@ -330,9 +330,17 @@ export class GithubWebhookController {
 	}): Promise<PullRequestFileState[] | undefined> {
 		const {owner, repo, number, action, isBaseChanged} = parameters;
 		if (!isBaseChanged && !PR_FILE_REFRESH_ACTIONS.has(action)) {
-			const cached = await this.redis.get(githubCacheKeys.pullRequestFiles(owner, repo, number));
-			if (cached !== null) {
-				return JSON.parse(cached) as PullRequestFileState[];
+			try {
+				const cached = await this.redis.get(githubCacheKeys.pullRequestFiles(owner, repo, number));
+				if (cached !== null) {
+					return JSON.parse(cached) as PullRequestFileState[];
+				}
+			} catch (error) {
+				this.logger.warn(
+					`Failed to read cached pull request files, sending state without files [pr=${owner}/${repo}#${number}]`,
+					error instanceof Error ? error.stack : String(error),
+				);
+				return undefined;
 			}
 		}
 
