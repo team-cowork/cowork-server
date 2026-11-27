@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -165,7 +167,11 @@ func main() {
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{healthPath, healthTrailingPath, metricsPath, metricsTrailingPath},
 	}))
-	router.Use(gin.Recovery())
+	// gin.Recovery's request dump masks only Authorization, so it would log X-Cowork-Agent-Token in plain text.
+	router.Use(gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, rec any) {
+		slog.Error("Panic recovered", "panic", rec, "stack", string(debug.Stack()))
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 	router.Use(monitoring.HTTPMetricsMiddleware())
 
 	router.GET(healthPath, handler.Health)
