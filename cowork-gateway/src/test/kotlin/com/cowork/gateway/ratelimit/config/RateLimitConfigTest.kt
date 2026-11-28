@@ -1,9 +1,9 @@
 package com.cowork.gateway.ratelimit.config
 
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.collections.shouldHaveAtMostSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldMatch
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
 import java.net.InetSocketAddress
@@ -35,8 +35,8 @@ class RateLimitConfigTest :
                     keyFor(token) shouldNotBe keyFor("cwa_" + "b".repeat(64))
                 }
 
-                it("무작위 토큰이 많아도 키 수는 65,536개를 넘지 않는다") {
-                    (1..100_000).map { keyFor(randomToken()) }.toSet() shouldHaveAtMostSize 65_536
+                it("무작위 토큰도 해시 앞 4자리 형식의 키를 만든다") {
+                    repeat(5) { keyFor(randomToken()) shouldMatch Regex("^agent-token:[0-9a-f]{4}$") }
                 }
             }
 
