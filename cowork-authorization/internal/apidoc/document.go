@@ -8,7 +8,7 @@ func Document() *openapi3.T {
 		OpenAPI: "3.2.1",
 		Info: &openapi3.Info{
 			Title:       "cowork Authorization API",
-			Version:     "20261122.0",
+			Version:     "20261129.0",
 			Description: "DataGSM 또는 GitHub 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.",
 		},
 		Servers: openapi3.Servers{{URL: "/api/authorization", Description: "Gateway"}},
