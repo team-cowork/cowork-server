@@ -13,5 +13,6 @@ interface GithubIssueProjectionRepository : JpaRepository<GithubIssueProjection,
         repo: String,
         state: String,
     ): List<GithubIssueProjection>
+    fun existsByOwnerAndRepoAndNumberAndDeletedTrue(owner: String, repo: String, number: Int): Boolean
     fun findByOwnerAndRepoAndNumber(owner: String, repo: String, number: Int): GithubIssueProjection?
 }

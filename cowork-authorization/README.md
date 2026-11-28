@@ -2,9 +2,11 @@
 
 ## 역할
 
-DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
+DataGSM/GitHub 로그인과 인증 토큰/로그인 세션을 관리합니다.
 
 - OAuth2 PKCE·OIDC 로그인과 cowork JWT 발급/갱신/로그아웃
+- GitHub OAuth 로그인, 검증된 학교 이메일이 있는 계정의 DataGSM 연결, 기존 계정의 로그인 수단 연결
+- AI 코딩 에이전트 전용 토큰 발급·조회·폐기와 scope를 담은 액세스 JWT 교환
 - 고정 개발 계정 로그인. 클라이언트는 Gateway에 `X-Dev-Credential` 헤더를 보내고 요청 본문에 `id`와 `password`를 보냅니다.
 - 사용자 계정·프로필 소유 서비스인 cowork-user에 로그인 정보 동기화 요청
 - DataGSM 사용자 변경 웹훅의 원자 접수·outbox 전달, Redis 대기열 소비와 온라인·오프라인 상태 발행
@@ -38,6 +40,9 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 | `DEV_SIGNIN_ACCOUNTS` | 개발 계정 JSON 객체. 키 `dev-1`부터 `dev-4`까지 각각에 문자열 `id`, `password`를 설정합니다. 키를 유지하면 자격증명을 바꿔도 계정이 유지됩니다. |
 | `DATAGSM_CLIENT_ID`                                           | OAuth client ID                                                                                                                               |
 | `DATAGSM_REDIRECT_URIS`                                       | 필수. DataGSM에 등록된 웹·모바일·데스크탑 콜백 URL을 쉼표로 구분한 허용 목록. |
+| `GITHUB_LOGIN_CLIENT_ID` | 선택. GitHub OAuth App client ID. 세 `GITHUB_LOGIN_*` 값을 모두 설정해야 GitHub 로그인을 사용할 수 있습니다. |
+| `GITHUB_LOGIN_CLIENT_SECRET` | 선택. GitHub OAuth App client secret. |
+| `GITHUB_LOGIN_REDIRECT_URIS` | 선택. GitHub OAuth App에 등록된 콜백 URL을 쉼표로 구분한 허용 목록. |
 | `DATAGSM_AUTHORIZATION_BASE_URL`                              | 선택. 기본값 `https://oauth.authorization.datagsm.kr` |
 | `DATAGSM_RESOURCE_BASE_URL`                                   | 선택. 기본값 `https://oauth.resource.datagsm.kr` |
 | `JWT_SECRET`                                                  | JWT 서명 키                                                                                                                                      |

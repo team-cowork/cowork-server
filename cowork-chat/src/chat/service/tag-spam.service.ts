@@ -2,11 +2,13 @@ import {
 	BadRequestException,
 	HttpException,
 	HttpStatus,
+	ServiceUnavailableException,
 	Injectable as injectable,
 	Inject as inject,
 } from '@nestjs/common';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {RedisRateLimiter, type WeightedReservation} from '../../common/util/redis-rate-limiter.js';
-import {TeamMemberProjectionRepository, TeamRoleProjectionRepository, TeamSettingProjectionRepository} from '../repository/index.js';
+import {TeamMemberProjectionRepository, TeamAccessProjectionRepository, TeamSettingProjectionRepository} from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {parseMentions} from '../util/index.js';
 
@@ -37,6 +39,9 @@ export function decideTagSpam(input: {
 @injectable()
 export class TagSpamService {
 	@inject()
+	private readonly readiness!: ProjectionReadinessService;
+
+	@inject()
 	private readonly settingRepository!: TeamSettingProjectionRepository;
 
 	@inject()
@@ -46,7 +51,7 @@ export class TagSpamService {
 	private readonly rateLimiter!: RedisRateLimiter;
 
 	@inject()
-	private readonly roleRepository!: TeamRoleProjectionRepository;
+	private readonly teamAccessRepository!: TeamAccessProjectionRepository;
 
 	/**
      태그 스팸 차단이 켜진 팀에서 멘션 수를 `clientMessageId`로 예약하고, 전송이 실패하면 {@link release}에 넘길 예약을 돌려준다.
@@ -66,12 +71,24 @@ export class TagSpamService {
 		}
 
 		const mentionCount = parseMentions(content).length;
-		if (mentionCount === 0 || !await this.settingRepository.isTagSpamBlockEnabled(teamId)) {
+		if (mentionCount === 0) {
 			return undefined;
 		}
 
+		if (!this.readiness.areReady(['teamSetting'])) {
+			throw new ServiceUnavailableException('팀 설정을 동기화하고 있습니다.');
+		}
+
+		if (!await this.settingRepository.isTagSpamBlockEnabled(teamId)) {
+			return undefined;
+		}
+
+		if (!this.readiness.areReady(['teamMember', 'teamAccess'])) {
+			throw new ServiceUnavailableException('팀 권한을 동기화하고 있습니다.');
+		}
+
 		const [member] = await this.teamMemberRepository.findByTeamIdsAndUserIds([teamId], [userId]);
-		const isAdministrator = member !== undefined && await this.roleRepository.hasAdministratorPolicy(teamId, userId);
+		const isAdministrator = member !== undefined && await this.teamAccessRepository.hasAdministratorPolicy(teamId, userId, member.authorizationVersion);
 		const decision = decideTagSpam({tagSpamBlock: true, isAdministrator, mentionCount});
 		if (decision === 'SKIP') {
 			return undefined;

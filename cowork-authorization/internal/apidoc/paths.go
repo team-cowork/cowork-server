@@ -23,8 +23,8 @@ func paths() *openapi3.Paths {
 		),
 	}})
 	paths.Set("/auth/authorize", &openapi3.PathItem{Post: &openapi3.Operation{
-		Summary:     "DataGSM 로그인 시작",
-		Description: "등록된 콜백 URL로 로그인 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.",
+		Summary:     "로그인 시작",
+		Description: "등록된 콜백 URL로 로그인 시도를 생성합니다. provider를 생략하면 GitHub로 시작합니다. GitHub가 설정되지 않은 환경에서는 DataGSM으로 시작합니다. GitHub가 설정된 환경에서 DataGSM 단독 로그인은 이미 연결된 계정만 사용할 수 있습니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.",
 		Tags:        []string{"auth"},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
 			Description: "등록된 콜백 URL",
@@ -35,18 +35,58 @@ func paths() *openapi3.Paths {
 		}},
 		Responses: openapi3.NewResponses(
 			openapi3.WithName("200", cookieResponse("인증 URL 발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse", "일회성 로그인 세션 쿠키(Secure, HttpOnly)")),
-			openapi3.WithName("400", jsonResponse("등록되지 않은 콜백 또는 잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("400", jsonResponse("등록되지 않은 콜백, 사용할 수 없는 공급자 또는 잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("허용하지 않은 출처", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("로그인 시도 저장 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),
 	}})
+	paths.Set("/auth/link/authorize", &openapi3.PathItem{Post: &openapi3.Operation{
+		Summary:     "로그인 수단 연결 시작",
+		Description: "현재 계정에 GitHub 또는 DataGSM 로그인을 연결하는 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/link/callback에 콜백을 전달합니다. 시도는 시작한 사용자만 완료할 수 있고 10분 뒤 만료됩니다.",
+		Tags:        []string{"auth"},
+		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+			Required: true,
+			Content: openapi3.Content{
+				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.LinkStartRequest")},
+			},
+		}},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("200", cookieResponse("인증 URL 발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse", "일회성 연결 세션 쿠키")),
+			openapi3.WithName("400", jsonResponse("등록되지 않은 콜백, 연결할 수 없는 공급자 또는 잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("403", jsonResponse("허용하지 않은 출처", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("연결 시도 저장 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
+	paths.Set("/auth/link/callback", &openapi3.PathItem{Post: &openapi3.Operation{
+		Summary:     "로그인 수단 연결 완료",
+		Description: "연결 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 연결해도 세션과 공통 프로필은 바뀌지 않습니다. DataGSM을 연결하면 학생 정보가 추가됩니다. 다른 계정에 연결된 로그인 수단이나 DataGSM 학생 ID, 같은 공급자가 이미 연결된 계정, 학생 정보가 이미 있는 계정에는 연결할 수 없습니다.",
+		Tags:        []string{"auth"},
+		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+			Required: true,
+			Content: openapi3.Content{
+				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.LinkCallbackRequest")},
+			},
+		}},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("204", openapi3.NewResponse().WithDescription("연결 완료. 응답 본문은 없습니다.")),
+			openapi3.WithName("400", jsonResponse("필수 요청 값이 없거나 형식이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("인증 실패 또는 다른 사용자가 시작한 연결 시도", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("409", jsonResponse("이미 연결된 로그인 수단", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
 	paths.Set("/auth/callback", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "인가 코드로 토큰 발급",
-		Description: "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다.",
+		Description: "각 단계에서 받은 쿠키와 공급자의 콜백을 한 번씩 전달합니다. GitHub가 확인한 gsm.hs.kr 이메일이 있고 DataGSM이 연결되지 않았으면 202 응답의 authorization_url로 이동한 뒤 DataGSM 콜백을 이 경로로 전달합니다. 두 인증을 같은 계정에 연결하면 토큰을 발급합니다. 두 로그인 수단이 서로 다른 계정에 연결되어 있으면 409를 반환합니다.",
 		Tags:        []string{"auth"},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
-			Description: "DataGSM 콜백",
+			Description: "공급자 콜백",
 			Required:    true,
 			Content: openapi3.Content{
 				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.LoginCallbackRequest")},
@@ -54,8 +94,10 @@ func paths() *openapi3.Paths {
 		}},
 		Responses: openapi3.NewResponses(
 			openapi3.WithName("200", cookieResponse("새 토큰 쌍", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair", "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)")),
+			openapi3.WithName("202", cookieResponse("DataGSM 로그인 필요", "internal_handler.AcceptedLoginStartResponse", "DataGSM 콜백에 필요한 일회성 로그인 쿠키")),
 			openapi3.WithName("400", jsonResponse("필수 요청 값이 없거나 형식이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인가 코드 검증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("409", jsonResponse("기존 계정과 충돌하거나 GitHub로 가입해야 함", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),
@@ -103,6 +145,80 @@ func paths() *openapi3.Paths {
 			openapi3.WithName("204", openapi3.NewResponse().WithDescription("로그아웃 완료. 응답 본문은 없습니다.")),
 			openapi3.WithName("400", jsonResponse("필수 요청 값이 없거나 형식이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인증 실패 또는 유효하지 않은 리프레시 토큰", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
+	paths.Set("/auth/agent-tokens", &openapi3.PathItem{
+		Post: &openapi3.Operation{
+			Summary:     "에이전트 토큰 발급",
+			Description: "AI 코딩 에이전트에 줄 토큰을 발급합니다. 토큰 원문은 이 응답에서만 반환합니다. 로그인 액세스 토큰으로만 호출할 수 있습니다.",
+			Tags:        []string{"agent-tokens"},
+			Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+			RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+				Required: true,
+				Content: openapi3.Content{
+					"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.CreateAgentTokenRequest")},
+				},
+			}},
+			Responses: openapi3.NewResponses(
+				openapi3.WithName("200", jsonResponse("발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_IssuedAgentToken")),
+				openapi3.WithName("400", jsonResponse("이름, scope 또는 유효기간이 잘못되었거나 사용 중인 토큰이 이미 20개임", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			),
+		},
+		Get: &openapi3.Operation{
+			Summary:     "에이전트 토큰 목록",
+			Description: "내가 발급한 토큰을 최근 발급 순으로 반환합니다. 폐기한 토큰도 포함합니다. 토큰 원문은 반환하지 않습니다.",
+			Tags:        []string{"agent-tokens"},
+			Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+			Responses: openapi3.NewResponses(
+				openapi3.WithName("200", jsonResponse("조회 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentTokenInfoList")),
+				openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+				openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			),
+		},
+	})
+	paths.Set("/auth/agent-tokens/{id}", &openapi3.PathItem{Delete: &openapi3.Operation{
+		Summary:     "에이전트 토큰 폐기",
+		Description: "폐기한 토큰은 더 이상 교환할 수 없습니다. 이미 교환한 액세스 토큰은 만료될 때까지 유효합니다.",
+		Tags:        []string{"agent-tokens"},
+		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+		Parameters: openapi3.Parameters{
+			{Value: openapi3.NewPathParameter("id").WithSchema(openapi3.NewInt64Schema().WithMin(1))},
+		},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("204", openapi3.NewResponse().WithDescription("폐기 완료. 응답 본문은 없습니다.")),
+			openapi3.WithName("400", jsonResponse("잘못된 토큰 ID", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("403", jsonResponse("에이전트 토큰으로 호출함", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("404", jsonResponse("내 토큰이 아니거나 이미 폐기한 토큰", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
+	paths.Set("/auth/agent-tokens/exchange", &openapi3.PathItem{Post: &openapi3.Operation{
+		Summary:     "에이전트 토큰 교환",
+		Description: "에이전트 토큰을 액세스 토큰으로 교환합니다. 받은 액세스 토큰은 토큰의 scope에 허용된 API만 호출할 수 있고 에이전트 토큰의 만료 시각을 넘지 않습니다. 토큰은 X-Cowork-Agent-Token 헤더로 보내고 Authorization 헤더와 본문 없이 호출합니다. 같은 토큰의 반복 요청은 토큰마다 따로 제한합니다.",
+		Tags:        []string{"agent-tokens"},
+		Parameters: openapi3.Parameters{
+			{Value: &openapi3.Parameter{
+				In:          "header",
+				Name:        "X-Cowork-Agent-Token",
+				Description: "발급 응답의 토큰 원문",
+				Required:    true,
+				Schema:      &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "password"}},
+			}},
+		},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("200", jsonResponse("교환 성공", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_AgentAccessToken")),
+			openapi3.WithName("400", jsonResponse("X-Cowork-Agent-Token 헤더 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("유효하지 않거나 만료되었거나 폐기한 토큰", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),

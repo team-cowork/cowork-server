@@ -11,12 +11,11 @@ async function sleep(ms: number): Promise<void> {
 }
 
 /**
- Kafkajs retries transient broker errors inside `consumer.run()`, but `connect()`/`subscribe()`/
- projection registration run once during `onModuleInit()` with no retry of their own — a broker
- hiccup at that exact moment (e.g. a leader election mid-flight) crashes the whole NestJS bootstrap
- instead of self-healing, which can turn a few seconds of broker instability into a longer
- container restart loop. This gives that one-shot startup sequence the same kind of bounded,
- backing-off retry kafkajs already applies to the steady-state consumer loop.
+ The fetch loop retries transient broker errors on its own, but group join and projection
+ registration run once during `onModuleInit()` with no retry of their own — a broker hiccup at
+ that exact moment (e.g. a leader election mid-flight) crashes the whole NestJS bootstrap instead
+ of self-healing, which can turn a few seconds of broker instability into a longer container
+ restart loop. This gives that one-shot startup sequence a bounded, backing-off retry.
  */
 export async function connectWithRetry<T>(
 	logger: Logger,

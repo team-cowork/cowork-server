@@ -3,11 +3,14 @@ package com.cowork.team.global.exception
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.ErrorResponse
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 import team.themoment.sdk.exception.ExpectedException
 import team.themoment.sdk.logging.logger.logger
 import team.themoment.sdk.response.CommonApiResponse
@@ -45,6 +48,19 @@ class AdditionalExceptionHandler {
         HttpStatus.BAD_REQUEST,
     ).body(CommonApiResponse.error("필수 파라미터 '${e.parameterName}'이(가) 누락되었습니다.", HttpStatus.BAD_REQUEST))
 
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResourceFound(e: NoResourceFoundException): ResponseEntity<CommonApiResponse<Nothing>> =
+        ResponseEntity.status(
+            HttpStatus.NOT_FOUND,
+        ).body(CommonApiResponse.error("요청한 API를 찾을 수 없습니다.", HttpStatus.NOT_FOUND))
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun handleHttpRequestMethodNotSupported(
+        e: HttpRequestMethodNotSupportedException,
+    ): ResponseEntity<CommonApiResponse<Nothing>> = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+        .allow(*e.supportedHttpMethods.orEmpty().toTypedArray())
+        .body(CommonApiResponse.error("지원하지 않는 HTTP 메서드입니다.", HttpStatus.METHOD_NOT_ALLOWED))
+
     @ExceptionHandler(ExpectedException::class)
     fun handleExpected(e: ExpectedException): ResponseEntity<CommonApiResponse<Nothing>> = ResponseEntity.status(
         e.statusCode,
@@ -52,6 +68,15 @@ class AdditionalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<CommonApiResponse<Nothing>> {
+        val status = (e as? ErrorResponse)?.let { HttpStatus.resolve(it.statusCode.value()) }
+        if (e is ErrorResponse && status != null) {
+            if (status.is5xxServerError) {
+                logger().error("Failed to process an HTTP request", e)
+            }
+            return ResponseEntity.status(status)
+                .headers(e.headers)
+                .body(CommonApiResponse.error("요청을 처리할 수 없습니다.", status))
+        }
         logger().error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(
             CommonApiResponse.error("서버 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR),

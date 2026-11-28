@@ -79,6 +79,9 @@ class KafkaConsumerConfig(
     fun teamLifecycleListenerContainerFactory() = listenerContainerFactory(projectionStreams.teamLifecycle)
 
     @Bean
+    fun teamAccessListenerContainerFactory() = listenerContainerFactory(projectionStreams.teamAccess)
+
+    @Bean
     fun preferenceTeamRoleChangedListenerContainerFactory() = listenerContainerFactory(projectionStreams.teamRole)
 
     @Bean
@@ -87,6 +90,9 @@ class KafkaConsumerConfig(
 
     @Bean
     fun projectAccessStateListenerContainerFactory() = listenerContainerFactory(projectionStreams.projectAccess)
+
+    @Bean
+    fun channelAccessStateListenerContainerFactory() = listenerContainerFactory(projectionStreams.channelAccess)
 
     @Bean
     fun channelRolePolicyCommandResultListenerContainerFactory() =

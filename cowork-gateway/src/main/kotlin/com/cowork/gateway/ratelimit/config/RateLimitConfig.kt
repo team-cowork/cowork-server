@@ -1,6 +1,7 @@
 package com.cowork.gateway.ratelimit.config
 
 import com.cowork.gateway.ratelimit.limiter.ObservedRedisRateLimiter
+import com.cowork.gateway.security.filter.AuthHeaderMutatingFilter
 import com.cowork.gateway.webhook.WebhookUrlSignatureVerifier
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.annotation.Qualifier
@@ -15,12 +16,16 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.script.RedisScript
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.HexFormat
 
 @Configuration
 class RateLimitConfig {
 
     // 자동 구성의 redisRateLimiter(@ConditionalOnMissingBean)를 대체하며 redis-rate-limiter.* 라우트 설정을 그대로 받는다
     @Bean
+    @Primary
     fun redisRateLimiter(
         redisTemplate: ReactiveStringRedisTemplate,
         @Qualifier(RedisRateLimiter.REDIS_SCRIPT_NAME) script: RedisScript<List<Long>>,
@@ -39,6 +44,51 @@ class RateLimitConfig {
     // 요청자를 구분할 수 없는 미인증 라우트에 전체 상한을 두는 용도
     @Bean
     fun anonymousKeyResolver(): KeyResolver = KeyResolver { Mono.just("anonymous") }
+
+    /**
+     * 에이전트 토큰 교환의 토큰별 버킷 키. 토큰 원문은 Redis 키에 남지 않는다.
+     * - Authorization이 발급하는 형식(`cwa_` + 소문자 hex 64자)이 아니거나 헤더가 없는 요청은 버킷 하나를 같이 쓴다.
+     *   Authorization이 모두 거부할 요청이므로 Redis 상태를 늘리지 않고 전체 상한도 거의 쓰지 못한다.
+     * - 형식이 맞는 토큰은 SHA-256 해시 앞 4자리로 버킷을 정한다. 존재하지 않는 토큰을 gateway에서 가려낼 수 없으므로
+     *   버킷 수를 65,536개로 묶어 무작위 토큰 수에 비례해 Redis 상태가 늘지 않게 한다. 서로 다른 토큰이 드물게 버킷을 같이 쓴다.
+     *
+     * 한계: 형식이 맞는 무작위 토큰이 몰리면 [agentTokenExchangeGlobalRateLimiter]의 전체 상한에 걸려 정상 교환도 429를 받을 수 있다.
+     * 입구 프록시가 실제 발신 주소를 넘기지 않는 동안에는 요청자별로 막을 방법이 없다.
+     */
+    @Bean
+    fun agentTokenExchangeKeyResolver(): KeyResolver = KeyResolver { exchange ->
+        val token = exchange.request.headers.getFirst(AuthHeaderMutatingFilter.AGENT_TOKEN_HEADER)
+        Mono.just(
+            if (token != null && AGENT_TOKEN_FORMAT.matches(token)) {
+                "agent-token:${sha256Hex(token).take(AGENT_TOKEN_BUCKET_HEX_LENGTH)}"
+            } else {
+                "agent-token:invalid"
+            },
+        )
+    }
+
+    /**
+     * 에이전트 토큰 교환 라우트의 전체 상한. 토큰별 버킷 뒤에 두어 과부하 보호에만 쓴다.
+     * 같은 라우트의 토큰별 한도와 섞이지 않게 라우트 인자 대신 이 값을 고정한다.
+     */
+    @Bean
+    fun agentTokenExchangeGlobalRateLimiter(
+        redisTemplate: ReactiveStringRedisTemplate,
+        @Qualifier(RedisRateLimiter.REDIS_SCRIPT_NAME) script: RedisScript<List<Long>>,
+        configurationService: ConfigurationService,
+        meterRegistry: MeterRegistry,
+    ): RedisRateLimiter = ObservedRedisRateLimiter(
+        redisTemplate,
+        script,
+        configurationService,
+        meterRegistry,
+        mapOf(
+            AuthHeaderMutatingFilter.AGENT_TOKEN_EXCHANGE_ROUTE_ID to RedisRateLimiter.Config()
+                .setReplenishRate(AGENT_TOKEN_EXCHANGE_GLOBAL_REPLENISH_RATE)
+                .setBurstCapacity(AGENT_TOKEN_EXCHANGE_GLOBAL_BURST_CAPACITY)
+                .setRequestedTokens(1),
+        ),
+    )
 
     /**
      * Rate Limiting 키 전략:
@@ -61,5 +111,20 @@ class RateLimitConfig {
             val ip = exchange.request.remoteAddress?.address?.hostAddress ?: "unknown"
             Mono.just(ip)
         }
+    }
+
+    companion object {
+        // 로그인 시작/코드 교환/토큰 갱신의 전체 상한(authorization-token 라우트)과 같은 값이다.
+        // 교환은 색인 조회 한 번, 갱신 한 번, HMAC 서명 한 번이라 로그인보다 가볍다.
+        private const val AGENT_TOKEN_EXCHANGE_GLOBAL_REPLENISH_RATE = 50
+        private const val AGENT_TOKEN_EXCHANGE_GLOBAL_BURST_CAPACITY = 200L
+
+        // Authorization의 GenerateAgentToken 형식과 같다
+        private val AGENT_TOKEN_FORMAT = Regex("^cwa_[0-9a-f]{64}$")
+        private const val AGENT_TOKEN_BUCKET_HEX_LENGTH = 4
+
+        private fun sha256Hex(value: String): String = HexFormat.of().formatHex(
+            MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8)),
+        )
     }
 }

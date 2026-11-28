@@ -61,11 +61,12 @@ public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, K
                 {
                     Run(() => RunActionConsumer(config.KafkaTopic, config.KafkaGroupId,
                         record => SyncHandler.HandleAsync(config.KafkaGroupId, record, logger), running.Token)),
-                    Run(() => RunActionConsumer(config.KafkaIdentityCommandTopic, config.KafkaIdentityCommandGroupId,
-                        record => IdentityCommand.HandleAsync(config.KafkaIdentityCommandGroupId, config.KafkaIdentityCommandResultTopic, record, logger),
+                    // Drain commands from older authorization replicas and their durable outboxes.
+                    Run(() => RunActionConsumer(AppConfig.LegacyProviderCommandTopic, AppConfig.LegacyProviderCommandGroup,
+                        record => IdentityCommand.HandleAsync(AppConfig.LegacyProviderCommandGroup, AppConfig.ProviderResultTopic, record, logger),
                         running.Token)),
                     Run(() => RunActionConsumer(AppConfig.ProviderCommandTopic, AppConfig.ProviderCommandGroup,
-                        record => IdentityCommand.HandleAsync(AppConfig.ProviderCommandGroup, AppConfig.ProviderResultTopic, record, logger, providerCommand: true),
+                        record => IdentityCommand.HandleAsync(AppConfig.ProviderCommandGroup, AppConfig.ProviderResultTopic, record, logger),
                         running.Token)),
                     Run(() => RunProjectionConsumer(config.KafkaTeamMemberTopic, config.KafkaTeamMemberGroupId, "cowork-team",
                         "team.member.event", ApplyTeamMember, running.Token)),

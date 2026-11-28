@@ -92,6 +92,7 @@ class ChannelLifecycleServiceTest {
             policyRepository,
             outboxRepository,
             mockk(relaxed = true),
+            mockk(relaxed = true),
         )
 
         init {
@@ -100,6 +101,8 @@ class ChannelLifecycleServiceTest {
                 TEAM_ID,
                 true,
                 deletedEvent.occurredAt,
+                isPrivate = false,
+                channelType = "TEXT",
             )
         }
     }
@@ -115,6 +118,8 @@ class ChannelLifecycleServiceTest {
             teamId = TEAM_ID,
             deleted = true,
             occurredAt = Instant.parse("2026-08-30T01:02:03Z"),
+            isPrivate = false,
+            channelType = "TEXT",
         )
 
         fun activePolicy(roleId: Long) = ChannelRolePolicyState(

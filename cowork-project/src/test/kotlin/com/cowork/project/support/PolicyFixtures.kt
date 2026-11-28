@@ -1,8 +1,8 @@
 package com.cowork.project.support
 
-import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
+import com.cowork.project.global.policy.TeamAccessProjection
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Instant
@@ -26,7 +26,7 @@ fun projectPolicies(userId: Long, vararg projectIds: Long) = mockk<ProjectAccess
     }
 }
 
-fun teamPolicies(userId: Long) = mockk<TeamRolePermissionReader> {
+fun teamPolicies(userId: Long) = mockk<TeamAccessProjection> {
     every { hasPermission(any(), any(), any()) } returns false
     every { hasPermission(100L, userId, "manage_github") } returns true
     every { hasPermission(100L, userId, "manage_projects") } returns true

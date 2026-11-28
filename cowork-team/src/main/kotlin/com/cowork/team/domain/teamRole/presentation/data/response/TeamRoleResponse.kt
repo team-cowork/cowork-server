@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.annotation.Nulls
 import io.swagger.v3.oas.annotations.media.Schema
+import org.springframework.modulith.NamedInterface
 
+@NamedInterface("roles", propagate = false)
 data class TeamRoleResponse(
     @field:Schema(description = "역할 ID", example = "1")
     val id: Long,

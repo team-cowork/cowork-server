@@ -1,11 +1,11 @@
 package com.cowork.project.domain.project.service
 
-import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
+import com.cowork.project.global.policy.TeamAccessProjection
 import com.cowork.project.support.projectPolicy
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -23,7 +23,7 @@ class ProjectAccessGuardTest :
         val project = Project(id = 3L, teamId = 1L, name = "p", description = null, createdBy = 10L)
         val members = mockk<TeamMembershipRepository>()
         val access = mockk<ProjectAccessProjectionRepository>()
-        val teamPermissions = mockk<TeamRolePermissionReader>(relaxed = true)
+        val teamPermissions = mockk<TeamAccessProjection>(relaxed = true)
         val guard = ProjectAccessGuard(mockk(), access, members, mockk(relaxed = true), teamPermissions)
         beforeEach {
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns

@@ -1,13 +1,10 @@
 package com.cowork.team.domain.team.service.impl
 
-import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
-import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.global.config.TeamGithubProperties
 import com.cowork.team.support.policyReader
 import io.mockk.every
@@ -25,8 +22,11 @@ class GenerateGithubInstallUrlServiceImplTest {
     private val teamAccessGuard =
         TeamAccessGuard(
             teamRepository,
-            teamMemberRepository,
-            TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(10L to mapOf("manage_github" to true)))),
+            TeamPermissionGuard(
+                teamMemberRepository,
+                policyReader(1, mapOf(10L to mapOf("manage_github" to true))),
+                mockk(),
+            ),
         )
     private val teamGithubStateSupport = mockk<TeamGithubStateSupport>()
     private val teamGithubProperties = TeamGithubProperties(stateSecret = "secret", appSlug = "my-app")
@@ -34,14 +34,11 @@ class GenerateGithubInstallUrlServiceImplTest {
     private val service =
         GenerateGithubInstallUrlServiceImpl(teamAccessGuard, teamGithubStateSupport, teamGithubProperties)
 
-    private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-
     @Test
     fun `execute는 OWNER_ADMIN이면 설치 URL을 발급한다`() {
-        val ownerMember = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
         every {
-            teamMemberRepository.findByTeamIdAndUserId(1L, 10L)
-        } returns ownerMember
+            teamMemberRepository.existsByTeamIdAndUserId(1L, 10L)
+        } returns true
         every { teamGithubStateSupport.buildState(1L, 10L) } returns "signed-state"
 
         val result = service.execute(10L, 1L)
@@ -52,8 +49,8 @@ class GenerateGithubInstallUrlServiceImplTest {
     @Test
     fun `execute는 일반 MEMBER면 FORBIDDEN`() {
         every {
-            teamMemberRepository.findByTeamIdAndUserId(1L, 42L)
-        } returns null
+            teamMemberRepository.existsByTeamIdAndUserId(1L, 42L)
+        } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(42L, 1L)

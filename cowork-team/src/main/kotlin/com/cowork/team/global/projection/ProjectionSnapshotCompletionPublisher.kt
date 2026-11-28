@@ -3,6 +3,7 @@ package com.cowork.team.global.projection
 import com.cowork.team.global.outbox.OutboxWriter
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.modulith.NamedInterface
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -26,6 +27,7 @@ data class ProjectionSnapshotCompletion(
 }
 
 @Component
+@NamedInterface("projection", propagate = false)
 class ProjectionSnapshotCompletionPublisher(
     @Qualifier("teamGithubDlqKafkaTemplate")
     private val kafkaTemplate: KafkaTemplate<String, Any>,

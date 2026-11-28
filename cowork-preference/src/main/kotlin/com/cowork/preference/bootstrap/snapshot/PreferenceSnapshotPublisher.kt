@@ -2,6 +2,7 @@ package com.cowork.preference.bootstrap.snapshot
 
 import com.cowork.preference.domain.accountrole.AccountRoleRepository
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.notification.event.NotificationEvents
 import com.cowork.preference.domain.notification.repository.NotificationRepository
@@ -12,6 +13,7 @@ import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.repository.PreferenceRepository
 import com.cowork.preference.domain.teamrole.event.TeamRoleEvents
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.repository.WebhookRepository
@@ -31,6 +33,8 @@ import java.util.UUID
 class PreferenceSnapshotPublisher(
     private val projectAccessRepository: ProjectAccessStateRepository,
     private val projectAccessReadiness: ProjectionReadinessView,
+    private val teamAccessRepository: TeamAccessStateRepository,
+    private val channelAccessRepository: ChannelAccessStateRepository,
     private val notificationRepository: NotificationRepository,
     private val preferenceRepository: PreferenceRepository,
     private val teamRoleRepository: TeamRoleRepository,
@@ -83,6 +87,26 @@ class PreferenceSnapshotPublisher(
     ) { connection ->
         outboxRepository.inTransaction(connection) { projectAccessRepository.publishSnapshot(it) }
         "project access states"
+    }
+
+    /** 팀 권한 판정은 팀 멤버와 팀 역할만 읽으므로 팀 멤버 projection만 기다린다. */
+    suspend fun publishTeamAccessIfLeader(): Boolean = publishIfLeader(
+        aggregate = "team access",
+        topics = setOf(PreferenceTopics.TEAM_ACCESS_STATE_TOPIC),
+        upstreamReadiness = teamStateReadiness,
+    ) { connection ->
+        outboxRepository.inTransaction(connection) { teamAccessRepository.publishSnapshot(it) }
+        "team access states"
+    }
+
+    /** 채널 권한 판정은 팀 멤버, 팀 역할, 채널 수명주기를 읽으므로 두 projection이 따라잡은 뒤에만 완료를 알린다. */
+    suspend fun publishChannelAccessIfLeader(): Boolean = publishIfLeader(
+        aggregate = "channel access",
+        topics = setOf(PreferenceTopics.CHANNEL_ACCESS_STATE_TOPIC),
+        upstreamReadiness = channelRolePolicyReadiness,
+    ) { connection ->
+        outboxRepository.inTransaction(connection) { channelAccessRepository.publishSnapshot(it) }
+        "channel access states"
     }
 
     /** 계정, 팀, 텍스트·음성 채널 설정은 preference만 바꾸므로 upstream projection을 기다리지 않는다. */

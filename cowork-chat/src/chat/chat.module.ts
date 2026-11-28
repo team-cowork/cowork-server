@@ -42,8 +42,8 @@ import {
 	ProjectGithubRepoEventConsumer,
 	TeamMemberEventConsumer,
 	UserProfileEventConsumer,
-	TeamRoleEventConsumer,
-	ChannelRolePolicyEventConsumer,
+	TeamAccessEventConsumer,
+	ChannelAccessEventConsumer,
 	TextChannelSettingEventConsumer,
 	TeamSettingEventConsumer,
 	WebhookEventConsumer,
@@ -61,8 +61,6 @@ import {
 	ChannelReadService,
 	SlowmodeService,
 	TagSpamService,
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	ChatMessageLatencyMetricsService,
 	ChatMessageQuarantineService,
 } from './service/index.js';
 import {UnifiedSearchResolver} from './unified-search.resolver.js';
@@ -85,14 +83,10 @@ import {
 	teamMemberProjectionSchema,
 	UserProfileProjection,
 	userProfileProjectionSchema,
-	TeamRoleProjection,
-	teamRoleProjectionSchema,
-	TeamRoleAssignmentProjection,
-	teamRoleAssignmentProjectionSchema,
-	TeamRoleMemberTombstone,
-	teamRoleMemberTombstoneSchema,
-	ChannelRolePolicyProjection,
-	channelRolePolicyProjectionSchema,
+	TeamAccessProjection,
+	teamAccessProjectionSchema,
+	ChannelAccessProjection,
+	channelAccessProjectionSchema,
 	TextChannelSettingProjection,
 	textChannelSettingProjectionSchema,
 	TeamSettingProjection,
@@ -118,8 +112,8 @@ import {
 	ProjectGithubRepoProjectionRepository,
 	TeamMemberProjectionRepository,
 	UserProfileProjectionRepository,
-	TeamRoleProjectionRepository,
-	ChannelRolePolicyProjectionRepository,
+	TeamAccessProjectionRepository,
+	ChannelAccessProjectionRepository,
 	TextChannelSettingProjectionRepository,
 	TeamSettingProjectionRepository,
 	WebhookProjectionRepository,
@@ -142,6 +136,11 @@ import {ThreadProjection, threadProjectionSchema} from './schema/thread-projecti
 import {ThreadProjectionRepository} from './repository/thread-projection.repository.js';
 import {ThreadStateConsumer} from './kafka/thread-state.consumer.js';
 import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consumer.js';
+import {ScheduledMessage, scheduledMessageSchema} from './scheduled/scheduled-message.schema.js';
+import {ScheduledMessageRepository} from './scheduled/scheduled-message.repository.js';
+import {ScheduledMessageService} from './scheduled/scheduled-message.service.js';
+import {ScheduledMessageDispatcher} from './scheduled/scheduled-message.dispatcher.js';
+import {ScheduledMessageController} from './scheduled/scheduled-message.controller.js';
 
 @nestModule({
 	imports: [
@@ -158,10 +157,8 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 			{name: ProjectGithubRepoProjection.name, schema: projectGithubRepoProjectionSchema},
 			{name: TeamMemberProjection.name, schema: teamMemberProjectionSchema},
 			{name: UserProfileProjection.name, schema: userProfileProjectionSchema},
-			{name: TeamRoleProjection.name, schema: teamRoleProjectionSchema},
-			{name: TeamRoleAssignmentProjection.name, schema: teamRoleAssignmentProjectionSchema},
-			{name: TeamRoleMemberTombstone.name, schema: teamRoleMemberTombstoneSchema},
-			{name: ChannelRolePolicyProjection.name, schema: channelRolePolicyProjectionSchema},
+			{name: TeamAccessProjection.name, schema: teamAccessProjectionSchema},
+			{name: ChannelAccessProjection.name, schema: channelAccessProjectionSchema},
 			{name: TextChannelSettingProjection.name, schema: textChannelSettingProjectionSchema},
 			{name: TeamSettingProjection.name, schema: teamSettingProjectionSchema},
 			{name: WebhookProjection.name, schema: webhookProjectionSchema},
@@ -169,6 +166,7 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 			{name: MessageSearchTombstone.name, schema: messageSearchTombstoneSchema},
 			{name: MessageSearchIndexState.name, schema: messageSearchIndexStateSchema},
 			{name: AttachmentDeletion.name, schema: attachmentDeletionSchema},
+			{name: ScheduledMessage.name, schema: scheduledMessageSchema},
 		]),
 		DmParticipantModule,
 		BlockModule,
@@ -185,6 +183,7 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		TeamSearchController,
 		ChatMessageQuarantineAdminController,
 		MessageSearchAdminController,
+		ScheduledMessageController,
 	],
 	providers: [
 		MeetingNoteAttachmentRetentionRepository,
@@ -203,6 +202,9 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		AttachmentDownloadService,
 		AttachmentDeletionRepository,
 		AttachmentCleanupPoller,
+		ScheduledMessageRepository,
+		ScheduledMessageService,
+		ScheduledMessageDispatcher,
 		ChannelReadStateRepository,
 		MessageRepository,
 		DmParticipantRepository,
@@ -212,8 +214,6 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		ChatMessageScopeValidator,
 		ChatMessageQuarantineRepository,
 		ChatMessageQuarantineService,
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		ChatMessageLatencyMetricsService,
 		ChatMessageQuarantinePoller,
 		MessageSearchIndexRepository,
 		MessageSearchTombstoneRepository,
@@ -235,8 +235,8 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		ProjectGithubRepoEventConsumer,
 		TeamMemberEventConsumer,
 		UserProfileEventConsumer,
-		TeamRoleEventConsumer,
-		ChannelRolePolicyEventConsumer,
+		TeamAccessEventConsumer,
+		ChannelAccessEventConsumer,
 		TextChannelSettingEventConsumer,
 		TeamSettingEventConsumer,
 		WebhookEventConsumer,
@@ -251,8 +251,8 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		ProjectGithubRepoProjectionRepository,
 		TeamMemberProjectionRepository,
 		UserProfileProjectionRepository,
-		TeamRoleProjectionRepository,
-		ChannelRolePolicyProjectionRepository,
+		TeamAccessProjectionRepository,
+		ChannelAccessProjectionRepository,
 		TextChannelSettingProjectionRepository,
 		TeamSettingProjectionRepository,
 		WebhookProjectionRepository,

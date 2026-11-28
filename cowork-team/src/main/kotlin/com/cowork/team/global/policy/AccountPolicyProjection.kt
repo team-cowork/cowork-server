@@ -42,23 +42,18 @@ class AccountPolicyProjection(private val jdbcTemplate: JdbcTemplate, private va
         accountId,
     )
 
-    fun findTeamPolicies(accountId: Long): List<Map<String, Boolean>> = jdbcTemplate.query(
+    fun teamAllowsCreation(accountId: Long): Boolean = jdbcTemplate.queryForObject(
         """
-            SELECT r.permissions_json FROM tb_team_role_projections r
-            JOIN tb_team_members m ON m.team_id = r.team_id AND m.user_id = ?
-            WHERE NOT r.deleted AND (r.is_default OR EXISTS (
-                SELECT 1 FROM tb_team_role_assignment_projections a
-                WHERE a.team_id = r.team_id AND a.role_id = r.role_id AND a.account_id = m.user_id AND NOT a.deleted
-                  AND NOT EXISTS (
-                      SELECT 1 FROM tb_team_role_member_tombstones f
-                      WHERE f.team_id = a.team_id AND f.account_id = a.account_id
-                        AND f.source_occurred_at >= a.source_occurred_at
-                  )
-            ))
+        SELECT EXISTS (
+            SELECT 1 FROM tb_team_access_projections a
+            JOIN tb_team_member_event_states m ON m.team_id = a.team_id AND m.user_id = a.account_id
+                AND NOT m.deleted AND m.authorization_version = a.source_authorization_version
+            WHERE a.account_id = ? AND JSON_CONTAINS(a.allowed_permissions, '"create_team"')
+        )
         """.trimIndent(),
-        { row, _ -> objectMapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
+        Boolean::class.java,
         accountId,
-    )
+    ) == true
 
     companion object {
         const val TOPIC = "preference.account-role.state.v1"

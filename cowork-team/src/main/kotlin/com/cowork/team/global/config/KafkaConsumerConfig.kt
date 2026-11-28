@@ -151,6 +151,9 @@ class KafkaConsumerConfig(
         )
 
     @Bean
+    fun teamAccessListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.teamAccess)
+
+    @Bean
     fun preferenceTeamRoleChangedListenerContainerFactory() =
         projectionListenerContainerFactory(projectionStreams.teamRole)
 
@@ -160,6 +163,14 @@ class KafkaConsumerConfig(
     @Bean
     fun preferenceTeamSettingListenerContainerFactory() =
         projectionListenerContainerFactory(projectionStreams.teamSetting)
+
+    @Bean
+    fun projectCalendarEventListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.projectCalendarEvent)
+
+    @Bean
+    fun projectReadableUserListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.projectReadableUser)
 
     @Bean
     fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()

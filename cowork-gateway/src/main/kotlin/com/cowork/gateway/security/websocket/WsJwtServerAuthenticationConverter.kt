@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.websocket
 
+import com.cowork.gateway.security.agent.isAgent
 import com.cowork.gateway.security.config.SecurityConfig
 import com.cowork.gateway.security.jwt.JwtAuthenticationSupport
 import org.springframework.security.core.Authentication
@@ -14,6 +15,7 @@ import reactor.core.publisher.Mono
  *
  * 네이티브 앱은 `Authorization` 헤더로 그대로 인증하고, 브라우저는 커스텀 헤더를
  * 실을 수 없어 로그인 시 함께 발급한 전용 쿠키(`cowork_ws_token`)로 인증한다.
+ * agent JWT는 인증하지 않는다. 이 체인은 HTTP 체인의 scope 검사를 거치지 않기 때문이다.
  */
 class WsJwtServerAuthenticationConverter(private val jwtAuthenticationSupport: JwtAuthenticationSupport) :
     ServerAuthenticationConverter {
@@ -22,7 +24,7 @@ class WsJwtServerAuthenticationConverter(private val jwtAuthenticationSupport: J
         val token = extractToken(exchange) ?: return Mono.empty()
 
         return runCatching { jwtAuthenticationSupport.parse(token) }.fold(
-            onSuccess = { Mono.just(it) },
+            onSuccess = { if (it.isAgent()) Mono.empty() else Mono.just(it) },
             onFailure = { Mono.empty() },
         )
     }

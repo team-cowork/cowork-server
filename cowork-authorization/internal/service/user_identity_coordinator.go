@@ -11,6 +11,21 @@ import (
 	"github.com/cowork/authorization/internal/domain"
 )
 
+// cowork-user reports these codes when an account conflict, not a broken command, stopped the commit.
+const (
+	identityNotLinkedCode     = "IDENTITY_NOT_LINKED"
+	identityAlreadyLinkedCode = "IDENTITY_ALREADY_LINKED"
+	dataGSMLoginRequiredCode  = "DATAGSM_LOGIN_REQUIRED"
+	gitHubLoginRequiredCode   = "GITHUB_LOGIN_REQUIRED"
+)
+
+var (
+	ErrIdentityNotLinked     = errors.New("an existing account uses this email or GitHub ID, but this login method is not linked to it")
+	ErrIdentityAlreadyLinked = errors.New("the login method is already linked to another account, or the account already has one")
+	ErrDataGSMLoginRequired  = errors.New("DataGSM authentication is required to complete GitHub login")
+	ErrGitHubLoginRequired   = errors.New("GitHub authentication is required to sign up")
+)
+
 type UserIdentityOperationStore interface {
 	Submit(context.Context, domain.UserIdentityCommand, string) (string, error)
 	Find(context.Context, string) (*domain.UserIdentityOperation, error)
@@ -68,6 +83,16 @@ func (c *UserIdentityCoordinator) EnsureUser(
 				code := "USER_IDENTITY_FAILED"
 				if operation.ErrorCode != nil {
 					code = *operation.ErrorCode
+				}
+				switch code {
+				case identityNotLinkedCode:
+					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrIdentityNotLinked, code)
+				case identityAlreadyLinkedCode:
+					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrIdentityAlreadyLinked, code)
+				case dataGSMLoginRequiredCode:
+					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrDataGSMLoginRequired, code)
+				case gitHubLoginRequiredCode:
+					return nil, fmt.Errorf("%w: user identity command failed: %s", ErrGitHubLoginRequired, code)
 				}
 				return nil, fmt.Errorf("user identity command failed: %s", code)
 			case domain.UserIdentityPending:

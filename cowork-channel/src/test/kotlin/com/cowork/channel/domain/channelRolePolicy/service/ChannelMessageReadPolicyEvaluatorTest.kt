@@ -4,6 +4,8 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.InitialChannelRoleOverwrite
+import com.cowork.channel.domain.channelRolePolicy.access.ChannelAccessProjection
+import com.cowork.channel.domain.channelRolePolicy.access.ChannelAccessProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjection
@@ -14,6 +16,7 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
+import com.cowork.channel.global.policy.TeamAccessProjection
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import io.mockk.every
 import io.mockk.mockk
@@ -34,6 +37,8 @@ class ChannelMessageReadPolicyEvaluatorTest {
     private val tombstoneRepository = mockk<TeamRoleMemberTombstoneRepository>()
     private val roleRepository = mockk<TeamRoleProjectionRepository>()
     private val policyRepository = mockk<ChannelRolePolicyProjectionRepository>()
+    private val accessRepository = mockk<ChannelAccessProjectionRepository>()
+    private val teamAccess = mockk<TeamAccessProjection>()
     private val objectMapper = jacksonObjectMapper()
     private val evaluator = ChannelMessageReadPolicyEvaluator(
         membershipRepository,
@@ -41,8 +46,10 @@ class ChannelMessageReadPolicyEvaluatorTest {
         tombstoneRepository,
         roleRepository,
         policyRepository,
+        accessRepository,
         mockk<ProjectionReadinessGate>(relaxed = true),
         objectMapper,
+        teamAccess,
     )
     private val occurredAt = Instant.parse("2026-10-25T00:00:00Z")
 
@@ -57,164 +64,111 @@ class ChannelMessageReadPolicyEvaluatorTest {
         every {
             policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, any(), any())
         } returns emptyList()
+        teamPermissions()
+        decisions()
     }
 
     @Test
-    fun `기본 역할은 할당 없이 모든 활성 멤버에게 적용된다`() {
-        roles(role(1L, "message_read" to true, "voice_connect" to true, default = true))
-        val channels = listOf(channel(), channel(2L, ChannelType.VOICE))
-        assertEquals(channels, evaluator.filterReadable(10L, 7L, channels))
-    }
-
-    @Test
-    fun `기본 권한 합집합에는 역할 priority와 false가 영향을 주지 않는다`() {
-        roles(role(1L, "message_read" to false), role(2L, "message_read" to true))
-        assertEquals(listOf(1L), evaluator.filterReadable(10L, 7L, listOf(channel())).map { it.id })
-    }
-
-    @Test
-    fun `기본 역할 overwrite 다음 개별 역할 deny와 allow를 적용한다`() {
-        roles(
-            role(1L, "message_read" to true, default = true),
-            role(2L),
-            role(3L),
-        )
-        policies(
-            policy(1L, "message_read" to false),
-            policy(2L, "message_read" to false),
-            policy(
-                3L,
-                "message_read" to true,
-            ),
-        )
-        assertEquals(listOf(1L), evaluator.filterReadable(10L, 7L, listOf(channel())).map { it.id })
-        policies(policy(1L, "message_read" to true), policy(2L, "message_read" to false))
-        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
-    }
-
-    @Test
-    fun `비공개 채널에는 기본 권한 대신 명시 overwrite가 필요하다`() {
-        roles(role(1L, "message_read" to true, default = true))
-        val privateChannel = channel().apply { isPrivate = true }
-        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(privateChannel)))
-        policies(policy(1L, "message_read" to true))
-        assertEquals(listOf(privateChannel), evaluator.filterReadable(10L, 7L, listOf(privateChannel)))
-    }
-
-    @Test
-    fun `음성 채널 가시성은 voice_connect이고 텍스트는 message_read이다`() {
-        roles(role(1L, "voice_connect" to true, "message_read" to false, default = true))
+    fun `텍스트 채널은 message_read, 음성 채널은 voice_connect 판정 결과로 고른다`() {
         val voice = channel(2L, ChannelType.VOICE)
+        decisions(decision(1L, "message_read", "voice_connect"), decision(2L, "message_read"))
+        assertEquals(listOf(1L), evaluator.filterReadable(10L, 7L, listOf(channel(), voice)).map { it.id })
+        decisions(decision(1L), decision(2L, "voice_connect"))
         assertEquals(listOf(voice), evaluator.filterReadable(10L, 7L, listOf(channel(), voice)))
     }
 
     @Test
-    fun `관리와 재정렬 권한이 있어도 가시성이 없으면 거부한다`() {
-        roles(role(1L, "channel_manage" to true, "channel_reorder" to true))
-        assertThrows(ExpectedException::class.java) {
-            evaluator.requirePermission(10L, 7L, channel(), "channel_manage")
-        }
-        assertThrows(ExpectedException::class.java) { evaluator.requireReorder(10L, 7L, listOf(channel())) }
-    }
-
-    @Test
-    fun `생성한 채널도 관리 및 재정렬 권한을 요구한다`() {
-        roles(role(1L, "message_read" to true))
-        val owned = channel(createdBy = 7L)
-        assertThrows(ExpectedException::class.java) { evaluator.requirePermission(10L, 7L, owned, "channel_manage") }
-        assertThrows(ExpectedException::class.java) { evaluator.requireReorder(10L, 7L, listOf(owned)) }
-        roles(role(1L, "message_read" to true, "channel_manage" to true, "channel_reorder" to true))
-        evaluator.requirePermission(10L, 7L, owned, "channel_manage")
-        evaluator.requireReorder(10L, 7L, listOf(owned))
-    }
-
-    @Test
-    fun `관리자 정책이 있는 활성 멤버만 채널 제한을 우회한다`() {
-        roles(role(90L, "administrator" to true))
-        for (role in listOf("MEMBER", "OWNER", "ADMIN")) {
-            every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role)
-            assertEquals(listOf(1L), evaluator.filterReadable(10L, 7L, listOf(channel())).map { it.id })
-            every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role, active = false)
-            assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
-        }
+    fun `판정 결과가 없거나 활성 멤버가 아니면 거부한다`() {
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
+        decisions(decision(1L, "message_read"))
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(active = false)
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns null
         assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
     }
 
     @Test
-    fun `재가입하면 기본 역할을 얻지만 탈퇴 전 개별 역할은 복구하지 않는다`() {
-        roles(role(1L, "message_read" to true, default = true), role(2L, "channel_manage" to true))
-        every { tombstoneRepository.findById("10:7") } returns
-            Optional.of(TeamRoleMemberTombstone("10:7", 10L, 7L, occurredAt.plusSeconds(1)))
+    fun `현재 인가 version과 다른 판정 결과는 Preference가 다시 발행할 때까지 거부한다`() {
+        decisions(decision(1L, "message_read", authorizationVersion = occurredAt.minusSeconds(1)))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
+        decisions(decision(1L, "message_read", authorizationVersion = null))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
+        decisions(decision(1L, "message_read", teamId = 11L))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel())))
+        decisions(decision(1L, "message_read"))
         assertEquals(listOf(1L), evaluator.filterReadable(10L, 7L, listOf(channel())).map { it.id })
-        assertThrows(ExpectedException::class.java) {
-            evaluator.requirePermission(10L, 7L, channel(), "channel_manage")
-        }
-        every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns
-            listOf(assignment(2L, occurredAt.plusSeconds(2)))
-        evaluator.requirePermission(10L, 7L, channel(), "channel_manage")
     }
 
     @Test
-    fun `수신자 일괄 조회도 기본 역할과 활성 membership을 사용한다`() {
-        roles(role(1L, "message_read" to true, default = true))
-        every { assignmentRepository.findAllByTeamIdAndAccountIdInAndDeletedFalse(10L, setOf(7L)) } returns emptyList()
-        val members =
-            listOf(member(), member("ADMIN", active = false), TeamMembership(teamId = 99, userId = 8, role = "OWNER"))
+    fun `비공개 채널은 공개 기준 판정이 남아 있어도 비공개 접근 값을 요구한다`() {
+        val privateChannel = channel().apply { isPrivate = true }
+        decisions(decision(1L, "message_read"))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(privateChannel)))
+        decisions(decision(1L, "message_read", readPrivate = true))
+        assertEquals(listOf(privateChannel), evaluator.filterReadable(10L, 7L, listOf(privateChannel)))
+    }
+
+    @Test
+    fun `채널 작업과 재정렬은 접근 권한과 해당 권한을 함께 요구한다`() {
+        decisions(decision(1L, "channel_manage", "channel_reorder"))
+        assertThrows(ExpectedException::class.java) {
+            evaluator.requirePermission(10L, 7L, channel(), "channel_manage")
+        }
+        assertThrows(ExpectedException::class.java) { evaluator.requireReorder(10L, 7L, listOf(channel())) }
+        decisions(decision(1L, "message_read"))
+        assertThrows(ExpectedException::class.java) {
+            evaluator.requirePermission(10L, 7L, channel(), "channel_manage")
+        }
+        decisions(decision(1L, "message_read", "channel_manage", "channel_reorder"))
+        evaluator.requirePermission(10L, 7L, channel(), "channel_manage")
+        evaluator.requireReorder(10L, 7L, listOf(channel()))
+    }
+
+    @Test
+    fun `수신자 일괄 조회는 같은 팀 활성 멤버의 현재 판정 결과만 쓴다`() {
+        val other = TeamMembership(
+            teamId = 10L,
+            userId = 8L,
+            role = "MEMBER",
+            sourceOccurredAt = occurredAt,
+            authorizationVersion = occurredAt.plusSeconds(1),
+        )
+        decisions(decision(1L, "message_read"), decision(1L, "message_read", userId = 8L), decision(1L, userId = 9L))
+        val members = listOf(
+            member(),
+            other,
+            member("ADMIN", active = false),
+            TeamMembership(teamId = 99, userId = 9, role = "OWNER"),
+        )
         assertEquals(setOf(7L), evaluator.readableUserIds(channel(), members))
     }
 
     @Test
-    fun `채널 생성 권한은 기본 역할과 개별 역할의 합집합으로 확인한다`() {
-        roles(role(1L, "manage_channels" to true, default = true))
+    fun `채널 생성 권한은 팀 권한 판정 결과를 따른다`() {
+        teamPermissions("manage_channels")
         evaluator.requireTeamPermission(10L, 7L, "manage_channels")
-        roles(role(1L, "manage_channels" to false, default = true))
+        teamPermissions()
         assertThrows(ExpectedException::class.java) { evaluator.requireTeamPermission(10L, 7L, "manage_channels") }
     }
 
     @Test
-    fun `비공개 전환은 팀 기본 읽기만으로 허용하지 않고 현재 역할 overwrite를 요구한다`() {
-        roles(role(1L, "message_read" to true, "channel_manage" to true, default = true))
+    fun `비공개 전환은 비공개 접근 판정 값을 따른다`() {
         val publicChannel = channel()
-
+        decisions(decision(1L, "message_read", "channel_manage"))
         val ex = assertThrows(ExpectedException::class.java) {
             evaluator.requirePrivateTransitionAccess(10L, 7L, publicChannel)
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        assertEquals(false, publicChannel.isPrivate)
-
-        policies(policy(1L, "message_read" to true))
+        decisions(decision(1L, "message_read", "channel_manage", readPrivate = true))
         evaluator.requirePrivateTransitionAccess(10L, 7L, publicChannel)
         assertEquals(false, publicChannel.isPrivate)
-    }
-
-    @Test
-    fun `음성 채널 비공개 전환은 message_read 대신 voice_connect overwrite를 요구한다`() {
-        roles(role(1L, "voice_connect" to true, "message_read" to true, "channel_manage" to true))
-        val voice = channel(type = ChannelType.VOICE)
-        policies(policy(1L, "message_read" to true))
-
-        assertThrows(ExpectedException::class.java) { evaluator.requirePrivateTransitionAccess(10L, 7L, voice) }
-
-        policies(policy(1L, "voice_connect" to true))
-        evaluator.requirePrivateTransitionAccess(10L, 7L, voice)
-    }
-
-    @Test
-    fun `비공개 전환은 활성 멤버의 관리자 정책으로 허용한다`() {
-        roles(role(90L, "administrator" to true))
-        for (role in listOf("MEMBER", "OWNER", "ADMIN")) {
-            every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role)
-            evaluator.requirePrivateTransitionAccess(10L, 7L, channel())
-            every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role, active = false)
-            assertThrows(ExpectedException::class.java) {
-                evaluator.requirePrivateTransitionAccess(10L, 7L, channel())
-            }
-        }
+        decisions(decision(1L, readPrivate = true, authorizationVersion = occurredAt.minusSeconds(1)))
+        assertThrows(ExpectedException::class.java) { evaluator.requirePrivateTransitionAccess(10L, 7L, publicChannel) }
     }
 
     @Test
     fun `일반 채널 관리자는 초기 역할 정책으로 비공개 채널에 접근할 수 있다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
         val overwrites = listOf(
             InitialChannelRoleOverwrite(1L, mapOf("message_read" to false)),
@@ -231,6 +185,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `닉네임 변경 후 초기 정책도 원본 버전과 안정적인 권한 버전을 따로 보존한다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
         val membership = member().apply { authorizationVersion = occurredAt }
         membership.applyUpsert("MEMBER", occurredAt.plusSeconds(1), occurredAt)
@@ -246,6 +201,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `초기 역할 정책이 없거나 생성자의 역할을 허용하지 않으면 비공개 생성을 거절한다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true), role(3L))
         every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns
             listOf(assignment(2L))
@@ -263,6 +219,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `초기 정책의 허용과 거부 모두 보유한 팀 권한 안에서만 지정할 수 있다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, "manage_channels" to true))
         for (allowed in listOf(true, false)) {
             val ex = assertThrows(ExpectedException::class.java) {
@@ -279,6 +236,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `다른 팀이나 삭제된 역할 및 중복 역할의 초기 정책은 거절한다`() {
+        teamPermissions("message_read", "manage_channels")
         roles(role(1L, "message_read" to true, "manage_channels" to true))
         val overwrite = InitialChannelRoleOverwrite(1L, mapOf("message_read" to true))
         for (overwrites in listOf(listOf(overwrite, overwrite), listOf(overwrite.copy(roleId = 99L)))) {
@@ -291,6 +249,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `비공개 음성 채널 생성은 초기 voice_connect 허용이 필요하다`() {
+        teamPermissions("voice_connect", "message_read", "manage_channels")
         roles(role(1L, "voice_connect" to true, "message_read" to true, "manage_channels" to true))
         val voice = channel(type = ChannelType.VOICE).apply { isPrivate = true }
         assertThrows(ExpectedException::class.java) {
@@ -311,6 +270,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `활성 관리자는 초기 정책 없이도 비공개 채널에 접근한다`() {
+        teamPermissions("administrator", "manage_channels")
         roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN")
         assertNull(evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, emptyList()))
@@ -322,6 +282,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `권한 버전이 없으면 멤버십 시각으로 초기 정책을 승인하지 않는다`() {
+        teamPermissions("administrator", "manage_channels")
         roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
             authorizationVersion = null
@@ -340,6 +301,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `멤버십 버전이 확인되지 않으면 초기 정책 생성을 보류한다`() {
+        teamPermissions("administrator", "manage_channels")
         roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
             sourceOccurredAt = Instant.EPOCH
@@ -359,6 +321,8 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `채널 overwrite는 manage_roles와 역할 서열 및 보유 권한을 검사한다`() {
+        decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         val target = role(2L)
         every { roleRepository.findById(2L) } returns Optional.of(target)
@@ -374,6 +338,8 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `거부 overwrite만 추가할 때 변경하지 않는 기본 허용 권한은 요구하지 않는다`() {
+        decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
 
@@ -382,6 +348,8 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `기존 거부를 유지하면 보유하지 않은 권한도 거부 상태로 저장할 수 있다`() {
+        decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
         policies(policy(2L, "message_manage" to false))
@@ -397,6 +365,8 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `기존 거부를 누락하거나 삭제하여 다른 역할의 권한을 복원할 수 없다`() {
+        decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L))
         policies(policy(2L, "message_manage" to false))
@@ -411,11 +381,17 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `overwrite 삭제로 보유하지 않은 기본 권한을 복원할 수 없다`() {
+        decisions(decision(1L, "message_read"))
+        teamPermissions("message_read", "manage_roles")
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
         assertThrows(ExpectedException::class.java) {
             evaluator.requireRolePolicyManagement(10L, 7L, channel(), 2L, null)
         }
+    }
+
+    private fun teamPermissions(vararg keys: String) {
+        every { teamAccess.permissions(10L, 7L) } returns keys.toSet()
     }
 
     private fun roles(vararg roles: TeamRoleProjection) {
@@ -428,6 +404,33 @@ class ChannelMessageReadPolicyEvaluatorTest {
         every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns
             roles.filterNot { it.isDefault }.map { assignment(it.roleId) }
     }
+
+    /** 채널 역할 정책 관리 검사는 요청자의 채널 접근을 판정 결과로 확인한다. */
+    private fun decisions(vararg decisions: ChannelAccessProjection) {
+        every { accessRepository.findAllById(any()) } answers {
+            val keys = firstArg<Iterable<String>>().toSet()
+            decisions.filter { it.accessKey in keys }
+        }
+    }
+
+    private fun decision(
+        channelId: Long,
+        vararg allowed: String,
+        userId: Long = 7L,
+        teamId: Long = 10L,
+        readPrivate: Boolean = false,
+        authorizationVersion: Instant? = occurredAt,
+    ) = ChannelAccessProjection(
+        accessKey = ChannelAccessProjection.key(channelId, userId),
+        channelId = channelId,
+        userId = userId,
+        teamId = teamId,
+        allowedPermissions = allowed.toSet(),
+        canReadPrivate = readPrivate,
+        sourceOccurredAt = occurredAt,
+        sourceMembershipVersion = occurredAt,
+        sourceAuthorizationVersion = authorizationVersion,
+    )
 
     private fun policies(vararg policies: ChannelRolePolicyProjection) {
         every {

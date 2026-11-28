@@ -16,7 +16,7 @@
 - TypeScript / Bun / NestJS
 - Bun / TypeScript Compiler
 - Socket.IO / GraphQL (Apollo)
-- MongoDB (Mongoose) / Elasticsearch / Redis / KafkaJS
+- MongoDB (Mongoose) / Elasticsearch / Redis / @platformatic/kafka
 - SeaweedFS (S3 호환) / AWS SDK
 
 ## 포트

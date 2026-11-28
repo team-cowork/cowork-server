@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	ProviderCommandTopic          = "user.identity.command.v3"
+	ProviderCommandTopic          = "user.identity.command.v4"
 	ProviderResultTopic           = "user.identity.result.v2"
 	ProviderResultGroup           = "cowork-authorization.user-identity-result.v2"
+	ProviderResultDLT             = ProviderResultTopic + "-dlt"
 	defaultJWTAccessExpire        = "30m"
 	defaultJWTRefreshExpire       = "2160h"
 	defaultIdentityCommandTimeout = "5s"
@@ -32,16 +33,16 @@ type AppConfig struct {
 	DataGSMResourceURL      string
 	DataGSMRedirectURIs     []string
 	DataGSMWebhookSecret    string
+	GitHubClientID          string
+	GitHubClientSecret      string
+	GitHubRedirectURIs      []string
 	RedisHost               string
 	RedisPort               string
 
-	KafkaBootstrapServers               string
-	KafkaTopicUserSync                  string
-	KafkaTopicUserIdentityCommandResult string
-	KafkaTopicUserIdentityResultDLT     string
-	KafkaGroupIDUserIdentityResult      string
-	KafkaIdentityCommandTimeout         time.Duration
-	KafkaTopicUserPresence              string
+	KafkaBootstrapServers       string
+	KafkaTopicUserSync          string
+	KafkaIdentityCommandTimeout time.Duration
+	KafkaTopicUserPresence      string
 
 	JWTSecret        string
 	JWTAccessExpire  time.Duration
@@ -66,29 +67,29 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_IDENTITY_COMMAND_TIMEOUT")
 	}
 	cfg := &AppConfig{
-		KafkaSecurity:                       security,
-		Port:                                getEnvOrDefault("PORT", "8081"),
-		DataGSMClientID:                     os.Getenv("DATAGSM_CLIENT_ID"),
-		DataGSMAuthorizationURL:             getEnvOrDefault("DATAGSM_AUTHORIZATION_BASE_URL", "https://oauth.authorization.datagsm.kr"),
-		DataGSMResourceURL:                  getEnvOrDefault("DATAGSM_RESOURCE_BASE_URL", "https://oauth.resource.datagsm.kr"),
-		DataGSMWebhookSecret:                os.Getenv("DATAGSM_WEBHOOK_SECRET"),
-		RedisHost:                           os.Getenv("REDIS_HOST"),
-		RedisPort:                           os.Getenv("REDIS_PORT"),
-		KafkaBootstrapServers:               os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
-		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
-		KafkaTopicUserIdentityCommandResult: getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
-		KafkaTopicUserIdentityResultDLT:     getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT", "user.identity.command-result-dlt"),
-		KafkaGroupIDUserIdentityResult:      getEnvOrDefault("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT", "cowork-authorization.user-identity-command-result"),
-		KafkaIdentityCommandTimeout:         identityCommandTimeout,
-		KafkaTopicUserPresence:              getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
-		JWTSecret:                           os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
+		KafkaSecurity:               security,
+		Port:                        getEnvOrDefault("PORT", "8081"),
+		DataGSMClientID:             os.Getenv("DATAGSM_CLIENT_ID"),
+		DataGSMAuthorizationURL:     getEnvOrDefault("DATAGSM_AUTHORIZATION_BASE_URL", "https://oauth.authorization.datagsm.kr"),
+		DataGSMResourceURL:          getEnvOrDefault("DATAGSM_RESOURCE_BASE_URL", "https://oauth.resource.datagsm.kr"),
+		DataGSMWebhookSecret:        os.Getenv("DATAGSM_WEBHOOK_SECRET"),
+		RedisHost:                   os.Getenv("REDIS_HOST"),
+		RedisPort:                   os.Getenv("REDIS_PORT"),
+		KafkaBootstrapServers:       os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
+		KafkaTopicUserSync:          getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
+		KafkaIdentityCommandTimeout: identityCommandTimeout,
+		KafkaTopicUserPresence:      getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
+		JWTSecret:                   os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
 	}
 	cfg.DevAccounts, err = ParseDevAccounts(os.Getenv("DEV_SIGNIN_ACCOUNTS"))
 	if err != nil {
 		return nil, err
 	}
-	cfg.DataGSMRedirectURIs, err = parseRedirectURIs(os.Getenv("DATAGSM_REDIRECT_URIS"))
+	cfg.DataGSMRedirectURIs, err = parseRedirectURIs("DATAGSM_REDIRECT_URIS", os.Getenv("DATAGSM_REDIRECT_URIS"))
 	if err != nil {
+		return nil, err
+	}
+	if err := cfg.loadGitHubLogin(); err != nil {
 		return nil, err
 	}
 	cfg.DBDSN, err = mysqlDSN()
@@ -110,7 +111,23 @@ func Load() (*AppConfig, error) {
 	return cfg, nil
 }
 
-func parseRedirectURIs(raw string) ([]string, error) {
+// loadGitHubLogin enables GitHub login only when the client ID, secret, and callbacks are all set.
+func (cfg *AppConfig) loadGitHubLogin() error {
+	cfg.GitHubClientID = os.Getenv("GITHUB_LOGIN_CLIENT_ID")
+	cfg.GitHubClientSecret = os.Getenv("GITHUB_LOGIN_CLIENT_SECRET")
+	redirects := os.Getenv("GITHUB_LOGIN_REDIRECT_URIS")
+	if cfg.GitHubClientID == "" && cfg.GitHubClientSecret == "" && strings.TrimSpace(redirects) == "" {
+		return nil
+	}
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
+		return fmt.Errorf("GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET must be set together")
+	}
+	var err error
+	cfg.GitHubRedirectURIs, err = parseRedirectURIs("GITHUB_LOGIN_REDIRECT_URIS", redirects)
+	return err
+}
+
+func parseRedirectURIs(name, raw string) ([]string, error) {
 	var result []string
 	seen := make(map[string]bool)
 	for _, value := range strings.Split(raw, ",") {
@@ -122,7 +139,7 @@ func parseRedirectURIs(raw string) ([]string, error) {
 		if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" ||
 			(u.Scheme == "http" && u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback()) ||
 			(u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "cowork") {
-			return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain registered HTTPS, loopback HTTP, or cowork callback URLs")
+			return nil, fmt.Errorf("%s must contain registered HTTPS, loopback HTTP, or cowork callback URLs", name)
 		}
 		if !seen[value] {
 			result = append(result, value)
@@ -130,7 +147,7 @@ func parseRedirectURIs(raw string) ([]string, error) {
 		}
 	}
 	if len(result) == 0 {
-		return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain at least one registered callback URL")
+		return nil, fmt.Errorf("%s must contain at least one registered callback URL", name)
 	}
 	return result, nil
 }

@@ -13,6 +13,7 @@ import {ChatService} from './chat.service.js';
 import {SlashCommand} from './dto/slash-command.dto.js';
 import {type ChatGithubIssueCreateCommand} from './kafka/event/chat-github-issue.event.js';
 
+const joinedAt = new Date(1000);
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
 const mockTo = jest.fn((_room: string) => ({emit: mockEmit}));
@@ -44,6 +45,7 @@ const mockMessageRepository = {
 	findByIdAndChannelId: jest.fn(),
 	deleteById: jest.fn(),
 	createSystemMessage: jest.fn(),
+	findUnbroadcastedByClientMessageId: jest.fn(),
 	existsInChannel: jest.fn(),
 	countUnread: jest.fn(),
 	countUnreadForChannels: jest.fn(),
@@ -90,6 +92,7 @@ const mockTeamMemberRepository = {
 
 const mockChannelMessageReadAccess = {
 	requireProjectionsReady: jest.fn(),
+	requireTeamJoinedAt: jest.fn().mockResolvedValue(joinedAt),
 	canReadChannel: jest.fn().mockResolvedValue(true),
 	requireCanRead: jest.fn().mockResolvedValue(undefined),
 	requirePermissions: jest.fn().mockResolvedValue(undefined),
@@ -204,8 +207,6 @@ describe('ChatService', () => {
 			channelReadService: mockChannelReadService,
 			threadProjectionRepository: mockThreadProjectionRepository,
 			projectionReadiness: mockProjectionReadiness,
-			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-			latencyMetrics: {record: jest.fn()},
 		});
 		jest.clearAllMocks();
 		mockProjectionReadiness.areReady.mockReturnValue(true);
@@ -768,9 +769,7 @@ describe('ChatService', () => {
 				{projectId: 5, title: '배포 오류'},
 			);
 
-			expect(mockChatGithubIssueCommandProducer.send).toHaveBeenCalledWith(
-				expect.objectContaining({body: null}),
-			);
+			expect(mockChatGithubIssueCommandProducer.send).toHaveBeenCalledWith(expect.objectContaining({body: null}));
 		});
 
 		it('팀에 속하지 않는 채널에서는 커맨드를 발행하지 않는다', async () => {
@@ -911,14 +910,20 @@ describe('ChatService', () => {
 
 		it('타인 파일 삭제에는 message_manage 권한이 필요하다', async () => {
 			mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
-			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({
-				authorId: 7,
-				attachments: [],
-			});
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({authorId: 7, attachments: []});
 
 			await expect(service.deleteFile(ctx, fileId)).rejects.toBeInstanceOf(ForbiddenException);
 			expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
 			expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
+		});
+
+		it('볼 수 없는 음성 채널 로그는 권한과 상관없이 NOT_FOUND로 응답한다', async () => {
+			mockChannelMessageReadAccess.requireVoiceLogHiddenChannelIds.mockResolvedValueOnce(new Set([1]));
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({authorId: 7, type: 'SYSTEM', attachments: []});
+
+			await expect(service.deleteFile(ctx, fileId)).rejects.toBeInstanceOf(NotFoundException);
+			expect(mockChannelMessageReadAccess.requirePermission).not.toHaveBeenCalled();
+			expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
 		});
 
 		it('채널 저장 경로 밖의 객체는 삭제하지 않는다', async () => {
@@ -1333,38 +1338,34 @@ describe('ChatService', () => {
 
 	describe('getTeamUnread', () => {
 		it('권한 정보가 미준비이면 빈 미읽음 목록 대신 503을 반환한다', async () => {
-			mockTeamMemberRepository.exists.mockResolvedValue(false);
 			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockRejectedValueOnce(new ServiceUnavailableException());
 
 			await expect(service.getTeamUnread(10, 42)).rejects.toBeInstanceOf(ServiceUnavailableException);
-			expect(mockTeamMemberRepository.exists).not.toHaveBeenCalled();
+			expect(mockChannelMessageReadAccess.requireTeamJoinedAt).not.toHaveBeenCalled();
 			expect(mockMessageRepository.countUnreadForChannels).not.toHaveBeenCalled();
 		});
 
-		it('멤버 행 없이 읽기 권한이 있는 채널의 미읽 카운트를 반환한다', async () => {
+		it('읽기 권한이 있는 채널별로 가입 시각과 읽음 위치를 적용한다', async () => {
 			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 2]);
 			const oid1 = new Types.ObjectId();
 			const oid2 = new Types.ObjectId();
-			mockReadStateRepository.findForChannels.mockResolvedValue([
-				{channelId: 1, lastReadMessageId: oid1},
-				{channelId: 2, lastReadMessageId: oid2},
-			]);
+			const states = [{channelId: 1, lastReadMessageId: oid1}, {channelId: 2, lastReadMessageId: oid2}];
+			mockReadStateRepository.findForChannels.mockResolvedValue(states);
 			mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[1, 5], [2, 0]]));
 
 			const result = await service.getTeamUnread(10, 42);
 
 			expect(mockChannelMessageReadAccess.requireReadableTeamChannelIds).toHaveBeenCalledWith(10, 42);
-			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
-				{channelId: 1, lastReadMessageId: oid1, shouldExcludeSystem: false},
-				{channelId: 2, lastReadMessageId: oid2, shouldExcludeSystem: false},
-			]);
+			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith(states.map(state => ({
+				...state, joinedAt, shouldExcludeSystem: false,
+			})));
 			expect(result).toEqual([
 				{channelId: 1, unreadCount: 5},
 				{channelId: 2, unreadCount: 0},
 			]);
 			expect(mockUnreadCounterService.setMany).toHaveBeenCalledWith(42, new Map([
-				[1, {count: 5, readCursor: oid1.toHexString()}],
-				[2, {count: 0, readCursor: oid2.toHexString()}],
+				[1, {count: 5, joinedAt, readCursor: oid1.toHexString()}],
+				[2, {count: 0, joinedAt, readCursor: oid2.toHexString()}],
 			]));
 		});
 
@@ -1389,17 +1390,18 @@ describe('ChatService', () => {
 			expect(mockMessageRepository.countUnreadForChannels).not.toHaveBeenCalled();
 		});
 
-		it('읽음 위치가 없으면 전체 미읽 메시지 수를 반환한다', async () => {
+		it('읽음 위치가 없으면 팀 가입 후 메시지만 집계한다', async () => {
 			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([3]);
-			mockReadStateRepository.findForChannels.mockResolvedValue([
-				{channelId: 3, lastReadMessageId: null},
-			]);
+			mockReadStateRepository.findForChannels.mockResolvedValue([{channelId: 3, lastReadMessageId: null}]);
 			mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[3, 10]]));
 
 			const result = await service.getTeamUnread(10, 42);
 
-			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([{channelId: 3, lastReadMessageId: null, shouldExcludeSystem: false}]);
+			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([{
+				channelId: 3, lastReadMessageId: null, joinedAt, shouldExcludeSystem: false,
+			}]);
 			expect(result).toEqual([{channelId: 3, unreadCount: 10}]);
+			expect(mockUnreadCounterService.getMany).toHaveBeenCalledWith(42, [3], joinedAt);
 		});
 	});
 
@@ -1408,19 +1410,19 @@ describe('ChatService', () => {
 			mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
 				channelId: 1, teamId: 10, projectId: 100, type: 'TEXT', deleted: false,
 			});
-			mockMessageRepository.createSystemMessage.mockResolvedValue({toObject: jest.fn()});
+			mockMessageRepository.createSystemMessage.mockResolvedValue({createdAt: new Date(2000), toObject: jest.fn()});
 			mockChannelMessageReadAccess.findReadableUsersByChannel.mockResolvedValue(new Map([[1, [7, 9]]]));
 
 			await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
 
-			expect(mockUnreadCounterService.incrementIfPresent).toHaveBeenCalledWith(1, [7, 9]);
+			expect(mockUnreadCounterService.incrementIfPresent).toHaveBeenCalledWith(1, [7, 9], new Date(2000));
 		});
 
 		it('시스템 메시지의 프로젝트 범위도 수신 채널에서 결정한다', async () => {
 			mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
 				channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: false,
 			});
-			mockMessageRepository.createSystemMessage.mockResolvedValue({toObject: jest.fn()});
+			mockMessageRepository.createSystemMessage.mockResolvedValue({createdAt: new Date(2000), toObject: jest.fn()});
 			mockDmParticipantRepository.findByChannelId.mockResolvedValue([]);
 
 			await service.saveSystemMessage(10, 1, '프로젝트 이슈가 생성됐어요', 'system:t:0:1:1');
@@ -1445,10 +1447,12 @@ describe('ChatService', () => {
 				channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: false,
 			});
 			mockMessageRepository.createSystemMessage.mockRejectedValue(Object.assign(new Error('E11000 duplicate key'), {code: 11_000}));
+			mockMessageRepository.findUnbroadcastedByClientMessageId.mockResolvedValue(null);
 
 			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
 
 			expect(result).toBeNull();
+			expect(mockMessageRepository.findUnbroadcastedByClientMessageId).toHaveBeenCalledWith('system:t:0:1:1');
 			expect(mockUnreadCounterService.incrementIfPresent).not.toHaveBeenCalled();
 		});
 

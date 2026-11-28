@@ -3,6 +3,7 @@ package com.cowork.preference.domain.teamrole.command
 import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
@@ -12,6 +13,7 @@ import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandI
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
@@ -202,6 +204,24 @@ class TeamRoleCommandProcessorTest {
         coVerify(exactly = 0) { fixture.roleRepository.deleteRoleWithTombstone(any(), any(), any(), any()) }
     }
 
+    @Test
+    fun `프로젝트 기본 권한만 바뀌어도 팀 판정을 다시 발행한다`() = runBlocking {
+        val command = createCommand.copy(
+            commandType = TeamRoleCommandType.UPDATE,
+            roleId = 9L,
+            role = requireNotNull(createCommand.role).copy(permissions = mapOf("project_read" to true)),
+        )
+        fixture.stubCommand(command, actorRole = "OWNER")
+        coEvery { fixture.roleRepository.findRole(fixture.connection, command.teamId, 9L) } returns role(9L)
+        coEvery { fixture.roleRepository.findRoleByNameExceptId(any(), any(), any(), any()) } returns null
+        coEvery { fixture.roleRepository.updateRole(any(), any(), any(), any(), any(), any(), any()) } returns
+            role(9L, permissions = mapOf("project_read" to true))
+
+        fixture.processor.process(command)
+
+        coVerify(exactly = 1) { fixture.teamAccess.refresh(fixture.connection, command.teamId) }
+    }
+
     private class Fixture {
         val roleRepository = mockk<TeamRoleRepository>()
         val memberRepository = mockk<TeamMemberProjectionRepository>()
@@ -209,6 +229,7 @@ class TeamRoleCommandProcessorTest {
         val outboxRepository = mockk<PreferenceOutboxRepository>(relaxed = true)
         val readiness = mockk<ProjectionReadiness>()
         val connection = mockk<SqlConnection>()
+        val teamAccess = mockk<TeamAccessStateRepository>(relaxed = true)
         val processor = TeamRoleCommandProcessor(
             roleRepository,
             memberRepository,
@@ -217,6 +238,8 @@ class TeamRoleCommandProcessorTest {
             readiness,
             mockk<ChannelRolePolicyRepository>(relaxed = true),
             mockk<ProjectAccessStateRepository>(relaxed = true),
+            teamAccess,
+            mockk<ChannelAccessStateRepository>(relaxed = true),
         )
 
         fun stubCommand(command: TeamRoleCommand, actorRole: String, administrator: Boolean = true) {

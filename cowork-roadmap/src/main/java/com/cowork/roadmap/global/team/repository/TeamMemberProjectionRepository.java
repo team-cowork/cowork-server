@@ -8,6 +8,8 @@ public interface TeamMemberProjectionRepository {
 
     Optional<String> findActiveRole(Long teamId, Long userId);
 
+    boolean allActiveMembersHaveAuthorizationVersion();
+
     void upsert(TeamMemberEvent event);
 
     void deactivate(TeamMemberEvent event);

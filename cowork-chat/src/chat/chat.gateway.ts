@@ -26,14 +26,10 @@ import {isSafePositiveInteger} from '../common/util/safe-integer.util.js';
 import {type ForwardReference} from '../common/type/forward-reference.js';
 import {ChatService} from './chat.service.js';
 import {ChatMessageConsumer} from './kafka/chat-message.consumer.js';
-import {GithubIssueResultConsumer} from './kafka/github-issue-result.consumer.js';
-import {GithubRepoEventConsumer} from './kafka/github-repo-event.consumer.js';
-import {VoiceEventConsumer} from './kafka/voice-event.consumer.js';
 import {ChannelEventConsumer} from './kafka/channel-event.consumer.js';
 import {ThreadStateConsumer} from './kafka/thread-state.consumer.js';
 import {ProjectEventConsumer} from './kafka/project-event.consumer.js';
-import {TeamRoleEventConsumer} from './kafka/team-role-event.consumer.js';
-import {ChannelRolePolicyEventConsumer} from './kafka/channel-role-policy-event.consumer.js';
+import {ChannelAccessEventConsumer} from './kafka/channel-access-event.consumer.js';
 import {TeamMemberEventConsumer} from './kafka/team-member-event.consumer.js';
 import {JoinChannelDto} from './dto/index.js';
 
@@ -90,15 +86,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	@inject()
 	private readonly consumer!: ChatMessageConsumer;
 
-	@inject(forwardRef(() => GithubIssueResultConsumer))
-	private readonly githubIssueResultConsumer!: ForwardReference<GithubIssueResultConsumer>;
-
-	@inject(forwardRef(() => GithubRepoEventConsumer))
-	private readonly githubRepoEventConsumer!: ForwardReference<GithubRepoEventConsumer>;
-
-	@inject(forwardRef(() => VoiceEventConsumer))
-	private readonly voiceEventConsumer!: ForwardReference<VoiceEventConsumer>;
-
 	@inject()
 	private readonly channelEventConsumer!: ChannelEventConsumer;
 
@@ -112,10 +99,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	private readonly dmParticipantConsumer!: DmParticipantConsumer;
 
 	@inject()
-	private readonly teamRoleEventConsumer!: TeamRoleEventConsumer;
-
-	@inject()
-	private readonly channelRolePolicyEventConsumer!: ChannelRolePolicyEventConsumer;
+	private readonly channelAccessEventConsumer!: ChannelAccessEventConsumer;
 
 	@inject()
 	private readonly teamMemberEventConsumer!: TeamMemberEventConsumer;
@@ -298,9 +282,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 			next(this.authenticate(socket));
 		});
 		this.consumer.setSocketServer(server);
-		this.githubIssueResultConsumer.setSocketServer(server);
-		this.githubRepoEventConsumer.setSocketServer(server);
-		this.voiceEventConsumer.setSocketServer(server);
 		this.channelEventConsumer.setSocketServer(server);
 		this.threadStateConsumer.setSocketServer(server);
 		this.projectEventConsumer.setSocketServer(server);
@@ -309,8 +290,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 			this.chatService.canReadChannel(channelId, userId));
 		this.dmParticipantConsumer.setReadableEmitter(async (channelId, event, payload) =>
 			this.chatService.emitToReadableChannelUsers(channelId, event, payload));
-		this.teamRoleEventConsumer.setSocketServer(server);
-		this.channelRolePolicyEventConsumer.setSocketServer(server);
+		this.channelAccessEventConsumer.setSocketServer(server);
 		this.teamMemberEventConsumer.setSocketServer(server);
 		this.roomSweepTimer = setInterval(() => {
 			void this.sweepLocalRooms(server);

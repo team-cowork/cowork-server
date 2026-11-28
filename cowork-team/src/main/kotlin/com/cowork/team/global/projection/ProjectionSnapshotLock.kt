@@ -1,10 +1,12 @@
 package com.cowork.team.global.projection
 
+import org.springframework.modulith.NamedInterface
 import org.springframework.stereotype.Component
 import java.sql.Connection
 import javax.sql.DataSource
 
 @Component
+@NamedInterface("projection", propagate = false)
 class ProjectionSnapshotLock(private val dataSource: DataSource) {
     fun tryRun(lockName: String, action: () -> Unit): Boolean {
         require(lockName.isNotBlank() && lockName.length <= MAX_LOCK_NAME_LENGTH) {

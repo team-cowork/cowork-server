@@ -1,5 +1,5 @@
-import {type KafkaMessage} from 'kafkajs';
 import {type Nullable} from '../type/nullable.js';
+import {type ConsumedRecord} from './partition-fetcher.js';
 import {type ProjectionReadinessService, type ProjectionStream} from './projection-readiness.service.js';
 
 export const SNAPSHOT_BARRIER_KEY_PREFIX = '__cowork_projection_snapshot_complete__:';
@@ -36,20 +36,20 @@ JSON/계약 오류는 durable quarantine하고, 저장소·런타임 오류는 c
 export async function applyProjectionMessage(
 	stream: ProjectionStream,
 	input: {
-		partition: number;
-		message: KafkaMessage;
+		record: ConsumedRecord;
 		readiness: ProjectionReadinessService;
 		apply: (payload: unknown, messageKey?: string) => Promise<void>;
 	},
 
 ): Promise<ProjectionMessageResult> {
-	const {partition, message, readiness, apply} = input;
-	const eventKey = message.key?.toString() ?? null;
-	const rawPayload = message.value?.toString() ?? null;
+	const {record, readiness, apply} = input;
+	const {partition, offset} = record;
+	const eventKey = record.key;
+	const rawPayload = record.value;
 
 	if (rawPayload === null) {
 		await readiness.quarantine({
-			stream, partition, offset: message.offset, eventKey, payload: null, reason: 'message value is required; logical tombstone payload expected',
+			stream, partition, offset, eventKey, payload: null, reason: 'message value is required; logical tombstone payload expected',
 		});
 		return {};
 	}
@@ -61,7 +61,7 @@ export async function applyProjectionMessage(
 			const barrier = validateSnapshotBarrier(stream, partition, eventKey, payload);
 			return {
 				snapshotBarrier: {
-					offset: message.offset,
+					offset,
 					snapshotId: barrier.snapshotId,
 					source: barrier.source,
 					occurredAt: new Date(barrier.occurredAt),
@@ -77,7 +77,7 @@ export async function applyProjectionMessage(
 		}
 
 		await readiness.quarantine({
-			stream, partition, offset: message.offset, eventKey, payload: rawPayload, reason: error.message,
+			stream, partition, offset, eventKey, payload: rawPayload, reason: error.message,
 		});
 		return {};
 	}

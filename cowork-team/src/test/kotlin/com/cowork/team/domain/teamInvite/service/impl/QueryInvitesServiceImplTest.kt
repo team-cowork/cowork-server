@@ -1,14 +1,9 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.support.policyReader
 import io.mockk.every
 import io.mockk.mockk
@@ -21,20 +16,16 @@ import java.time.LocalDateTime
 
 class QueryInvitesServiceImplTest {
 
-    private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamAccessGuard =
-        TeamAccessGuard(
-            teamRepository,
+    private val teamPermissionGuard =
+        TeamPermissionGuard(
             teamMemberRepository,
-            TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(42L to mapOf("manage_invites" to true)))),
+            policyReader(1, mapOf(42L to mapOf("manage_invites" to true))),
+            mockk(),
         )
 
-    private val service = QueryInvitesServiceImpl(teamInviteRepository, teamAccessGuard)
-
-    private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-    private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.ADMIN)
+    private val service = QueryInvitesServiceImpl(teamInviteRepository, teamPermissionGuard)
 
     private fun makeInvite(
         inviteCode: String = "aB3xK9mZ",
@@ -42,7 +33,7 @@ class QueryInvitesServiceImplTest {
         duration: String = "7d",
         expiresAt: LocalDateTime? = LocalDateTime.now().plusDays(7),
     ) = TeamInvite(
-        team = team,
+        teamId = 1L,
         inviteCode = inviteCode,
         createdBy = createdBy,
         duration = duration,
@@ -54,7 +45,7 @@ class QueryInvitesServiceImplTest {
 
     @Test
     fun `getInvites는 만료된 링크 포함 전체 목록을 반환`() {
-        every { teamMemberRepository.findByTeamIdAndUserId(1L, 42L) } returns normalMember
+        every { teamMemberRepository.existsByTeamIdAndUserId(1L, 42L) } returns true
         val active = makeInvite(inviteCode = "active01")
         val expired = makeInvite(inviteCode = "expird01", expiresAt = LocalDateTime.now().minusDays(1))
         every { teamInviteRepository.findAllByTeamId(1L) } returns listOf(active, expired)
@@ -68,7 +59,7 @@ class QueryInvitesServiceImplTest {
 
     @Test
     fun `getInvites는 팀 멤버가 아니면 403`() {
-        every { teamMemberRepository.findByTeamIdAndUserId(1L, 99L) } returns null
+        every { teamMemberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(99L, 1L)

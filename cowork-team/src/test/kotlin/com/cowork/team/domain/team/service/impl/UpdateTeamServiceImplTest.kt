@@ -2,15 +2,15 @@ package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipManager
-import com.cowork.team.domain.team.service.TeamPermissionGuard
+import com.cowork.team.domain.teamMember.TeamMemberships
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -47,13 +47,15 @@ class UpdateTeamServiceImplTest :
             }
             service = UpdateTeamServiceImpl(
                 ownership,
-                memberRepository,
+                TeamMemberships(memberRepository, mockk(relaxed = true)),
                 mockk<TeamEventPublisher>(relaxed = true),
-                mockk<TeamMemberEventPublisher>(relaxed = true),
                 TeamAccessGuard(
                     teamRepository,
-                    memberRepository,
-                    TeamPermissionGuard(memberRepository, policyReader(1, mapOf(20L to mapOf("manage_team" to true)))),
+                    TeamPermissionGuard(
+                        memberRepository,
+                        policyReader(1, mapOf(20L to mapOf("manage_team" to true))),
+                        mockk(),
+                    ),
                 ),
             )
         }
@@ -64,8 +66,8 @@ class UpdateTeamServiceImplTest :
                     val team = team()
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserId(1L, 20L)
-                    } returns null
+                        memberRepository.existsByTeamIdAndUserId(1L, 20L)
+                    } returns false
 
                     val error = shouldThrow<ExpectedException> {
                         service.execute(20L, 1L, UpdateTeamRequest("after", null, null))
@@ -79,11 +81,11 @@ class UpdateTeamServiceImplTest :
             context("ADMIN이 일부 필드를 수정하면") {
                 it("요청한 필드만 변경한다") {
                     val team = team()
-                    val admin = TeamMember(team = team, userId = 20L, role = TeamRole.ADMIN)
+                    val admin = TeamMember(teamId = team.id, userId = 20L, role = TeamRole.ADMIN)
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserId(1L, 20L)
-                    } returns admin
+                        memberRepository.existsByTeamIdAndUserId(1L, 20L)
+                    } returns true
                     every { memberRepository.findAllByTeamIdForUpdate(1L) } returns listOf(admin)
 
                     val result = service.execute(20L, 1L, UpdateTeamRequest("after", null, "new-icon"))
@@ -97,9 +99,9 @@ class UpdateTeamServiceImplTest :
             context("이름을 null로 요청하면") {
                 it("기존 이름을 유지하고 함께 요청한 필드만 변경한다") {
                     val team = team()
-                    val admin = TeamMember(team = team, userId = 20L, role = TeamRole.ADMIN)
+                    val admin = TeamMember(teamId = team.id, userId = 20L, role = TeamRole.ADMIN)
                     every { teamRepository.findByIdForUpdate(1L) } returns team
-                    every { memberRepository.findByTeamIdAndUserId(1L, 20L) } returns admin
+                    every { memberRepository.existsByTeamIdAndUserId(1L, 20L) } returns true
                     every { memberRepository.findAllByTeamIdForUpdate(1L) } returns listOf(admin)
 
                     val result = service.execute(20L, 1L, UpdateTeamRequest(null, "changed", null))

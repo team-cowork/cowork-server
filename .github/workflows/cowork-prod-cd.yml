@@ -190,6 +190,8 @@ jobs:
           GH_VARIABLE_COWORK_GITHUB_APP_CLIENT_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_CLIENT_ID') && vars.COWORK_GITHUB_APP_CLIENT_ID || '' }}
           GH_VARIABLE_COWORK_GITHUB_APP_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_ID') && vars.COWORK_GITHUB_APP_ID || '' }}
           GH_VARIABLE_COWORK_GITHUB_APP_SLUG: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_SLUG') && vars.COWORK_GITHUB_APP_SLUG || '' }}
+          GH_VARIABLE_COWORK_GITHUB_LOGIN_CLIENT_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_LOGIN_CLIENT_ID') && vars.COWORK_GITHUB_LOGIN_CLIENT_ID || '' }}
+          GH_VARIABLE_COWORK_GITHUB_LOGIN_REDIRECT_URIS: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_LOGIN_REDIRECT_URIS') && vars.COWORK_GITHUB_LOGIN_REDIRECT_URIS || '' }}
           GH_VARIABLE_DATAGSM_CLIENT_ID: ${{ contains(matrix.variable_names, 'DATAGSM_CLIENT_ID') && vars.DATAGSM_CLIENT_ID || '' }}
           GH_VARIABLE_DATAGSM_REDIRECT_URIS: ${{ contains(matrix.variable_names, 'DATAGSM_REDIRECT_URIS') && vars.DATAGSM_REDIRECT_URIS || '' }}
           GH_VARIABLE_DB_NAME: ${{ contains(matrix.variable_names, 'DB_NAME') && vars.DB_NAME || '' }}
@@ -211,10 +213,12 @@ jobs:
           GH_SECRET_GROQ_API_KEY: ${{ contains(matrix.secret_names, 'GROQ_API_KEY') && secrets.GROQ_API_KEY || '' }}
           GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
           GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
+          GH_SECRET_APPLET_SECRET_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'APPLET_SECRET_ENCRYPTION_KEY') && secrets.APPLET_SECRET_ENCRYPTION_KEY || '' }}
           GH_SECRET_APPLET_SECRET_KEY: ${{ contains(matrix.secret_names, 'APPLET_SECRET_KEY') && secrets.APPLET_SECRET_KEY || '' }}
           GH_SECRET_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_APP_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_APP_CLIENT_SECRET') && secrets.COWORK_GITHUB_APP_CLIENT_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_INTERNAL_API_KEY') && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}
+          GH_SECRET_COWORK_GITHUB_LOGIN_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_LOGIN_CLIENT_SECRET') && secrets.COWORK_GITHUB_LOGIN_CLIENT_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_PRIVATE_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_PRIVATE_KEY') && secrets.COWORK_GITHUB_PRIVATE_KEY || '' }}
           GH_SECRET_COWORK_GITHUB_WEBHOOK_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_WEBHOOK_SECRET') && secrets.COWORK_GITHUB_WEBHOOK_SECRET || '' }}
           GH_SECRET_DATAGSM_WEBHOOK_SECRET: ${{ contains(matrix.secret_names, 'DATAGSM_WEBHOOK_SECRET') && secrets.DATAGSM_WEBHOOK_SECRET || '' }}

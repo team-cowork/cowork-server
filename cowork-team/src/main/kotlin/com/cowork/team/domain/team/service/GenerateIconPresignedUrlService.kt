@@ -3,5 +3,5 @@ package com.cowork.team.domain.team.service
 import com.cowork.team.domain.team.presentation.data.response.IconPresignedUrlResponse
 
 interface GenerateIconPresignedUrlService {
-    fun execute(userId: Long, contentType: String): IconPresignedUrlResponse
+    fun execute(userId: Long, teamId: Long, contentType: String): IconPresignedUrlResponse
 }

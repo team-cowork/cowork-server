@@ -133,7 +133,7 @@ func newLoginFixture(t *testing.T) *loginFixture {
 }
 func (f *loginFixture) begin(t *testing.T) (string, url.Values) {
 	t.Helper()
-	raw, session, err := f.login.Begin(context.Background(), "https://app.example/callback")
+	raw, session, err := f.login.Begin(context.Background(), "https://app.example/callback", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +151,16 @@ func (f *loginFixture) begin(t *testing.T) (string, url.Values) {
 	}
 	return session, url.Values{"state": {q.Get("state")}, "code": {"provider-code"}}
 }
+
+// complete follows the CompleteLogin path: it consumes the attempt, then completes it.
+func (f *loginFixture) complete(session string, callback url.Values) (*oauth.UserInfo, error) {
+	attempt, err := f.login.take(context.Background(), session)
+	if err != nil {
+		return nil, err
+	}
+	return f.login.CompleteAttempt(context.Background(), attempt, callback)
+}
+
 func eligibleUser() *oauth.UserInfo {
 	return &oauth.UserInfo{ID: 99, Subject: "student@gsm.hs.kr", Email: "student@gsm.hs.kr", Role: "USER", Status: "ACTIVE", ObjectType: datagsm.Ptr("STUDENT"), Student: &datagsm.Student{ID: 501, Name: "Student", Sex: datagsm.SexMan, Role: datagsm.StudentRole("GRADUATE")}}
 }
@@ -159,7 +169,7 @@ func TestServerManagedLogin(t *testing.T) {
 	f := newLoginFixture(t)
 	session, callback := f.begin(t)
 	attempt := f.store.attempts[HashToken(session)]
-	user, err := f.login.Complete(context.Background(), session, callback)
+	user, err := f.complete(session, callback)
 	if err != nil || user.ID != 99 {
 		t.Fatalf("user=%+v err=%v", user, err)
 	}
@@ -167,12 +177,12 @@ func TestServerManagedLogin(t *testing.T) {
 		t.Fatal("exchange did not use saved attempt")
 	}
 	before := f.calls
-	if _, err = f.login.Complete(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != before {
+	if _, err = f.complete(session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != before {
 		t.Fatal("replayed attempt reached the provider")
 	}
 	// The same signing key is reused across independent, single-use login attempts.
 	session, callback = f.begin(t)
-	if _, err = f.login.Complete(context.Background(), session, callback); err != nil {
+	if _, err = f.complete(session, callback); err != nil {
 		t.Fatal(err)
 	}
 	if f.jwksCalls != 1 {
@@ -197,7 +207,7 @@ func TestLoginAttemptBoundaries(t *testing.T) {
 			case "duplicate code":
 				callback.Add("code", "another")
 			}
-			if _, err := f.login.Complete(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+			if _, err := f.complete(session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
 				t.Fatalf("err=%v provider calls=%d", err, f.calls)
 			}
 		})
@@ -220,7 +230,7 @@ func TestOIDCIdentityVerification(t *testing.T) {
 			case "inactive account":
 				f.userStatus = "INACTIVE"
 			}
-			if _, err := f.login.Complete(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) {
+			if _, err := f.complete(session, callback); !errors.Is(err, ErrAuthenticationRejected) {
 				t.Fatalf("accepted invalid OIDC identity: %v", err)
 			}
 		})
@@ -241,7 +251,7 @@ func TestLoginScopeConsent(t *testing.T) {
 			f := newLoginFixture(t)
 			f.scope = tc.scope
 			session, callback := f.begin(t)
-			user, err := f.login.Complete(context.Background(), session, callback)
+			user, err := f.complete(session, callback)
 			if !errors.Is(err, tc.want) || (tc.want == nil && user == nil) {
 				t.Fatalf("user=%v err=%v", user, err)
 			}
@@ -270,14 +280,14 @@ func TestLoginIDTokenClockSkew(t *testing.T) {
 			f := newLoginFixture(t)
 			f.issuedAt, f.notBefore, f.expiresAt = datagsm.Ptr(f.now.Add(tc.iat)), datagsm.Ptr(f.now.Add(tc.nbf)), datagsm.Ptr(f.now.Add(tc.exp))
 			session, callback := f.begin(t)
-			_, err := f.login.Complete(context.Background(), session, callback)
+			_, err := f.complete(session, callback)
 			if (tc.valid && err != nil) || (!tc.valid && !errors.Is(err, ErrAuthenticationRejected)) {
 				t.Fatalf("valid=%v err=%v", tc.valid, err)
 			}
 			if tc.valid {
 				session, callback = f.begin(t)
 				f.nonce = "wrong"
-				if _, err = f.login.Complete(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) {
+				if _, err = f.complete(session, callback); !errors.Is(err, ErrAuthenticationRejected) {
 					t.Fatalf("clock skew bypassed nonce validation: %v", err)
 				}
 			}
@@ -288,7 +298,7 @@ func TestLoginIDTokenClockSkew(t *testing.T) {
 func TestLoginVerifiesCachedSigningKeysDuringProviderOutage(t *testing.T) {
 	f := newLoginFixture(t)
 	session, callback := f.begin(t)
-	if _, err := f.login.Complete(context.Background(), session, callback); err != nil {
+	if _, err := f.complete(session, callback); err != nil {
 		t.Fatal(err)
 	}
 	f.now = f.now.Add(16 * time.Minute)
@@ -298,7 +308,7 @@ func TestLoginVerifiesCachedSigningKeysDuringProviderOutage(t *testing.T) {
 		if invalidNonce {
 			f.nonce = "invalid"
 		}
-		_, err := f.login.Complete(context.Background(), session, callback)
+		_, err := f.complete(session, callback)
 		if (!invalidNonce && err != nil) || (invalidNonce && !errors.Is(err, ErrAuthenticationRejected)) {
 			t.Fatalf("invalidNonce=%v err=%v", invalidNonce, err)
 		}
@@ -320,11 +330,11 @@ func TestLoginStorageAndOriginPolicy(t *testing.T) {
 			t.Fatal(origin)
 		}
 	}
-	if _, _, err := f.login.Begin(context.Background(), "https://evil.example/callback"); !errors.Is(err, ErrInvalidLoginRequest) {
+	if _, _, err := f.login.Begin(context.Background(), "https://evil.example/callback", 0); !errors.Is(err, ErrInvalidLoginRequest) {
 		t.Fatal(err)
 	}
 	f.store.err = errors.New("Redis unavailable")
-	if _, _, err := f.login.Begin(context.Background(), "https://app.example/callback"); !errors.Is(err, ErrAuthenticationUnavailable) {
+	if _, _, err := f.login.Begin(context.Background(), "https://app.example/callback", 0); !errors.Is(err, ErrAuthenticationUnavailable) {
 		t.Fatal(err)
 	}
 }
@@ -366,8 +376,12 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			tc.mutate(info)
 			identity := &fakeIdentityCoordinator{userID: 27}
 			store := &fakeRefreshTokenStore{}
-			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil)
-			pair, err := svc.issueUserSession(context.Background(), info)
+			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil, nil)
+			var pair *TokenPair
+			command, err := svc.dataGSMCommand(domain.UserIdentityCommandUpsert, info, nil, nil)
+			if err == nil {
+				pair, err = svc.commitIdentityAndIssueSession(context.Background(), command)
+			}
 			if tc.valid {
 				if err != nil || pair == nil || identity.command.Student.Major != nil || identity.command.Student.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
 					t.Fatalf("pair=%+v err=%v command=%+v", pair, err, identity.command)
@@ -382,5 +396,47 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 				t.Fatal("ineligible user received a session")
 			}
 		})
+	}
+}
+
+func TestDataGSMLinkIsBoundToTheUserWhoStartedItAndCarriesTheStudent(t *testing.T) {
+	f := newLoginFixture(t)
+	cfg := &config.AppConfig{JWTSecret: "unit-secret", JWTAccessExpire: time.Minute, JWTRefreshExpire: time.Hour}
+	identity := &fakeIdentityCoordinator{userID: 7}
+	svc := NewAuthService(cfg, identity, &fakeRefreshTokenStore{}, NewTokenService(cfg), f.login, nil)
+	beginLink := func(userID int64) (string, url.Values) {
+		raw, session, err := svc.BeginLink(context.Background(), userID, ProviderDataGSM, "https://app.example/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		u, _ := url.Parse(raw)
+		f.nonce = u.Query().Get("nonce")
+		return session, url.Values{"state": {u.Query().Get("state")}, "code": {"provider-code"}}
+	}
+
+	session, callback := beginLink(7)
+	if err := svc.CompleteLink(context.Background(), 8, session, callback); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+		t.Fatalf("another user completed the link: err=%v calls=%d", err, f.calls)
+	}
+	session, callback = beginLink(7)
+	if _, err := svc.CompleteLogin(context.Background(), session, callback, ""); !errors.Is(err, ErrAuthenticationRejected) || f.calls != 0 {
+		t.Fatalf("a link attempt signed in: err=%v calls=%d", err, f.calls)
+	}
+
+	session, callback = beginLink(7)
+	if err := svc.CompleteLink(context.Background(), 7, session, callback); err != nil {
+		t.Fatal(err)
+	}
+	command := identity.command
+	if command.CommandType != domain.UserIdentityCommandLink || command.AccountID == nil || *command.AccountID != 7 ||
+		command.Provider != ProviderDataGSM || command.ProviderSubject != "99" ||
+		command.Student == nil || command.Student.DataGSMStudentID == nil || *command.Student.DataGSMStudentID != 501 {
+		t.Fatalf("unexpected link command %+v", command)
+	}
+
+	identity.err = ErrIdentityAlreadyLinked
+	session, callback = beginLink(7)
+	if err := svc.CompleteLink(context.Background(), 7, session, callback); !errors.Is(err, ErrIdentityAlreadyLinked) {
+		t.Fatalf("err=%v", err)
 	}
 }

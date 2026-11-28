@@ -1,106 +1,45 @@
 import {HttpException} from '@nestjs/common';
 import {canBypassSlowmode, SlowmodeService} from './slowmode.service.js';
 
-const role = (roleId: number, priority: number, permissions: Record<string, boolean> = {}) => ({
-	roleId, teamId: 10, priority, permissions, isDefault: false,
+const member = {teamId: 10, authorizationVersion: 5n};
+const decision = (allowedPermissions: string[], sourceAuthorizationVersion = 5n, teamId = 10) => ({
+	channelId: 1, userId: 42, teamId, allowedPermissions, readPrivate: false, sourceAuthorizationVersion,
 });
 
-// 역할 권한 이름은 Team 서비스의 Kafka 계약이 정한다.
-const allowsBypass = Object.fromEntries([['slowmode_bypass', true]]);
-const deniesBypass = Object.fromEntries([['slowmode_bypass', false]]);
-
 describe('canBypassSlowmode', () => {
-	it('활성 멤버십만으로 우회할 수 없고 탈퇴자의 관리자 정책도 무시한다', () => {
-		expect(canBypassSlowmode({
-			teamId: 10, isActiveMember: true, roles: [], channelPermissionsByRoleId: new Map(),
-		})).toBe(false);
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: false,
-			roles: [role(1, 10, {administrator: true})],
-			channelPermissionsByRoleId: new Map(),
-		})).toBe(false);
+	it('현재 판정 결과가 slowmode_bypass를 허용할 때만 우회한다', () => {
+		expect(canBypassSlowmode(decision(['message_read', 'slowmode_bypass']), member)).toBe(true);
+		expect(canBypassSlowmode(decision(['message_read']), member)).toBe(false);
 	});
 
-	it('채널 덮어쓰기가 없으면 역할 기본 권한 중 하나라도 허용이면 우회한다', () => {
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: true,
-			roles: [role(1, 5), role(2, 1, allowsBypass)],
-			channelPermissionsByRoleId: new Map(),
-		})).toBe(true);
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: true,
-			roles: [role(1, 5, deniesBypass)],
-			channelPermissionsByRoleId: new Map(),
-		})).toBe(false);
+	it('판정 결과나 활성 멤버십이 없으면 우회하지 않는다', () => {
+		expect(canBypassSlowmode(undefined, member)).toBe(false);
+		expect(canBypassSlowmode(decision(['slowmode_bypass']), undefined)).toBe(false);
 	});
 
-	it('채널 덮어쓰기는 priority와 무관하게 하나라도 허용이면 허용한다', () => {
-		const roles = [role(1, 5, allowsBypass), role(2, 9), role(3, 9)];
-
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: true,
-			roles,
-			channelPermissionsByRoleId: new Map([[1, allowsBypass], [2, deniesBypass]]),
-		})).toBe(true);
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: true,
-			roles,
-			channelPermissionsByRoleId: new Map([[2, allowsBypass], [3, deniesBypass]]),
-		})).toBe(true);
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: true,
-			roles: [role(1, 5)],
-			channelPermissionsByRoleId: new Map([[1, allowsBypass]]),
-		})).toBe(true);
-	});
-
-	it('다른 팀 역할은 평가하지 않는다', () => {
-		expect(canBypassSlowmode({
-			teamId: 10,
-			isActiveMember: true,
-			roles: [{
-				roleId: 1,
-				teamId: 99,
-				priority: 1,
-				isDefault: false,
-				permissions: allowsBypass,
-			}],
-			channelPermissionsByRoleId: new Map(),
-		})).toBe(false);
+	it('다른 인가 version이나 다른 팀으로 계산된 판정 결과는 쓰지 않는다', () => {
+		expect(canBypassSlowmode(decision(['slowmode_bypass'], 4n), member)).toBe(false);
+		expect(canBypassSlowmode({...decision(['slowmode_bypass']), sourceAuthorizationVersion: null}, member)).toBe(false);
+		expect(canBypassSlowmode(decision(['slowmode_bypass'], 5n, 99), member)).toBe(false);
 	});
 });
 
 describe('SlowmodeService.reserve', () => {
 	const settingRepository = {findSlowmodeSeconds: jest.fn()};
 	const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn()};
-	const teamRoleRepository = {
-		findAssignmentsByTeamIdsAndAccountIds: jest.fn(),
-		findDefaultRolesByTeamIds: jest.fn(),
-		findRolePermissionsByIds: jest.fn(),
-	};
-	const policyRepository = {findPermissionsByChannelIdAndRoleIds: jest.fn()};
+	const channelAccessRepository = {findByChannelIdsAndUserIds: jest.fn()};
 	const rateLimiter = {tryReserve: jest.fn(), release: jest.fn()};
 	const service = Object.assign<SlowmodeService, Record<string, unknown>>(new SlowmodeService(), {
 		settingRepository,
 		teamMemberRepository,
-		teamRoleRepository,
-		policyRepository,
+		channelAccessRepository,
 		rateLimiter,
 	});
 
 	beforeEach(() => {
 		jest.resetAllMocks();
-		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
-		teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([]);
-		teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
-		teamRoleRepository.findRolePermissionsByIds.mockResolvedValue([]);
-		policyRepository.findPermissionsByChannelIdAndRoleIds.mockResolvedValue([]);
+		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{...member, userId: 42, role: 'MEMBER'}]);
+		channelAccessRepository.findByChannelIdsAndUserIds.mockResolvedValue([decision(['message_read'])]);
 	});
 
 	it('슬로우 모드가 꺼져 있거나 DM이면 예약하지 않는다', async () => {
@@ -128,12 +67,12 @@ describe('SlowmodeService.reserve', () => {
 		await expect(service.reserve(1, 10, 42, 'client-1')).resolves.toBeUndefined();
 	});
 
-	it('관리자 정책은 예약하지 않는다', async () => {
+	it('판정 결과가 slowmode_bypass를 허용하면 예약하지 않는다', async () => {
 		settingRepository.findSlowmodeSeconds.mockResolvedValue(30);
-		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
-		teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([{...role(1, 0, {administrator: true}), isDefault: true}]);
+		channelAccessRepository.findByChannelIdsAndUserIds.mockResolvedValue([decision(['message_read', 'slowmode_bypass'])]);
 
 		await expect(service.reserve(1, 10, 42, 'client-1')).resolves.toBeUndefined();
+		expect(channelAccessRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith([1], [42]);
 		expect(rateLimiter.tryReserve).not.toHaveBeenCalled();
 	});
 });

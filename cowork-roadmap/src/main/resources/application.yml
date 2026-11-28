@@ -49,7 +49,7 @@ management:
         enabled: true
       group:
         readiness:
-          include: readinessState,teamMemberProjectionReadiness,accountPolicyReadiness,teamPolicyReadiness
+          include: readinessState,teamMemberProjectionReadiness,accountPolicyReadiness,teamAccessReadiness
   metrics:
     tags:
       application: ${spring.application.name}

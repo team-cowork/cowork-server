@@ -1,5 +1,9 @@
 package com.cowork.preference.domain.projectrole.model
 
+import com.cowork.preference.domain.access.permission.PermissionDecisionReason
+import com.cowork.preference.domain.access.permission.PermissionSource
+import com.cowork.preference.domain.access.permission.PermissionSourceKind
+import com.cowork.preference.domain.access.permission.PolicyRole
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.vertx.core.json.JsonObject
@@ -109,6 +113,71 @@ class ProjectPermissionsTest :
                 val role = defaultRole.copy().put("project_board_read", true).put("project_board_write", true)
                 ProjectPermissions.resolve(listOf(role), emptyList()) shouldBe
                     ProjectPermissions(read = true, boardRead = true, boardWrite = true)
+            }
+        }
+
+        describe("프로젝트 권한 판정 근거는") {
+            val reader =
+                PolicyRole(1L, "@everyone", mapOf("project_read" to true, "project_write" to true), isDefault = true)
+            fun explain(
+                projectRoles: List<PolicyRole> = emptyList(),
+                manager: Boolean = false,
+                isPrivate: Boolean = false,
+                teamRoles: List<PolicyRole> = listOf(reader),
+            ) = ProjectPermissions.explain(teamRoles, projectRoles, manager, isPrivate)
+
+            it("모든 프로젝트 권한 키를 정의 순서대로 반환한다") {
+                explain().keys.toList() shouldBe ProjectPermissions.ROLE_KEYS.map { "project_$it" }
+            }
+            it("프로젝트 역할의 명시 값을 팀 역할보다 우선해 근거와 함께 반환한다") {
+                val deny = PolicyRole(null, "blocked", mapOf("write" to false))
+                val decision = explain(listOf(deny)).getValue("project_write")
+                decision.allowed shouldBe false
+                decision.decidedBy shouldBe PermissionDecisionReason.PROJECT_OVERRIDE_DENY
+                decision.sources shouldBe listOf(
+                    PermissionSource(PermissionSourceKind.TEAM_ROLE, "project_write", true, 1L, "@everyone"),
+                    PermissionSource(PermissionSourceKind.PROJECT_ROLE, "write", false, null, "blocked"),
+                )
+            }
+            it("비공개 프로젝트는 프로젝트 역할의 읽기 허용이 없으면 PRIVATE_PROJECT로 거부한다") {
+                explain(isPrivate = true).getValue("project_read").decidedBy shouldBe
+                    PermissionDecisionReason.PRIVATE_PROJECT
+            }
+            it("읽기 권한이 없으면 다른 허용 권한을 REQUIRES_PROJECT_READ로 거부한다") {
+                val decisions = explain(isPrivate = true)
+                decisions.getValue("project_write").allowed shouldBe false
+                decisions.getValue("project_write").decidedBy shouldBe PermissionDecisionReason.REQUIRES_PROJECT_READ
+                decisions.getValue("project_manage").decidedBy shouldBe PermissionDecisionReason.NO_GRANT
+            }
+            it("보드 보기 권한이 없으면 보드 수정을 REQUIRES_BOARD_READ로 거부한다") {
+                val writer = PolicyRole(2L, "Writer", mapOf("project_read" to true, "project_board_write" to true))
+                explain(teamRoles = listOf(writer)).getValue("project_board_write").decidedBy shouldBe
+                    PermissionDecisionReason.REQUIRES_BOARD_READ
+            }
+            it("관리자는 모든 권한을 ADMINISTRATOR로 허용한다") {
+                val admin = PolicyRole(3L, "Admin", mapOf("administrator" to true))
+                explain(listOf(PolicyRole(null, "blocked", mapOf("read" to false))), true, true, listOf(admin))
+                    .values.map { it.allowed to it.decidedBy }.distinct() shouldBe
+                    listOf(true to PermissionDecisionReason.ADMINISTRATOR)
+            }
+        }
+
+        describe("프로젝트 권한의 resolve는") {
+            it("판정 근거 없이 explain과 같은 결과를 낸다") {
+                val teamRoles = listOf(JsonObject().put("project_read", true).put("project_board_read", true))
+                val projectRoles = listOf(JsonObject().put("write", true).put("board_write", false))
+                listOf(true, false).forEach { manager ->
+                    listOf(true, false).forEach { isPrivate ->
+                        val resolved = ProjectPermissions.resolve(teamRoles, projectRoles, manager, isPrivate)
+                        val explained = ProjectPermissions.explain(
+                            teamRoles.map { PolicyRole(null, null, it.map.mapValues { e -> e.value as Boolean }) },
+                            projectRoles.map { PolicyRole(null, null, it.map.mapValues { e -> e.value as Boolean }) },
+                            manager,
+                            isPrivate,
+                        )
+                        resolved.toScopedMap() shouldBe explained.mapValues { it.value.allowed }
+                    }
+                }
             }
         }
     })

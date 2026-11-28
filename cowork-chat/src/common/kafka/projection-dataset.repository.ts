@@ -7,14 +7,12 @@ import {ThreadProjection} from '../../chat/schema/thread-projection.schema.js';
 import {WebhookProjection} from '../../chat/schema/webhook-projection.schema.js';
 import {DmParticipant} from '../../chat/schema/dm-participant.schema.js';
 import {ChannelProjection} from '../../chat/schema/channel-projection.schema.js';
-import {ChannelRolePolicyProjection} from '../../chat/schema/channel-role-policy-projection.schema.js';
+import {ChannelAccessProjection} from '../../chat/schema/channel-access-projection.schema.js';
 import {ProjectGithubRepoProjection} from '../../chat/schema/project-github-repo-projection.schema.js';
 import {ProjectPermissionProjection} from '../../chat/schema/project-permission-projection.schema.js';
 import {ProjectProjection} from '../../chat/schema/project-projection.schema.js';
 import {TeamMemberProjection} from '../../chat/schema/team-member-projection.schema.js';
-import {TeamRoleAssignmentProjection} from '../../chat/schema/team-role-assignment-projection.schema.js';
-import {TeamRoleMemberTombstone} from '../../chat/schema/team-role-member-tombstone.schema.js';
-import {TeamRoleProjection} from '../../chat/schema/team-role-projection.schema.js';
+import {TeamAccessProjection} from '../../chat/schema/team-access-projection.schema.js';
 import {TextChannelSettingProjection} from '../../chat/schema/text-channel-setting-projection.schema.js';
 import {TeamSettingProjection} from '../../chat/schema/team-setting-projection.schema.js';
 import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema.js';
@@ -37,8 +35,8 @@ export type ProjectionStreamName =
 	| 'projectPermission'
 	| 'projectGithubRepo'
 	| 'teamMember'
-	| 'teamRole'
-	| 'channelRolePolicy'
+	| 'teamAccess'
+	| 'channelAccess'
 	| 'textChannelSetting'
 	| 'teamSetting'
 	| 'webhook'
@@ -48,7 +46,7 @@ export type ProjectionDatasetState = {
 	stream: ProjectionStreamName;
 	groupId: string;
 	topic: string;
-	sourceGeneration: string;
+	topicId?: string;
 	datasetGeneration: string;
 	mode: ProjectionRunMode;
 	status: ProjectionDatasetStatus;
@@ -65,7 +63,6 @@ type ProjectionDatasetStream = {
 	name: string;
 	groupId: string;
 	topic: string;
-	sourceGeneration: string;
 };
 
 @injectable()
@@ -103,17 +100,11 @@ export class ProjectionDatasetRepository {
 	@injectModel(UserProfileProjection.name)
 	private readonly userProfile!: Model<UserProfileProjection>;
 
-	@injectModel(TeamRoleProjection.name)
-	private readonly teamRole!: Model<TeamRoleProjection>;
+	@injectModel(TeamAccessProjection.name)
+	private readonly teamAccess!: Model<TeamAccessProjection>;
 
-	@injectModel(TeamRoleAssignmentProjection.name)
-	private readonly teamRoleAssignment!: Model<TeamRoleAssignmentProjection>;
-
-	@injectModel(TeamRoleMemberTombstone.name)
-	private readonly teamRoleMemberTombstone!: Model<TeamRoleMemberTombstone>;
-
-	@injectModel(ChannelRolePolicyProjection.name)
-	private readonly channelRolePolicy!: Model<ChannelRolePolicyProjection>;
+	@injectModel(ChannelAccessProjection.name)
+	private readonly channelAccess!: Model<ChannelAccessProjection>;
 
 	@injectModel(TextChannelSettingProjection.name)
 	private readonly textChannelSetting!: Model<TextChannelSettingProjection>;
@@ -137,8 +128,8 @@ export class ProjectionDatasetRepository {
 			projectGithubRepo: [this.projectGithubRepo],
 			teamMember: [this.teamMember],
 			userProfile: [this.userProfile],
-			teamRole: [this.teamRole, this.teamRoleAssignment, this.teamRoleMemberTombstone],
-			channelRolePolicy: [this.channelRolePolicy],
+			teamAccess: [this.teamAccess],
+			channelAccess: [this.channelAccess],
 			textChannelSetting: [this.textChannelSetting],
 			teamSetting: [this.teamSetting],
 			webhook: [this.webhook],
@@ -151,7 +142,7 @@ export class ProjectionDatasetRepository {
 			stream: dataset.stream as ProjectionStreamName,
 			groupId: dataset.groupId,
 			topic: dataset.topic,
-			sourceGeneration: dataset.sourceGeneration,
+			...((dataset.topicId !== null && dataset.topicId !== undefined) && {topicId: dataset.topicId}),
 			datasetGeneration: dataset.datasetGeneration,
 			mode: dataset.mode,
 			status: dataset.status,
@@ -172,6 +163,7 @@ export class ProjectionDatasetRepository {
 
 	async createBootstrap(
 		stream: ProjectionDatasetStream,
+		topicId: string,
 		baseOffsets: ProjectionDatasetPartitionOffset[],
 		targetOffsets: ProjectionDatasetPartitionOffset[],
 	): Promise<ProjectionDatasetState> {
@@ -183,7 +175,7 @@ export class ProjectionDatasetRepository {
 					stream: stream.name,
 					groupId: stream.groupId,
 					topic: stream.topic,
-					sourceGeneration: stream.sourceGeneration,
+					topicId,
 					datasetGeneration,
 					mode: 'BOOTSTRAP',
 					status: 'INITIALIZING',
@@ -219,7 +211,6 @@ export class ProjectionDatasetRepository {
 					reason,
 				},
 				$setOnInsert: {
-					sourceGeneration: stream.sourceGeneration,
 					datasetGeneration: randomUUID(),
 					mode: 'REBUILD',
 					activationDocumentCount: 0,
@@ -245,12 +236,13 @@ export class ProjectionDatasetRepository {
 		stream: ProjectionDatasetStream,
 		request: {
 			reason: string;
+			topicId: string;
 			baseOffsets: ProjectionDatasetPartitionOffset[];
 			targetOffsets: ProjectionDatasetPartitionOffset[];
 		},
 
 	): Promise<ProjectionDatasetState> {
-		const {reason, baseOffsets, targetOffsets} = request;
+		const {reason, topicId, baseOffsets, targetOffsets} = request;
 		const datasetGeneration = randomUUID();
 		const dataset = await this.datasets.findOneAndUpdate(
 			{
@@ -260,7 +252,7 @@ export class ProjectionDatasetRepository {
 				$set: {
 					groupId: stream.groupId,
 					topic: stream.topic,
-					sourceGeneration: stream.sourceGeneration,
+					topicId,
 					datasetGeneration,
 					mode: 'REBUILD',
 					status: 'REBUILD_REQUESTED',
@@ -276,6 +268,22 @@ export class ProjectionDatasetRepository {
 		).lean<ProjectionDataset>();
 
 		return this.toState(dataset);
+	}
+
+	/**
+    Topic UUID가 비어 있거나 이미 같은 값일 때만 기록한다. 다른 writer가 바꾼 generation이나 UUID는 덮어쓰지 않는다.
+    */
+	async adoptTopicId(
+		stream: ProjectionStreamName,
+		datasetGeneration: string,
+		topicId: string,
+	): Promise<ProjectionDatasetState | undefined> {
+		const dataset = await this.datasets.findOneAndUpdate(
+			{stream, datasetGeneration, topicId: {$in: [null, topicId]}},
+			{$set: {topicId}},
+			{returnDocument: 'after'},
+		).lean<Nullable<ProjectionDataset>>();
+		return dataset ? this.toState(dataset) : undefined;
 	}
 
 	async tryBeginReset(stream: ProjectionStreamName, datasetGeneration: string): Promise<boolean> {

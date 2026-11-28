@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.websocket
 
+import com.cowork.gateway.security.agent.AgentScope
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -37,6 +38,18 @@ class WsCookieServiceTest :
                     cookie.isHttpOnly shouldBe true
                     cookie.isSecure shouldBe true
                     cookie.sameSite shouldBe "None"
+                }
+            }
+
+            context("agent JWT로 인증되었으면") {
+                it("쿠키를 발급하지 않는다") {
+                    val auth = UsernamePasswordAuthenticationToken(
+                        "42",
+                        "agent.access.token",
+                        listOf(AgentScope.AGENT_AUTHORITY, AgentScope.CHAT_READ.authority),
+                    ).also { it.details = mapOf("expiresAt" to (now.epochSecond + 600).toString()) }
+
+                    service.createCookie(auth, now) shouldBe null
                 }
             }
 

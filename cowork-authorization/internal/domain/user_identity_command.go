@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,8 +16,12 @@ import (
 var ErrIdentityResultRejected = errors.New("identity command result permanently rejected")
 
 const (
-	UserIdentityCommandSchemaVersion = 3
+	UserIdentityCommandSchemaVersion = 4
+	UserIdentityResultSchemaVersion  = 2
 	UserIdentityCommandUpsert        = "UPSERT"
+	UserIdentityCommandLink          = "LINK"
+	UserIdentityCommandSchoolLogin   = "SCHOOL_LOGIN"
+	UserIdentityCommandSignIn        = "SIGN_IN"
 	UserIdentityPending              = "PENDING"
 	UserIdentitySucceeded            = "SUCCEEDED"
 	UserIdentityFailed               = "FAILED"
@@ -38,7 +43,24 @@ type UserIdentityCommand struct {
 	Name            string           `json:"name"`
 	Email           string           `json:"email"`
 	Student         *StudentIdentity `json:"student"`
-	OccurredAt      time.Time        `json:"occurredAt"`
+	// GithubLogin is set only for the GITHUB provider. The numeric GitHub ID is the subject.
+	GithubLogin *string `json:"githubLogin,omitempty"`
+	// GSMEmailVerified is set only for the GITHUB provider. It is true when any verified email uses the GSM school domain.
+	GSMEmailVerified *bool `json:"gsmEmailVerified,omitempty"`
+	// GitHubIdentity is the proof from the first step of SCHOOL_LOGIN.
+	GitHubIdentity *GitHubIdentity `json:"githubIdentity,omitempty"`
+	// AccountID is set only for LINK.
+	AccountID  *int64    `json:"accountId,omitempty"`
+	OccurredAt time.Time `json:"occurredAt"`
+}
+
+// GitHubIdentity is obtained from GitHub OAuth. ID stays the same when the login changes.
+type GitHubIdentity struct {
+	ID               int64  `json:"id"`
+	Login            string `json:"login"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	GSMEmailVerified bool   `json:"gsmEmailVerified"`
 }
 
 type StudentIdentity struct {
@@ -114,7 +136,7 @@ func NewUUID() (string, error) {
 
 func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	if command.SchemaVersion != UserIdentityCommandSchemaVersion {
-		return fmt.Errorf("command schemaVersion must be 3")
+		return fmt.Errorf("command schemaVersion must be 4")
 	}
 	if !ValidUUID(command.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
@@ -123,14 +145,45 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 		utf8.RuneCountInString(command.IdempotencyKey) > MaxIdentityIdempotencyKeyLength {
 		return fmt.Errorf("idempotencyKey must contain at most %d characters", MaxIdentityIdempotencyKeyLength)
 	}
-	if command.CommandType != UserIdentityCommandUpsert {
-		return fmt.Errorf("commandType must be UPSERT")
+	if command.CommandType != UserIdentityCommandSchoolLogin && command.GitHubIdentity != nil {
+		return errors.New("githubIdentity requires SCHOOL_LOGIN")
+	}
+	switch command.CommandType {
+	case UserIdentityCommandSchoolLogin:
+		gh := command.GitHubIdentity
+		if command.AccountID != nil || command.Provider != "DATAGSM" || gh == nil || !gh.GSMEmailVerified ||
+			gh.ID <= 0 || !ValidGitHubLogin(gh.Login) || !validText(gh.Name, 50) || !validText(gh.Email, 255) {
+			return errors.New("SCHOOL_LOGIN requires verified GitHub and DataGSM identities")
+		}
+	case UserIdentityCommandSignIn:
+		if command.AccountID != nil || command.Provider != "DATAGSM" {
+			return errors.New("SIGN_IN requires DATAGSM")
+		}
+	case UserIdentityCommandUpsert:
+		if command.AccountID != nil {
+			return errors.New("accountId is only allowed for LINK")
+		}
+	case UserIdentityCommandLink:
+		if command.AccountID == nil || *command.AccountID <= 0 || command.Provider != "GITHUB" && command.Provider != "DATAGSM" {
+			return errors.New("LINK requires a positive accountId and the GITHUB or DATAGSM provider")
+		}
+	default:
+		return errors.New("unsupported identity command type")
 	}
 	if !validText(command.Name, 50) || !validText(command.Email, 255) {
 		return errors.New("invalid account profile")
 	}
 	if command.OccurredAt.IsZero() {
 		return errors.New("occurredAt must not be zero")
+	}
+	if command.Provider == "GITHUB" {
+		if !ValidDecimalID(command.ProviderSubject) || command.Student != nil || command.GithubLogin == nil || !ValidGitHubLogin(*command.GithubLogin) || command.GSMEmailVerified == nil {
+			return errors.New("invalid GitHub identity")
+		}
+		return nil
+	}
+	if command.GithubLogin != nil || command.GSMEmailVerified != nil {
+		return errors.New("githubLogin and gsmEmailVerified are only allowed for GITHUB")
 	}
 	if command.Provider == "DEV" && command.Student == nil {
 		switch command.ProviderSubject {
@@ -141,9 +194,8 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	if command.Provider != "DATAGSM" {
 		return errors.New("unsupported identity provider")
 	}
-	id, err := strconv.ParseInt(command.ProviderSubject, 10, 64)
 	st := command.Student
-	if err != nil || id <= 0 || strconv.FormatInt(id, 10) != command.ProviderSubject || st == nil ||
+	if !ValidDecimalID(command.ProviderSubject) || st == nil ||
 		st.DataGSMStudentID == nil || *st.DataGSMStudentID <= 0 || !validText(st.Sex, 10) || !validText(st.Role, 50) ||
 		(st.Major != nil && utf8.RuneCountInString(*st.Major) > 50) || (st.GithubID != nil && utf8.RuneCountInString(*st.GithubID) > 100) {
 		return errors.New("invalid DataGSM identity")
@@ -151,13 +203,24 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	return nil
 }
 
+// ValidDecimalID accepts the canonical decimal form of a positive 64-bit provider account number.
+func ValidDecimalID(value string) bool {
+	id, err := strconv.ParseInt(value, 10, 64)
+	return err == nil && id > 0 && strconv.FormatInt(id, 10) == value
+}
+
+var githubLogin = regexp.MustCompile(`\A[A-Za-z0-9][A-Za-z0-9-]{0,38}\z`)
+
+// ValidGitHubLogin accepts GitHub usernames: 1 to 39 letters, digits, or hyphens, not starting with a hyphen.
+func ValidGitHubLogin(value string) bool { return githubLogin.MatchString(value) }
+
 func validText(value string, max int) bool {
 	return strings.TrimSpace(value) != "" && utf8.RuneCountInString(value) <= max
 }
 
 func ValidateUserIdentityCommandResult(result UserIdentityCommandResult) error {
-	if result.SchemaVersion != 1 && result.SchemaVersion != 2 {
-		return fmt.Errorf("unsupported result schemaVersion")
+	if result.SchemaVersion != UserIdentityResultSchemaVersion {
+		return fmt.Errorf("result schemaVersion must be 2")
 	}
 	if !ValidUUID(result.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
@@ -165,8 +228,7 @@ func ValidateUserIdentityCommandResult(result UserIdentityCommandResult) error {
 	if result.OccurredAt.IsZero() {
 		return fmt.Errorf("occurredAt must not be zero")
 	}
-	needsClaims := result.SchemaVersion == 2 && result.Status == UserIdentitySucceeded
-	if needsClaims {
+	if result.Status == UserIdentitySucceeded {
 		if result.Email == nil || !validText(*result.Email, 255) || result.GsmRole == nil || utf8.RuneCountInString(*result.GsmRole) > 50 {
 			return errors.New("missing or invalid committed session claims")
 		}

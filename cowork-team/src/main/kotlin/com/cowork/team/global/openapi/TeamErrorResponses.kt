@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
+import org.springframework.modulith.NamedInterface
 import team.themoment.sdk.response.CommonApiResponse
 
 @Target(AnnotationTarget.CLASS)
@@ -36,4 +37,5 @@ import team.themoment.sdk.response.CommonApiResponse
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
 )
+@NamedInterface("openapi", propagate = false)
 annotation class TeamErrorResponses

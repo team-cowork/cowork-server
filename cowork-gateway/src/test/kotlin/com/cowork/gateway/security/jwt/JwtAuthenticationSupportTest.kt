@@ -1,7 +1,10 @@
 package com.cowork.gateway.security.jwt
 
+import com.cowork.gateway.security.agent.AgentScope
+import com.cowork.gateway.security.agent.isAgent
 import com.cowork.gateway.security.config.JwtProperties
 import io.jsonwebtoken.ExpiredJwtException
+import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.MalformedJwtException
 import io.jsonwebtoken.security.Keys
@@ -46,6 +49,46 @@ class JwtAuthenticationSupportTest :
                         result.isAuthenticated shouldBe true
                         result.authorities.isEmpty() shouldBe true
                         (result as UsernamePasswordAuthenticationToken).credentials shouldBe token
+                    }
+                }
+
+                context("scope가 유효한 agent JWT가 주어진 경우") {
+                    it("agent 권한과 scope 권한을 부여한다") {
+                        // Given
+                        val token = Jwts.builder().subject("42")
+                            .claim("token_use", "agent").claim("scope", "chat:read chat:write")
+                            .expiration(Date.from(Instant.now().plusSeconds(600)))
+                            .signWith(signingKey(SECRET)).compact()
+
+                        // When
+                        val result = support.parse(token)
+
+                        // Then
+                        result.isAgent() shouldBe true
+                        result.authorities.toSet() shouldBe setOf(
+                            AgentScope.AGENT_AUTHORITY,
+                            AgentScope.CHAT_READ.authority,
+                            AgentScope.CHAT_WRITE.authority,
+                        )
+                    }
+                }
+
+                context("scope가 없거나 알 수 없는 agent JWT 또는 알 수 없는 용도의 JWT가 주어진 경우") {
+                    it("JwtException을 던진다") {
+                        val claimSets = listOf(
+                            mapOf("token_use" to "agent"),
+                            mapOf("token_use" to "agent", "scope" to ""),
+                            mapOf("token_use" to "agent", "scope" to "chat:read admin"),
+                            mapOf("token_use" to "agent", "scope" to listOf("chat:read")),
+                            mapOf("token_use" to "service"),
+                        )
+                        claimSets.forEach { claims ->
+                            val token = Jwts.builder().subject("42").claims(claims)
+                                .expiration(Date.from(Instant.now().plusSeconds(600)))
+                                .signWith(signingKey(SECRET)).compact()
+
+                            shouldThrow<JwtException> { support.parse(token) }
+                        }
                     }
                 }
 

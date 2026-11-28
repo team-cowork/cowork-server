@@ -1,5 +1,4 @@
-import {Buffer} from 'node:buffer';
-import {type KafkaMessage} from 'kafkajs';
+import {type ConsumedRecord} from './partition-fetcher.js';
 import {PROJECTION_STREAMS} from './projection-streams.js';
 import {applyProjectionMessage} from './projection-message.processor.js';
 import {type ProjectionReadinessService} from './projection-readiness.service.js';
@@ -15,12 +14,14 @@ const validBarrier = {
 	source: stream.expectedSource,
 };
 
-function message(key: string | undefined, payload: Record<string, unknown>): KafkaMessage {
+function record(key: string | undefined, payload: Record<string, unknown>): ConsumedRecord {
 	return {
-		key: key === undefined ? null : Buffer.from(key),
-		value: Buffer.from(JSON.stringify(payload)),
+		topic: stream.topic,
+		partition: 0,
 		offset: '7',
-	} as unknown as KafkaMessage;
+		key: key ?? null,
+		value: JSON.stringify(payload),
+	};
 }
 
 describe('applyProjectionMessage snapshot barrier 검증', () => {
@@ -39,8 +40,7 @@ describe('applyProjectionMessage snapshot barrier 검증', () => {
 		const readiness = {quarantine};
 		const apply = jest.fn();
 		const result = await applyProjectionMessage(stream, {
-			partition: 0,
-			message: message(key, {...validBarrier, ...overrides}),
+			record: record(key, {...validBarrier, ...overrides}),
 			readiness: readiness as unknown as ProjectionReadinessService,
 			apply,
 		});
@@ -57,9 +57,9 @@ describe('applyProjectionMessage snapshot barrier 검증', () => {
 		} else {
 			expect(result).toEqual({});
 			expect(quarantine).toHaveBeenCalledTimes(1);
-			const [record] = quarantine.mock.lastCall ?? [];
-			expect(record).toMatchObject({partition: 0, offset: '7'});
-			expect(record?.reason).toContain('invalid projection snapshot marker');
+			const [quarantined] = quarantine.mock.lastCall ?? [];
+			expect(quarantined).toMatchObject({partition: 0, offset: '7'});
+			expect(quarantined?.reason).toContain('invalid projection snapshot marker');
 		}
 	});
 });

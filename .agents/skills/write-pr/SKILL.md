@@ -39,6 +39,11 @@ Read `.agents/skills/write-pr/references/commit-conventions.md` for commit type 
 - Code names: wrap every name that exists in code or configuration in backticks, with the exact spelling from the code. This covers class, method, field, annotation, enum constant, file, module, config key, endpoint path, header, table, column, and agent names (e.g., `@Transactional`, `QueryProjectServiceImpl`, `SKILL.md`). Do not backtick general concepts; write them in Korean as described below.
 - HTTP status: describe a status by its standard reason phrase in plain text, not by its number. Write `Not Found 응답을 반환하도록 수정하였습니다`, not `404 응답`. Do not write the number next to the phrase. Only when the number itself is code, such as a literal in a test or a config value, quote that code in backticks as written.
 - Korean first: write general English words and concepts in Korean by meaning (e.g., retry → 재시도, fallback → 대체 처리, deprecated → 사용 중단 예정, edge case → 예외 상황). Do not transliterate a word into Hangul only to avoid English. Keep English only for code names in backticks, proper names of products, libraries, and services, common abbreviations without a settled Korean term (API, JWT, CI), and HTTP reason phrases. When the Korean term alone can be unclear, add the English term in parentheses once, at its first use.
+- Punctuation: applies to the Korean title and body this skill writes, not to the English in these instructions.
+  - Avoid the dash `—`. Use a comma or split the sentence instead.
+  - Avoid the middle dot `·`. Use a slash `/` where possible: write `읽기/쓰기`, not `읽기·쓰기`.
+  - Parentheses follow a looser rule. Do not put a long aside that breaks the flow of a sentence in parentheses; split the sentence instead. A short aside, the original term at its first use, and the expansion of an abbreviation may use parentheses.
+  - Exception: `—` and `·` inside a code name in backticks or inside a fixed format stay as written.
 - No checkboxes: do not use `- [ ]` or `- [x]`. Use a plain `-` list or a numbered list.
 
 ## Step 4 — Write Body & Show Preview

@@ -47,10 +47,9 @@ import {
 	UserClient,
 	UnreadCounterService,
 	type ChannelActionPermission,
+	type MessageScope,
 	ChannelMessageReadAccessService,
 	ChannelReadService,
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	ChatMessageLatencyMetricsService,
 	SlowmodeService,
 	TagSpamService,
 	type TagSpamReservation,
@@ -82,6 +81,16 @@ const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
+
+/**
+ 시스템 메시지를 저장했지만 실시간으로 보내지 못했다. Kafka 재전달로 다시 보내도록 던진다.
+ */
+export class SystemMessageBroadcastSkippedError extends Error {
+	constructor(channelId: number, messageId: string) {
+		super(`system message broadcast skipped channelId=${channelId} messageId=${messageId}`);
+		this.name = 'SystemMessageBroadcastSkippedError';
+	}
+}
 
 function threadTargetException(error: ThreadTargetError): Error {
 	switch (error) {
@@ -195,16 +204,12 @@ export class ChatService {
 	@inject()
 	private readonly channelReadService!: ChannelReadService;
 
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	@inject()
-	private readonly latencyMetrics!: ChatMessageLatencyMetricsService;
-
 	/**
      DM 메시지 전송 가능 여부를 검사한다.
      수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
-     전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
+     전송 가능하고 `shouldReveal`이 참이면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
      */
-	private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
+	private async verifyDmSendable(channelId: number, senderId: number, shouldReveal: boolean): Promise<void> {
 		const members = await this.dmParticipantRepository.findByChannelId(channelId);
 		const receiver = members.find(member => member.userId !== senderId);
 		if (!receiver) {
@@ -213,6 +218,10 @@ export class ChatService {
 
 		if (await this.blockService.isBlocked(receiver.userId, senderId)) {
 			throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
+		}
+
+		if (!shouldReveal) {
+			return;
 		}
 
 		await Promise.all([
@@ -235,12 +244,13 @@ export class ChatService {
 		userId: number,
 		channelIds: number[],
 		hiddenSystemChannelIds = new Set<number>(),
+		joinedAt?: Date,
 	): Promise<Map<number, number>> {
 		if (channelIds.length === 0) {
 			return new Map();
 		}
 
-		const cached = await this.unreadCounterService.getMany(userId, channelIds);
+		const cached = await this.unreadCounterService.getMany(userId, channelIds, joinedAt);
 		const missedIds = cached ? cached.misses : channelIds;
 		if (missedIds.length === 0) {
 			return cached!.hits;
@@ -248,11 +258,12 @@ export class ChatService {
 
 		const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
 		const recomputed = await this.messageRepository.countUnreadForChannels(readStates.map(state => ({
-			...state, shouldExcludeSystem: hiddenSystemChannelIds.has(state.channelId),
+			...state, joinedAt, shouldExcludeSystem: hiddenSystemChannelIds.has(state.channelId),
 		})));
 		// 집계 중 읽음 처리가 끝났다면 이 값은 오래된 위치 기준이므로, 기준 위치를 함께 넘겨 최신 값을 덮지 않게 한다.
 		const filled = new Map(readStates.map(({channelId, lastReadMessageId}) => [channelId, {
 			count: recomputed.get(channelId) ?? 0,
+			joinedAt,
 			readCursor: lastReadMessageId?.toHexString() ?? null,
 		}]));
 		void this.unreadCounterService.setMany(userId, filled);
@@ -640,7 +651,7 @@ export class ChatService {
      파일이 포함된 메시지를 삭제한다. 오브젝트는 {@link deleteMessageAndAttachments}가 남긴 삭제 의도로 워커가 지운다.
 
      @throws BadRequestException fileId 디코딩 실패
-     @throws NotFoundException 메시지가 존재하지 않는 경우
+     @throws NotFoundException 메시지가 존재하지 않거나 사용자가 볼 수 없는 음성 채널 로그인 경우
      @throws ForbiddenException 본인 파일이 아니고 message_manage 권한도 없는 경우
      */
 	async deleteFile(ctx: ChannelUserContext, fileId: string): Promise<{channelId: number; messageId: string}> {
@@ -652,6 +663,7 @@ export class ChatService {
 			throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
 		}
 
+		await this.requireVisibleMessage(ctx.channelId, ctx.userId, message);
 		if (message.authorId !== ctx.userId) {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}
@@ -663,25 +675,21 @@ export class ChatService {
 	}
 
 	/**
-     메시지를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
-     실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
-     */
-	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto): Promise<void> {
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		const acceptStartedAt = performance.now();
-		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
-		const attachmentCount = dto.attachments?.length ?? 0;
-		if (attachmentCount === 0 && dto.content.trim() === '') {
-			throw new BadRequestException('메시지 내용을 입력하세요');
-		}
+     메시지를 보낼 수 있는지 검사하고 메시지 범위를 돌려준다. 즉시 전송, 예약 생성, 예약 발송이 같은 검사를 쓴다.
+     `revealDm`이 참이면 DM 대화를 양쪽 목록에 다시 노출한다. 실제로 보내지 않는 예약 생성에서는 거짓이다.
 
-		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
-		const parentMessageId = presentString(dto.parentMessageId);
-		const threadId = dto.threadId ?? undefined;
-		const requestedClientMessageId = presentString(dto.clientMessageId);
+     @throws ForbiddenException 권한이 없거나 DM 상대가 차단한 경우
+     @throws NotFoundException 채널, 답장 원본, 스레드가 없는 경우
+     @throws ConflictException 채널이나 스레드가 보관된 경우
+     @throws ServiceUnavailableException 채널 정보가 일치하지 않거나 projection이 준비되지 않은 경우
+     */
+	async requireSendable(
+		ctx: ChannelUserContext,
+		target: {parentMessageId?: string; threadId?: number; attachmentCount: number; revealDm: boolean},
+	): Promise<MessageScope> {
 		const permissions: ChannelActionPermission[] = [
-			sendPermission(threadId),
-			...(attachmentCount > 0 ? ['file_attach' as const] : []),
+			sendPermission(target.threadId),
+			...(target.attachmentCount > 0 ? ['file_attach' as const] : []),
 		];
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
 		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
@@ -698,10 +706,36 @@ export class ChatService {
 			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
 		}
 
-		await this.requireSendTarget(ctx, parentMessageId, threadId);
+		await this.requireSendTarget(ctx, target.parentMessageId, target.threadId);
 		if (channel.type === DM_CHANNEL_TYPE) {
-			await this.verifyDmSendable(ctx.channelId, ctx.userId);
+			await this.verifyDmSendable(ctx.channelId, ctx.userId, target.revealDm);
 		}
+
+		return scope;
+	}
+
+	/**
+     메시지를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
+     실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
+     */
+	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto, isAgent = false): Promise<void> {
+		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
+		const attachmentCount = dto.attachments?.length ?? 0;
+		if (attachmentCount === 0 && dto.content.trim() === '') {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
+
+		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
+		const parentMessageId = presentString(dto.parentMessageId);
+		const threadId = dto.threadId ?? undefined;
+		if (isAgent && threadId === undefined) {
+			throw new ForbiddenException('에이전트는 스레드에만 메시지를 보낼 수 있습니다');
+		}
+
+		const requestedClientMessageId = presentString(dto.clientMessageId);
+		const scope = await this.requireSendable(ctx, {
+			parentMessageId, threadId, attachmentCount, revealDm: true,
+		});
 
 		if (requestedClientMessageId === undefined && attachmentCount > 0) {
 			throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
@@ -729,8 +763,6 @@ export class ChatService {
 				threadId,
 				clientMessageId,
 			}, ctx.userId);
-			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-			this.latencyMetrics.record('accept', acceptStartedAt, performance.now());
 		} catch (error) {
 			await Promise.all([
 				this.slowmodeService.release(slowmodeReservation),
@@ -1123,16 +1155,12 @@ export class ChatService {
 	async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
 		const readableChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, userId);
 
-		const isMember = await this.teamMemberRepository.exists(teamId, userId);
-		this.channelMessageReadAccess.requireProjectionsReady();
-		if (!isMember) {
-			throw new ForbiddenException('팀 접근 권한이 없습니다');
-		}
+		const joinedAt = await this.channelMessageReadAccess.requireTeamJoinedAt(teamId, userId);
 
 		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
 		const channelIds = await this.withoutArchivedChannels(readableChannelIds);
 		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(userId, channelIds);
-		const unreadCounts = await this.getUnreadCounts(userId, channelIds, hiddenSystemChannelIds);
+		const unreadCounts = await this.getUnreadCounts(userId, channelIds, hiddenSystemChannelIds, joinedAt);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
 
@@ -1149,7 +1177,9 @@ export class ChatService {
 
      `clientMessageId`는 중복 저장을 막는 결정적인 멱등성 키다. 이미 저장된 키면 저장을 건너뛴다.
 
-     @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널, 이미 저장된 메시지면 `null`
+     이미 저장된 키라도 아직 실시간으로 보내지 않은 메시지면 그 메시지를 돌려준다. 이때 안읽음 수는 다시 올리지 않는다.
+
+     @returns 보내야 할 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널, 이미 저장하고 보낸 메시지면 `null`
      */
 	async saveSystemMessage(
 		teamId: number,
@@ -1188,6 +1218,13 @@ export class ChatService {
 		} catch (error) {
 			// 다시 전달된 이벤트로 이미 저장된 메시지다. 안읽음 수를 다시 올리지 않고 건너뛴다.
 			if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11_000) {
+				// 저장 뒤 실시간 전송이 끝나지 않아 재전달된 경우에만 저장된 메시지를 돌려주어 다시 보내게 한다.
+				const existing = await this.messageRepository.findUnbroadcastedByClientMessageId(clientMessageId);
+				if (existing?.channelId === channelId && existing.authorId === SYSTEM_AUTHOR_ID) {
+					this.logger.warn(`Duplicate system message detected, re-broadcasting [clientMessageId=${clientMessageId}]`);
+					return existing;
+				}
+
 				this.logger.warn(`Duplicate system message detected, skipping [clientMessageId=${clientMessageId}]`);
 				return null;
 			}
@@ -1198,7 +1235,30 @@ export class ChatService {
 		// 음성 채널의 SYSTEM 메시지는 음성 채널 로그다. 로그를 볼 수 없는 사용자의 안읽음 수는 올리지 않는다.
 		const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId], {voiceLogs: true});
 		const targetUserIds = readableUsers.get(channelId) ?? [];
-		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
+		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds, saved.createdAt);
 		return saved;
+	}
+
+	/**
+     {@link saveSystemMessage}가 돌려준 메시지를 채널을 읽을 수 있는 사용자에게 실시간으로 보낸다.
+
+     보내지 못하면(Socket.IO 서버 미준비, projection 준비 공백) {@link SystemMessageBroadcastSkippedError}를 던진다.
+     그러면 Kafka offset이 커밋되지 않아 이벤트가 다시 전달되고, `saveSystemMessage`가 저장된 메시지를 돌려주어 다시 보낸다.
+     보낸 뒤에는 `broadcastedAt`을 기록해 재전달 때 같은 메시지를 다시 보내지 않게 한다.
+     */
+	async broadcastSystemMessage(message: MessageDocument): Promise<void> {
+		const messageId = message._id.toString();
+		const wasSent = await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, message.channelId, {
+			event: 'message', payload: toMessageBroadcastPayload(message),
+		});
+		if (!wasSent) {
+			this.logger.warn(`System message broadcast skipped, waiting for Kafka redelivery [channelId=${message.channelId}, messageId=${messageId}]`);
+			throw new SystemMessageBroadcastSkippedError(message.channelId, messageId);
+		}
+
+		// 기록이 실패해도 전송은 끝났으므로 다시 던지지 않는다. 다시 던지면 재전달로 같은 메시지를 한 번 더 보낸다.
+		await this.messageRepository.markBroadcasted(message._id).catch((error: unknown) => {
+			this.logger.warn(`Failed to record system message broadcast [messageId=${messageId}]: ${String(error)}`);
+		});
 	}
 }

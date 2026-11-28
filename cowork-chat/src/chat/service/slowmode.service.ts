@@ -6,13 +6,14 @@ import {
 } from '@nestjs/common';
 import {RedisRateLimiter} from '../../common/util/redis-rate-limiter.js';
 import {
-	ChannelRolePolicyProjectionRepository,
+	ChannelAccessProjectionRepository,
+	type ChannelAccessProjectionView,
 	TeamMemberProjectionRepository,
-	TeamRoleProjectionRepository,
+	type TeamMemberProjectionView,
 	TextChannelSettingProjectionRepository,
 } from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
-import {hasChannelPermission} from './channel-permission.js';
+import {isCurrentChannelAccessDecision} from './channel-message-read-access.service.js';
 
 export const SLOWMODE_BYPASS_PERMISSION = 'slowmode_bypass';
 
@@ -21,26 +22,15 @@ export type SlowmodeReservation = {
 	holder: string;
 };
 
-export type SlowmodeBypassInput = {
-	teamId: number;
-	isActiveMember: boolean;
-	roles: Array<{roleId: number; teamId: number; priority: number; isDefault: boolean; permissions: Record<string, boolean>}>;
-	channelPermissionsByRoleId: Map<number, Record<string, boolean>>;
-};
-
 /**
-Only active members can bypass; role and channel grants follow the shared permission rules.
+Only active members can bypass. Preference's current channel access decision must allow `slowmode_bypass`.
 */
-export function canBypassSlowmode(input: SlowmodeBypassInput): boolean {
-	if (!input.isActiveMember) {
-		return false;
-	}
-
-	return hasChannelPermission(
-		input.roles.filter(role => role.teamId === input.teamId),
-		input.channelPermissionsByRoleId,
-		SLOWMODE_BYPASS_PERMISSION,
-	);
+export function canBypassSlowmode(
+	decision: ChannelAccessProjectionView | undefined,
+	member: Pick<TeamMemberProjectionView, 'teamId' | 'authorizationVersion'> | undefined,
+): boolean {
+	return isCurrentChannelAccessDecision(decision, member)
+		&& decision.allowedPermissions.includes(SLOWMODE_BYPASS_PERMISSION);
 }
 
 @injectable()
@@ -52,37 +42,17 @@ export class SlowmodeService {
 	private readonly teamMemberRepository!: TeamMemberProjectionRepository;
 
 	@inject()
-	private readonly teamRoleRepository!: TeamRoleProjectionRepository;
-
-	@inject()
-	private readonly policyRepository!: ChannelRolePolicyProjectionRepository;
+	private readonly channelAccessRepository!: ChannelAccessProjectionRepository;
 
 	@inject()
 	private readonly rateLimiter!: RedisRateLimiter;
 
 	private async canBypass(teamId: number, channelId: number, userId: number): Promise<boolean> {
-		const [member] = await this.teamMemberRepository.findByTeamIdsAndUserIds([teamId], [userId]);
-		if (member === undefined) {
-			return false;
-		}
-
-		const [assignments, defaults] = await Promise.all([
-			this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds([teamId], [userId]),
-			this.teamRoleRepository.findDefaultRolesByTeamIds([teamId]),
+		const [[member], [decision]] = await Promise.all([
+			this.teamMemberRepository.findByTeamIdsAndUserIds([teamId], [userId]),
+			this.channelAccessRepository.findByChannelIdsAndUserIds([channelId], [userId]),
 		]);
-		const roleIds = [...new Set([...assignments, ...defaults].map(({roleId}) => roleId))];
-		const [roles, policies] = await Promise.all([
-			this.teamRoleRepository.findRolePermissionsByIds(roleIds),
-			this.policyRepository.findPermissionsByChannelIdAndRoleIds(channelId, roleIds),
-		]);
-		return canBypassSlowmode({
-			teamId,
-			isActiveMember: true,
-			roles: [...roles, ...defaults.map(role => ({...role, permissions: role.permissions ?? {}}))],
-			channelPermissionsByRoleId: new Map(policies
-				.filter(policy => policy.teamId === teamId)
-				.map(policy => [policy.roleId, policy.permissions])),
-		});
+		return canBypassSlowmode(decision, member);
 	}
 
 	/**

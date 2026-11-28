@@ -1,14 +1,14 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamPermissionGuard
+import com.cowork.team.domain.team.service.JpaTeamDirectory
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
+import com.cowork.team.domain.teamMember.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.global.outbox.NotificationPublisher
 import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -34,16 +34,14 @@ class InviteTeamMembersServiceImplTest :
             memberRepository = mockk()
             service = InviteTeamMembersServiceImpl(
                 memberRepository,
-                mockk<TeamEventPublisher>(relaxed = true),
+                mockk<NotificationPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamAccessGuard(
-                    teamRepository,
+                TeamPermissionGuard(
                     memberRepository,
-                    TeamPermissionGuard(
-                        memberRepository,
-                        policyReader(1, mapOf(10L to mapOf("manage_invites" to true))),
-                    ),
+                    policyReader(1, mapOf(10L to mapOf("manage_invites" to true))),
+                    mockk(),
                 ),
+                JpaTeamDirectory(teamRepository),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team
         }
@@ -52,8 +50,8 @@ class InviteTeamMembersServiceImplTest :
             context("일반 멤버가 다른 사용자를 초대하면") {
                 it("FORBIDDEN으로 거부한다") {
                     every {
-                        memberRepository.findByTeamIdAndUserId(1L, 20L)
-                    } returns null
+                        memberRepository.existsByTeamIdAndUserId(1L, 20L)
+                    } returns false
 
                     val error = shouldThrow<ExpectedException> {
                         service.execute(20L, 1L, listOf(30L))
@@ -88,11 +86,11 @@ class InviteTeamMembersServiceImplTest :
 
             context("OWNER가 기존 멤버와 중복된 사용자 ID를 함께 초대하면") {
                 it("새 사용자만 한 번씩 MEMBER로 추가한다") {
-                    val owner = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
-                    val existing = TeamMember(team = team, userId = 20L)
+                    val owner = TeamMember(teamId = team.id, userId = 10L, role = TeamRole.OWNER)
+                    val existing = TeamMember(teamId = team.id, userId = 20L)
                     every {
-                        memberRepository.findByTeamIdAndUserId(1L, 10L)
-                    } returns owner
+                        memberRepository.existsByTeamIdAndUserId(1L, 10L)
+                    } returns true
                     every { memberRepository.findAllByTeamIdForUpdate(1L) } returns listOf(owner, existing)
                     every { memberRepository.saveAll<TeamMember>(any()) } answers {
                         firstArg<Iterable<TeamMember>>().toList().onEach { it.joinedAt = LocalDateTime.now() }

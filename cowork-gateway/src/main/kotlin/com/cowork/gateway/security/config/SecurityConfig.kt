@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.config
 
+import com.cowork.gateway.security.agent.AgentScopeWebFilter
 import com.cowork.gateway.security.filter.DevOriginCredentialFilter
 import com.cowork.gateway.security.jwt.JwtAuthenticationSupport
 import com.cowork.gateway.security.jwt.JwtReactiveAuthenticationManager
@@ -13,6 +14,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.security.authorization.AuthorizationDecision
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder
 import org.springframework.security.config.web.server.ServerHttpSecurity
@@ -22,6 +24,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 import org.springframework.security.web.server.util.matcher.PathPatternParserServerWebExchangeMatcher
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 import org.springframework.web.util.pattern.PathPatternParser
+import reactor.core.publisher.Mono
 
 @Configuration
 @EnableWebFluxSecurity
@@ -104,12 +107,19 @@ class SecurityConfig(
                         "/api/authorization/auth/authorize",
                         "/api/authorization/auth/callback",
                         "/api/authorization/auth/refresh",
+                        // 에이전트 토큰 원문을 X-Cowork-Agent-Token 헤더로 받아 검증하므로 Cowork JWT가 없다.
+                        "/api/authorization/auth/agent-tokens/exchange",
                     ).permitAll()
                     // 파일 요청은 S3 서명으로 인증하고 공개 아이콘은 익명 읽기를 허용한다.
                     .pathMatchers(HttpMethod.GET, "/api/storage/**").permitAll()
                     .pathMatchers(HttpMethod.HEAD, "/api/storage/**").permitAll()
                     .pathMatchers(HttpMethod.PUT, "/api/storage/**").permitAll()
-                    .pathMatchers("/actuator/**").permitAll()
+                    .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                    // The Envoy expose listener scrapes metrics over loopback; nginx reaches the alloc address.
+                    .pathMatchers("/actuator", "/actuator/**").access { _, context ->
+                        val loopback = context.exchange.request.remoteAddress?.address?.isLoopbackAddress == true
+                        Mono.just(AuthorizationDecision(loopback))
+                    }
                     // The handler itself accepts only a direct loopback connection inside the allocation.
                     .pathMatchers(HttpMethod.GET, "/internal/deployment-state").permitAll()
                     .pathMatchers("/api/health").permitAll()
@@ -154,6 +164,7 @@ class SecurityConfig(
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+            .addFilterAfter(AgentScopeWebFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
             .build()
     }
 }

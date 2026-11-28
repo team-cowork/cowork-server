@@ -1,11 +1,12 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.teamAccess.TeamDirectory
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.response.InviteResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.CreateInviteService
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,7 +17,8 @@ import java.time.LocalDateTime
 @Service
 class CreateInviteServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
-    private val teamAccessGuard: TeamAccessGuard,
+    private val teamDirectory: TeamDirectory,
+    private val teamPermissionGuard: TeamPermissionGuard,
 ) : CreateInviteService {
 
     companion object {
@@ -35,11 +37,11 @@ class CreateInviteServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse {
-        teamAccessGuard.requirePermission(teamId, userId, "manage_invites")
-        val team = teamAccessGuard.findTeamOrThrow(teamId)
+        teamPermissionGuard.requirePermission(teamId, userId, "manage_invites")
+        teamDirectory.requireExists(teamId)
         val expiresAt = request.duration.toExpiresAt(LocalDateTime.now())
         val invite = TeamInvite(
-            team = team,
+            teamId = teamId,
             inviteCode = generateUniqueCode(),
             createdBy = userId,
             duration = request.duration.value,

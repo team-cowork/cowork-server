@@ -7,17 +7,16 @@ import {
 	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Consumer} from 'kafkajs';
-import {Server} from 'socket.io';
+import {type KafkaConsumerHandle} from '../../common/kafka/partition-fetcher.js';
 import {ChatService} from '../chat.service.js';
-import {ChannelMessageReadAccessService} from '../service/index.js';
-import {toMessageBroadcastPayload} from '../repository/index.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
+import {CHANNEL_PERMISSION_STREAMS} from '../../common/kafka/projection-streams.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubIssueResultEvent} from './event/github-issue.event.js';
 import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event.js';
 import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
-import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-message-result-consumer.js';
+import {startSystemMessageConsumer} from './system-message-result-consumer.js';
 
 /**
  GitHub 이슈 생성 결과를 SYSTEM 메시지로 저장하고 브로드캐스트한다.
@@ -29,18 +28,14 @@ import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-mes
 @injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(GithubIssueResultConsumer.name);
-	private readonly broadcaster: SystemMessageBroadcaster;
-	private consumers: Consumer[] = [];
+	private consumers: KafkaConsumerHandle[] = [];
 
 	constructor(
 		@inject(forwardRef(() => ChatService))
 		private readonly chatService: ForwardReference<ChatService>,
 		private readonly configService: ConfigService,
-		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
 		private readonly projectionReadiness: ProjectionReadinessService,
-	) {
-		this.broadcaster = new SystemMessageBroadcaster(this.logger, this.channelMessageReadAccess);
-	}
+	) {}
 
 	private async handleIssueResult(event: GithubIssueResultEvent, source: KafkaMessageSource): Promise<void> {
 		const content = event.success ? `✅ 이슈가 생성됐어요: ${event.issueUrl}` : `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
@@ -56,7 +51,12 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 		await this.saveAndBroadcast(event, `❌ 이슈 생성 실패: ${event.error?.message ?? '알 수 없는 오류'}`, source);
 	}
 
+	/**
+     채널 권한 projection이 준비될 때까지 기다린 뒤 저장하고 보낸다.
+     준비되지 않은 동안에는 전송이 실패해 재전달이 반복되므로, 다른 시스템 메시지 소비자처럼 먼저 기다린다.
+     */
 	private async saveAndBroadcast(event: {teamId: number; channelId: number}, content: string, source: KafkaMessageSource): Promise<void> {
+		await waitForProjectionReadiness(this.projectionReadiness, CHANNEL_PERMISSION_STREAMS);
 		const saved = await this.chatService.saveSystemMessage(
 			event.teamId,
 			event.channelId,
@@ -67,11 +67,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 			return;
 		}
 
-		await this.broadcaster.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
-	}
-
-	setSocketServer(io: Server) {
-		this.broadcaster.setSocketServer(io);
+		await this.chatService.broadcastSystemMessage(saved);
 	}
 
 	async onModuleInit() {
@@ -99,6 +95,6 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 	}
 
 	async onModuleDestroy() {
-		await Promise.all(this.consumers.map(async consumer => consumer.disconnect()));
+		await Promise.all(this.consumers.map(async consumer => consumer.close()));
 	}
 }

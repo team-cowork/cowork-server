@@ -1,6 +1,7 @@
 package com.cowork.team.domain.teamRole.projection
 
-import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberRoleAssignmentResponse
+import com.cowork.team.domain.teamRole.TeamMemberRoleAssignmentResponse
+import com.cowork.team.domain.teamRole.TeamRoleQueries
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.global.projection.ProjectionReadinessGate
 import org.springframework.stereotype.Component
@@ -13,13 +14,13 @@ class TeamRoleProjectionReader(
     private val teamRoleAssignmentProjectionRepository: TeamRoleAssignmentProjectionRepository,
     private val objectMapper: ObjectMapper,
     private val projectionReadinessGate: ProjectionReadinessGate,
-) {
-    fun getRoles(teamId: Long): List<TeamRoleResponse> {
+) : TeamRoleQueries {
+    override fun getRoles(teamId: Long): List<TeamRoleResponse> {
         projectionReadinessGate.requireReady()
         return findRoles(teamId)
     }
 
-    fun getMemberRoles(teamId: Long, accountId: Long): List<TeamRoleResponse> {
+    override fun getMemberRoles(teamId: Long, accountId: Long): List<TeamRoleResponse> {
         projectionReadinessGate.requireReady()
         val roleIds = teamRoleAssignmentProjectionRepository.findAllByTeamIdAndAccountId(teamId, accountId)
             .asSequence()
@@ -29,7 +30,7 @@ class TeamRoleProjectionReader(
         return findRoles(teamId).filter { it.isDefault || it.id in roleIds }
     }
 
-    fun getMemberRoleAssignments(teamId: Long): List<TeamMemberRoleAssignmentResponse> {
+    override fun getMemberRoleAssignments(teamId: Long): List<TeamMemberRoleAssignmentResponse> {
         projectionReadinessGate.requireReady()
         return teamRoleAssignmentProjectionRepository.findAllByTeamIdAndDeletedFalse(teamId).map {
             TeamMemberRoleAssignmentResponse(accountId = it.accountId, teamId = it.teamId, roleId = it.roleId)

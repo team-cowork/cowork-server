@@ -18,7 +18,7 @@ public static class EventParser
 
     /// <summary>An offset date-time converted to UTC with microsecond precision.</summary>
     public static DateTime UtcDateTime(JsonElement payload, string camelKey, string snakeKey) =>
-        payload.GetEither(camelKey, snakeKey) is { ValueKind: JsonValueKind.String } text && Iso8601.TryParse(text.GetString(), out var parsed, out _)
+        payload.GetEither(camelKey, snakeKey) is { ValueKind: JsonValueKind.String } text && Iso8601.TryParse(text.GetString(), out var parsed)
             ? parsed
             : throw new InvalidRecord($"{{:invalid_datetime, \"{camelKey}\"}}");
 }

@@ -17,6 +17,7 @@ import com.cowork.preference.global.security.RequesterContext
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -386,6 +387,28 @@ class ProjectAccessGuardTest :
                             runBlocking { fixture.guard.requireManager(PROJECT_ID, MEMBER) }
                         }
                     }
+                }
+            }
+        }
+
+        describe("ProjectAccessGuard 클래스의 requireTeamMember 메서드는") {
+            it("프로젝트 읽기 권한이 없어도 팀 멤버면 프로젝트 projection을 반환한다") {
+                fixture.stubReadiness(true)
+                fixture.stubProject()
+                fixture.stubTeamMember()
+
+                val project = runBlocking { fixture.guard.requireTeamMember(PROJECT_ID, MEMBER) }
+
+                project.teamId shouldBe TEAM_ID
+                coVerify(exactly = 0) { fixture.roles.effectivePermissions(any(), any(), any()) }
+            }
+            it("팀 멤버가 아니면 거부한다") {
+                fixture.stubReadiness(true)
+                fixture.stubProject()
+                fixture.stubTeamMember(found = false)
+
+                shouldThrow<ResourceAccessDeniedException> {
+                    runBlocking { fixture.guard.requireTeamMember(PROJECT_ID, MEMBER) }
                 }
             }
         }

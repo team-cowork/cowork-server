@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -104,22 +106,23 @@ func main() {
 		log.Fatalf("failed to configure DataGSM login: %v", err)
 	}
 	defer login.Close()
-	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login)
+	githubLogin, err := service.NewGitHubLogin(cfg, loginAttempts, nil)
+	if err != nil {
+		log.Fatalf("failed to configure GitHub login: %v", err)
+	}
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login, githubLogin)
 	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
 	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
 		sqlDB,
 		cfg.KafkaTopicUserPresence,
 		kafkaProducer,
 	)
-	providerResults := kafkainfra.NewIdentityResultConsumer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers,
-		config.ProviderResultTopic, config.ProviderResultGroup, config.ProviderResultTopic+"-dlt", 2, identityOperationRepo, kafkaProducer)
 	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
 		cfg.KafkaSecurity,
 		cfg.KafkaBootstrapServers,
-		cfg.KafkaTopicUserIdentityCommandResult,
-		cfg.KafkaGroupIDUserIdentityResult,
-		cfg.KafkaTopicUserIdentityResultDLT,
-		1,
+		config.ProviderResultTopic,
+		config.ProviderResultGroup,
+		config.ProviderResultDLT,
 		identityOperationRepo,
 		kafkaProducer,
 	)
@@ -134,8 +137,6 @@ func main() {
 		defer close(snapshotBarrierDone)
 		snapshotBarrierPublisher.Run(outboxCtx)
 	}()
-	providerResultDone := make(chan struct{})
-	go func() { defer close(providerResultDone); providerResults.Run(outboxCtx) }()
 	identityResultDone := make(chan struct{})
 	go func() {
 		defer close(identityResultDone)
@@ -157,13 +158,20 @@ func main() {
 	}()
 
 	authHandler := handler.NewAuthHandler(authSvc)
+	agentTokenHandler := handler.NewAgentTokenHandler(
+		service.NewAgentTokenService(repository.NewAgentTokenRepository(db), tokenSvc),
+	)
 	eventHandler := handler.NewEventHandler(eventSvc)
 
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{healthPath, healthTrailingPath, metricsPath, metricsTrailingPath},
 	}))
-	router.Use(gin.Recovery())
+	// gin.Recovery's request dump masks only Authorization, so it would log X-Cowork-Agent-Token in plain text.
+	router.Use(gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, rec any) {
+		slog.Error("Panic recovered", "panic", rec, "stack", string(debug.Stack()))
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 	router.Use(monitoring.HTTPMetricsMiddleware())
 
 	router.GET(healthPath, handler.Health)
@@ -178,6 +186,12 @@ func main() {
 		auth.POST("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
+		auth.POST("/link/authorize", handler.RequireUserID(), authHandler.LinkAuthorize)
+		auth.POST("/link/callback", handler.RequireUserID(), authHandler.LinkCallback)
+		auth.POST("/agent-tokens", handler.RequireUserID(), agentTokenHandler.Create)
+		auth.GET("/agent-tokens", handler.RequireUserID(), agentTokenHandler.List)
+		auth.DELETE("/agent-tokens/:id", handler.RequireUserID(), agentTokenHandler.Revoke)
+		auth.POST("/agent-tokens/exchange", agentTokenHandler.Exchange)
 	}
 
 	events := router.Group("/events")
@@ -258,10 +272,6 @@ func main() {
 	case <-time.After(5 * time.Second):
 		log.Println("authorization identity result consumer did not stop within 5 seconds")
 	}
-	if err := providerResults.Close(); err != nil {
-		log.Printf("failed to close provider result reader: %v", err)
-	}
-	<-providerResultDone
 	if err := kafkaProducer.Close(); err != nil {
 		log.Printf("failed to close Kafka producer: %v", err)
 	}

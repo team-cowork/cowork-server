@@ -7,20 +7,6 @@
         "retention.ms": "604800000"
       }
     },
-    "user.identity.command-result": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
-    "user.identity.command-result-dlt": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
     "user.profile.event.v2": {
       "partitions": 1,
       "config": {
@@ -287,6 +273,27 @@
         "segment.ms": "3600000"
       }
     },
+    "preference.team-access.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.team-access.state.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.channel-access.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
     "preference.account-setting.state.v1": {
       "partitions": 1,
       "config": {
@@ -406,6 +413,13 @@
         "segment.ms": "3600000"
       }
     },
+    "github.timeline.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
     "github.sync.command.v1": {
       "partitions": 1,
       "config": {
@@ -442,13 +456,6 @@
       }
     },
     "github.project-item-write.result.v1-dlt": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
-    "user.identity.command.v2": {
       "partitions": 1,
       "config": {
         "cleanup.policy": "delete",
@@ -511,6 +518,13 @@
         "retention.ms": "604800000"
       }
     },
+    "user.identity.command.v4": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
     "user.identity.result.v2": {
       "partitions": 1,
       "config": {
@@ -528,16 +542,17 @@
   },
   "principals": {
     "cowork-applet": {
-      "topics": []
+      "topics": [
+        "team.member.event",
+        "preference.team-role.state.v2"
+      ]
     },
     "cowork-authorization": {
       "topics": [
         "user.data.sync",
-        "user.identity.command-result",
-        "user.identity.command-result-dlt",
         "user.presence.event",
-        "user.identity.command.v2",
         "user.identity.command.v3",
+        "user.identity.command.v4",
         "user.identity.result.v2",
         "user.identity.result.v2-dlt"
       ]
@@ -551,7 +566,9 @@
         "channel.dm-participant.state.v1",
         "channel.event.v2",
         "project.event.v2",
+        "preference.team-access.state.v2",
         "preference.team-role.state.v2",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
         "preference.channel-role-policy.command.v2",
@@ -579,7 +596,9 @@
         "github.repo.event",
         "voice.event",
         "notification.trigger",
+        "preference.team-access.state.v2",
         "preference.team-role.state.v2",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
         "preference.team-setting.state.v1",
@@ -616,6 +635,7 @@
         "github.pull-request.state.v1",
         "github.label.state.v1",
         "github.issue-comment.state.v1",
+        "github.timeline.state.v1",
         "github.sync.command.v1",
         "github.project.state.v1",
         "github.project-item.state.v1",
@@ -644,10 +664,13 @@
         "project.event.v2",
         "preference.status.changed",
         "preference.channel-notification.changed",
+        "preference.team-access.state.v1",
+        "preference.team-access.state.v2",
         "preference.team-role.state.v2",
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
         "preference.team-role.result.v2-dlt",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
@@ -680,6 +703,7 @@
         "github.issue.create",
         "github.issue.result",
         "notification.trigger",
+        "preference.team-access.state.v2",
         "preference.team-role.state.v2",
         "preference.github-repo.setting.command",
         "preference.github-repo.setting.state",
@@ -697,6 +721,7 @@
         "github.pull-request.state.v1",
         "github.label.state.v1",
         "github.issue-comment.state.v1",
+        "github.timeline.state.v1",
         "github.sync.command.v1",
         "github.project.state.v1",
         "github.project-item.state.v1",
@@ -710,6 +735,7 @@
         "team.member.event",
         "team.member.event-dlt",
         "preference.account-role.state.v1",
+        "preference.team-access.state.v2",
         "preference.team-role.state.v2"
       ]
     },
@@ -726,25 +752,26 @@
         "team.github.disconnected-dlt",
         "team.github.renamed-dlt",
         "notification.trigger",
+        "preference.team-access.state.v2",
         "preference.team-role.state.v2",
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
         "preference.team-role.result.v2-dlt",
         "preference.team-setting.state.v1",
-        "preference.account-role.state.v1"
+        "preference.account-role.state.v1",
+        "project.calendar-event.state.v1",
+        "project.readable-user.state.v1"
       ]
     },
     "cowork-user": {
       "topics": [
         "user.data.sync",
-        "user.identity.command-result",
-        "user.identity.command-result-dlt",
         "user.profile.event.v2",
         "user.presence.event",
         "team.member.event",
         "team.member.event-dlt",
-        "user.identity.command.v2",
         "user.identity.command.v3",
+        "user.identity.command.v4",
         "user.identity.result.v2"
       ]
     },
@@ -755,6 +782,7 @@
         "channel.event.v2",
         "voice.event",
         "preference.team-role.state.v2",
+        "preference.channel-access.state.v1",
         "preference.channel-role-policy.state.v2",
         "preference.voice-channel-setting.state.v1"
       ]

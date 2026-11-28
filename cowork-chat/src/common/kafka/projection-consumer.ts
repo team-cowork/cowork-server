@@ -1,37 +1,39 @@
 import {type Logger} from '@nestjs/common';
-import {type Consumer, type Kafka} from 'kafkajs';
+import {type ConfigService} from '@nestjs/config';
+import {getKafkaClientConfig} from '../config/config.util.js';
 import {connectWithRetry} from './connect-with-retry.js';
+import {createGroupConsumer, type KafkaConsumerHandle, PartitionFetcher} from './partition-fetcher.js';
 import {applyProjectionMessage} from './projection-message.processor.js';
 import {type ProjectionReadinessService, type ProjectionStream} from './projection-readiness.service.js';
 
 /**
- Projection consumer의 startup(connect, subscribe, readiness 등록)을 재시도하고, run 실패는 rejection으로 남겨 프로세스 재시작에 맡긴다.
+ Projection consumer의 startup(group 참여, readiness 등록)을 재시도한다. 파티션은 readiness가 Mongo checkpoint
+ lease를 claim하고 그 위치로 seek한 뒤에만 fetch한다.
  */
 export async function startProjectionConsumer(input: {
 	logger: Logger;
-	kafka: Kafka;
-	consumer: Consumer;
+	configService: ConfigService;
+	clientId: string;
 	readiness: ProjectionReadinessService;
 	stream: ProjectionStream;
 	handleEvent(payload: unknown, messageKey?: string): Promise<void>;
-}): Promise<void> {
-	const {logger, kafka, consumer, readiness, stream, handleEvent} = input;
-	await connectWithRetry(logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-		await consumer.connect();
-		await consumer.subscribe({topic: stream.topic, fromBeginning: true});
-		await readiness.registerProjection(kafka, consumer, stream);
-	});
-
-	void consumer.run({
-		async eachMessage({partition, message}): Promise<void> {
-			await readiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(stream, {
-				partition, message, readiness, apply: handleEvent,
+}): Promise<KafkaConsumerHandle> {
+	const {logger, configService, clientId, readiness, stream, handleEvent} = input;
+	const fetcher = new PartitionFetcher({
+		logger,
+		consumer: createGroupConsumer(configService, clientId, stream.groupId),
+		topic: stream.topic,
+		concurrency: 1,
+		async handle(record) {
+			await readiness.processMessage(stream, record.partition, record.offset, async () => applyProjectionMessage(stream, {
+				record, readiness, apply: handleEvent,
 			}));
 		},
-	}).catch((error: unknown) => {
-		logger.error(`${stream.topic} Kafka consumer failed`, error);
-		// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-		throw error;
+	});
+	await connectWithRetry(logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+		await readiness.registerProjection(fetcher, stream, {clientId: `${clientId}-admin`, ...getKafkaClientConfig(configService)});
+		await fetcher.start();
 	});
 	logger.log(`Kafka projection consumer started: ${stream.topic}`);
+	return fetcher;
 }

@@ -50,7 +50,7 @@ export class WebhookService {
 	private readonly unread!: UnreadCounterService;
 
 	async execute(executionId: string, input: {content: string; secret?: string; idempotencyKey?: string}) {
-		if (!this.readiness.areReady(['webhook', 'channel', 'teamMember', 'teamRole', 'channelRolePolicy'])) {
+		if (!this.readiness.areReady(['webhook', 'channel', 'teamMember', 'channelAccess'])) {
 			throw new ServiceUnavailableException('웹훅 정보가 아직 동기화되지 않았습니다.');
 		}
 
@@ -97,7 +97,7 @@ export class WebhookService {
 			const delivery = await Promise.allSettled([
 				this.chat.emitToReadableChannelUsers(webhook.channelId, 'message', response),
 				this.readAccess.findReadableUsersByChannel([webhook.channelId]).then(async users =>
-					this.unread.incrementIfPresent(webhook.channelId, users.get(webhook.channelId) ?? [])),
+					this.unread.incrementIfPresent(webhook.channelId, users.get(webhook.channelId) ?? [], result.message.createdAt)),
 			]);
 			if (delivery.some(outcome => outcome.status === 'rejected')) {
 				this.logger.warn(`Failed to deliver persisted webhook message [messageId=${result.message._id.toString()}]`);

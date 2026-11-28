@@ -80,7 +80,9 @@ class ChannelArchivePermissionSupportTest :
                     mockk(),
                     mockk(),
                     mockk(),
+                    mockk(),
                     readinessGate,
+                    mockk(),
                     mockk(),
                 ),
             )

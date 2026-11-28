@@ -16,6 +16,7 @@ import {
 import {Type as transformType} from 'class-transformer';
 import {ApiProperty as apiProperty, ApiPropertyOptional as apiPropertyOptional} from '@nestjs/swagger';
 import {SYSTEM_MESSAGE_KEY_PREFIX} from '../kafka/system-message-key.js';
+import {SCHEDULED_CLIENT_MESSAGE_ID_PREFIX} from '../scheduled/scheduled-message.policy.js';
 
 export class AttachmentDto {
 	@apiProperty({description: '업로드 완료 확인에서 반환한 최종 object key'})
@@ -41,9 +42,11 @@ export class SendMessageDto {
 	@apiPropertyOptional({description: '메시지를 보낼 스레드 ID. 생략하면 채널에 보냄'})
 	@isInt() @min(1) @max(Number.MAX_SAFE_INTEGER) @isOptional() threadId?: number;
 
-	// 시스템 메시지 키를 미리 차지해 다른 채널의 시스템 메시지 저장을 막지 못하게 접두사를 거부한다.
-	@apiPropertyOptional({description: `클라이언트 생성 멱등성 키 (UUID 권장, \`${SYSTEM_MESSAGE_KEY_PREFIX}\`로 시작할 수 없음)`})
+	// 시스템 메시지와 예약 메시지의 키를 미리 차지해 그 메시지의 저장을 막지 못하게 두 접두사를 거부한다.
+	@apiPropertyOptional({description: `클라이언트 생성 멱등성 키 (UUID 권장, \`${SYSTEM_MESSAGE_KEY_PREFIX}\`나 \`${SCHEDULED_CLIENT_MESSAGE_ID_PREFIX}\`로 시작할 수 없음)`})
 	@isString() @maxLength(200) @isOptional()
-	@matches(new RegExp(`^(?!${SYSTEM_MESSAGE_KEY_PREFIX})`, 'v'), {message: `clientMessageId must not start with ${SYSTEM_MESSAGE_KEY_PREFIX}`})
+	@matches(new RegExp(`^(?!${SYSTEM_MESSAGE_KEY_PREFIX}|${SCHEDULED_CLIENT_MESSAGE_ID_PREFIX})`, 'v'), {
+		message: `clientMessageId must not start with ${SYSTEM_MESSAGE_KEY_PREFIX} or ${SCHEDULED_CLIENT_MESSAGE_ID_PREFIX}`,
+	})
 	clientMessageId?: string;
 }

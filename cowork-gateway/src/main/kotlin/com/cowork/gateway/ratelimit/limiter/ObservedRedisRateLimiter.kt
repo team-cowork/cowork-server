@@ -15,13 +15,23 @@ import kotlin.math.ceil
 /**
  * Redis 오류 시 요청을 허용하는 기본 동작(fail-open)은 유지하고, 차단과 제한기 오류를 메트릭으로 구분한다.
  * 차단 응답에는 토큰 1회 요청분이 다시 채워지는 시간을 `Retry-After`로 더한다.
+ *
+ * Spring Cloud Gateway는 제한기 설정을 라우트 ID마다 하나만 저장하고, 모든 `redis-rate-limiter.*` 라우트 인자를
+ * 모든 제한기 빈에 전달한다. 한 라우트에 한도가 다른 RequestRateLimiter를 둘 두려면 두 번째 제한기는
+ * [fixedConfigs]로 라우트별 한도를 고정하고 라우트 인자를 받지 않아야 한다.
  */
 class ObservedRedisRateLimiter(
     reactiveStringRedisTemplate: ReactiveStringRedisTemplate,
     redisScript: RedisScript<List<Long>>,
     configurationService: ConfigurationService,
     private val meterRegistry: MeterRegistry,
+    private val fixedConfigs: Map<String, Config> = emptyMap(),
 ) : RedisRateLimiter(reactiveStringRedisTemplate, redisScript, configurationService) {
+
+    init {
+        config.putAll(fixedConfigs)
+        fixedConfigs.keys.forEach { routeId -> OUTCOMES.forEach { counter(routeId, it) } }
+    }
 
     override fun isAllowed(routeId: String, id: String): Mono<RateLimiter.Response> =
         super.isAllowed(routeId, id).map { response ->
@@ -41,6 +51,7 @@ class ObservedRedisRateLimiter(
 
     // 첫 이벤트부터 increase()에 잡히도록 라우트 설정이 바인딩될 때 카운터를 0으로 미리 등록한다
     override fun onApplicationEvent(event: FilterArgsEvent) {
+        if (fixedConfigs.isNotEmpty()) return
         super.onApplicationEvent(event)
         if (config.containsKey(event.routeId)) {
             OUTCOMES.forEach { counter(event.routeId, it) }

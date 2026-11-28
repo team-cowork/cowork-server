@@ -40,18 +40,6 @@ const mockConsumer = {
 	setSocketServer: jest.fn(),
 };
 
-const mockGithubIssueResultConsumer = {
-	setSocketServer: jest.fn(),
-};
-
-const mockGithubRepoEventConsumer = {
-	setSocketServer: jest.fn(),
-};
-
-const mockVoiceEventConsumer = {
-	setSocketServer: jest.fn(),
-};
-
 const mockChannelEventConsumer = {
 	setSocketServer: jest.fn(),
 };
@@ -70,11 +58,7 @@ const mockDmParticipantConsumer = {
 	setReadableEmitter: jest.fn(),
 };
 
-const mockTeamRoleEventConsumer = {
-	setSocketServer: jest.fn(),
-};
-
-const mockChannelRolePolicyEventConsumer = {
+const mockChannelAccessEventConsumer = {
 	setSocketServer: jest.fn(),
 };
 
@@ -95,15 +79,11 @@ describe('ChatGateway', () => {
 		gateway = Object.assign<ChatGateway, Record<string, unknown>>(new ChatGateway(mockConfigService as never), {
 			chatService: mockChatService,
 			consumer: mockConsumer,
-			githubIssueResultConsumer: mockGithubIssueResultConsumer,
-			githubRepoEventConsumer: mockGithubRepoEventConsumer,
-			voiceEventConsumer: mockVoiceEventConsumer,
 			channelEventConsumer: mockChannelEventConsumer,
 			threadStateConsumer: mockThreadStateConsumer,
 			projectEventConsumer: mockProjectEventConsumer,
 			dmParticipantConsumer: mockDmParticipantConsumer,
-			teamRoleEventConsumer: mockTeamRoleEventConsumer,
-			channelRolePolicyEventConsumer: mockChannelRolePolicyEventConsumer,
+			channelAccessEventConsumer: mockChannelAccessEventConsumer,
 			teamMemberEventConsumer: mockTeamMemberEventConsumer,
 			rateLimiter: mockRateLimiter,
 			projectionReadiness: mockProjectionReadiness,

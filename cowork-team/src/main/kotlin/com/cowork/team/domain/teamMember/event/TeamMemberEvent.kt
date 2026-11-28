@@ -1,0 +1,16 @@
+package com.cowork.team.domain.teamMember.event
+
+import java.time.Instant
+
+data class TeamMemberEvent(
+    val eventType: String,
+    val teamId: Long,
+    val userId: Long,
+    val role: String,
+    val teamName: String,
+    val nickname: String?,
+    val occurredAt: Instant,
+    val authorizationVersion: Instant,
+    val joinedAt: Instant?,
+    val snapshot: Boolean = false,
+)

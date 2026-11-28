@@ -211,6 +211,25 @@ class TeamRoleRepository {
         return rows.map { it.toTeamRoleDefinition() }
     }
 
+    /** 계정이 활성 멤버인 모든 팀에서 기본 역할과 할당 역할을 읽는다. cowork-team의 팀 생성 권한 판정과 같은 범위다. */
+    internal suspend fun findRolesInMemberTeams(client: SqlClient, accountId: Long): List<TeamRoleDefinition> {
+        val rows = client.preparedQuery(
+            """
+            SELECT d.id, d.team_id, d.name, d.color_hex, d.priority, d.mentionable, d.permissions,
+                   d.created_at, d.updated_at, d.is_default
+            FROM tb_team_role_definitions d
+            JOIN tb_team_member_projections m ON m.team_id = d.team_id AND m.account_id = $1 AND NOT m.deleted
+            WHERE NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones t WHERE t.team_id = d.team_id)
+              AND (d.is_default OR EXISTS (
+                SELECT 1 FROM tb_account_team_roles a
+                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = $1
+              ))
+            ORDER BY d.team_id, d.id
+            """.trimIndent(),
+        ).execute(Tuple.of(accountId)).coAwait()
+        return rows.map { it.toTeamRoleDefinition() }
+    }
+
     internal suspend fun findAssignment(
         client: SqlClient,
         accountId: Long,

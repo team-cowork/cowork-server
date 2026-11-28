@@ -2,14 +2,13 @@ package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.CreateTeamRequest
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.AccountPermissionGuard
-import com.cowork.team.domain.team.service.TeamIconOwnershipManager
+import com.cowork.team.domain.teamMember.TeamMemberships
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.global.policy.AccountPermissionGuard
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -36,17 +35,11 @@ class CreateTeamServiceImplTest :
             every { memberRepository.save(any()) } answers {
                 firstArg<TeamMember>().also { savedOwner = it }
             }
-            val ownership = mockk<TeamIconOwnershipManager>()
-            every { ownership.replace(any(), any(), any()) } answers {
-                secondArg<Team>().iconUrl = thirdArg<String>()
-            }
             service = CreateTeamServiceImpl(
                 mockk<AccountPermissionGuard>(relaxed = true),
-                ownership,
                 teamRepository,
-                memberRepository,
+                TeamMemberships(memberRepository, mockk(relaxed = true)),
                 mockk<TeamEventPublisher>(relaxed = true),
-                mockk<TeamMemberEventPublisher>(relaxed = true),
             )
         }
 
@@ -55,15 +48,15 @@ class CreateTeamServiceImplTest :
                 it("요청 내용을 가진 팀과 OWNER 멤버를 생성한다") {
                     val result = service.execute(
                         7L,
-                        CreateTeamRequest("cowork", "core team", "https://example.com/icon.png"),
+                        CreateTeamRequest("cowork", "core team"),
                     )
 
                     result.name shouldBe "cowork"
                     result.description shouldBe "core team"
-                    result.iconUrl shouldBe "https://example.com/icon.png"
+                    result.iconUrl shouldBe null
                     result.ownerId shouldBe 7L
                     savedTeam.ownerId shouldBe 7L
-                    savedOwner.team shouldBe savedTeam
+                    savedOwner.teamId shouldBe savedTeam.id
                     savedOwner.userId shouldBe 7L
                     savedOwner.role shouldBe TeamRole.OWNER
                 }

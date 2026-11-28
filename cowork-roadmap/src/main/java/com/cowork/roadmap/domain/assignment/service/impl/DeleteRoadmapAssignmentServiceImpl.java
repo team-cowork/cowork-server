@@ -27,7 +27,7 @@ public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignme
             if (userId.equals(assignment.getAssignedBy())) {
                 roadmapAccessGuard.requireTeamMember(assignment.getTeamId(), userId);
             } else {
-                roadmapAccessGuard.requireTeamManager(userId, assignment.getTeamId());
+                roadmapAccessGuard.requireRoadmapManager(userId, assignment.getTeamId());
             }
         }
         roadmapAssignmentRepository.delete(assignment);

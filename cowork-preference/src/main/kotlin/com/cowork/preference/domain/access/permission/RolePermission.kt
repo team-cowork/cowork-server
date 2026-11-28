@@ -61,6 +61,18 @@ enum class RolePermission(
         "GitHub 연동 관리",
         "팀에 GitHub App을 연결하거나 해제할 수 있습니다. 볼 수 있는 프로젝트에 저장소를 연결하고 라벨 정책과 웹훅 알림 채널을 설정할 수 있습니다.",
     ),
+    MANAGE_APPLETS(
+        PermissionKeys.MANAGE_APPLETS,
+        RolePermissionGroup.TEAM,
+        "앱 관리",
+        "게시된 앱을 팀에 설치하거나 팀에서 제거하고, 설치한 앱이 요청한 권한을 승인할 수 있습니다.",
+    ),
+    USE_APPLETS(
+        PermissionKeys.USE_APPLETS,
+        RolePermissionGroup.TEAM,
+        "앱 사용",
+        "팀에 설치된 앱을 실행할 수 있습니다. 앱이 팀 리소스에 접근하는 범위는 이 권한이 아니라 팀이 앱에 승인한 권한으로 정해집니다.",
+    ),
     MANAGE_NICKNAME_FORMAT(
         PermissionKeys.MANAGE_NICKNAME_FORMAT,
         RolePermissionGroup.TEAM,
@@ -290,6 +302,14 @@ enum class RolePermission(
         RolePermissionGroup.CALENDAR,
         "다른 사람의 일정 삭제",
         "다른 사람이 만든 일정과 일정 카테고리를 삭제할 수 있습니다. 자기가 만든 일정은 이 권한 없이 삭제할 수 있습니다.",
+    ),
+    MANAGE_ROADMAPS(
+        PermissionKeys.MANAGE_ROADMAPS,
+        RolePermissionGroup.ROADMAP,
+        "로드맵 관리",
+        "팀과 프로젝트 로드맵을 만들고, 다른 사람이 만든 로드맵과 노드를 수정하거나 삭제할 수 있습니다. " +
+            "로드맵 노드에 과제를 출제하고 다른 사람이 출제한 과제를 삭제할 수 있습니다. " +
+            "자기가 만든 로드맵과 출제한 과제는 이 권한 없이 관리할 수 있습니다.",
     ),
     ;
 

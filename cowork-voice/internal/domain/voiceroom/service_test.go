@@ -352,10 +352,6 @@ func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*Session
 	return s.findActiveSessionResult, s.findActiveSessionErr
 }
 
-func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*Session, error) {
-	return nil, errors.New("unexpected call")
-}
-
 func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*Session, bool, error) {
 	s.createSessionCalls++
 	return s.createSessionResult, s.createSessionCreated, s.createSessionErr
@@ -368,19 +364,6 @@ func (s *stubRepository) GetSession(_ context.Context, _ string) (*Session, erro
 func (s *stubRepository) EndSession(_ context.Context, _ string, _ time.Time) (bool, error) {
 	s.endSessionCalls++
 	return s.endSessionErr == nil, s.endSessionErr
-}
-
-func (s *stubRepository) MarkSessionStartedAndEnqueue(_ context.Context, _ string, _ time.Time, _ any) (bool, error) {
-	return false, errors.New("unexpected call")
-}
-
-func (s *stubRepository) RecordParticipantJoinedAndEnqueue(
-	_ context.Context,
-	_ *Participant,
-	_ string,
-	_ any,
-) (bool, error) {
-	return false, errors.New("unexpected call")
 }
 
 func (s *stubRepository) MarkParticipantLeftAndEnqueue(
@@ -396,19 +379,6 @@ func (s *stubRepository) MarkParticipantLeftAndEnqueue(
 		s.enqueuedEvents = append(s.enqueuedEvents, event)
 	}
 	return s.markParticipantLeftFirst, nil
-}
-
-func (s *stubRepository) EndSessionAndEnqueue(
-	_ context.Context,
-	_ string,
-	_ time.Time,
-	_ any,
-) (bool, error) {
-	return false, errors.New("unexpected call")
-}
-
-func (s *stubRepository) CleanupOrphanParticipants(_ context.Context, _ string, _ time.Time) (int64, error) {
-	return 0, errors.New("unexpected call")
 }
 
 func (s *stubRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ int64, _ string) (*time.Time, error) {

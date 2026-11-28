@@ -2,6 +2,8 @@ package com.cowork.preference.bootstrap
 
 import com.cowork.preference.bootstrap.http.buildRouter
 import com.cowork.preference.bootstrap.snapshot.PreferenceSnapshotPublisher
+import com.cowork.preference.domain.access.effective.presentation.EffectivePermissionHandler
+import com.cowork.preference.domain.access.effective.service.EffectivePermissionService
 import com.cowork.preference.domain.access.projection.channel.handler.ChannelLifecycleProjectionHandler
 import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.access.projection.dm.handler.DmParticipantProjectionHandler
@@ -22,6 +24,7 @@ import com.cowork.preference.domain.accountrole.AccountRoleService
 import com.cowork.preference.domain.channelrole.command.ChannelRolePolicyCommandConsumer
 import com.cowork.preference.domain.channelrole.command.ChannelRolePolicyCommandProcessor
 import com.cowork.preference.domain.channelrole.command.repository.ChannelRolePolicyCommandInboxRepository
+import com.cowork.preference.domain.channelrole.repository.ChannelAccessStateRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.notification.presentation.NotificationHandler
 import com.cowork.preference.domain.notification.repository.NotificationRepository
@@ -40,6 +43,7 @@ import com.cowork.preference.domain.setting.service.PreferenceService
 import com.cowork.preference.domain.teamrole.command.TeamRoleCommandConsumer
 import com.cowork.preference.domain.teamrole.command.TeamRoleCommandProcessor
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
+import com.cowork.preference.domain.teamrole.repository.TeamAccessStateRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.domain.teamrole.service.TeamRoleService
 import com.cowork.preference.domain.webhook.presentation.WebhookHandler
@@ -153,6 +157,8 @@ class MainVerticle : AbstractVerticle() {
         val prefService = PreferenceService(prefRepo, preferenceCache, outboxRepository)
         val notifService = NotificationService(notifRepo, outboxRepository)
         val projectAccessRepo = ProjectAccessStateRepository(outboxRepository)
+        val teamAccessRepo = TeamAccessStateRepository(outboxRepository)
+        val channelAccessRepo = ChannelAccessStateRepository(outboxRepository)
         val initialAccessRepo = InitialResourceAccessRepository()
         val initialAccessService = InitialResourceAccessService(
             initialAccessRepo,
@@ -169,6 +175,7 @@ class MainVerticle : AbstractVerticle() {
             policyRepository = channelRolePolicyRepo,
             outboxRepository = outboxRepository,
             initialAccess = initialAccessService,
+            channelAccess = channelAccessRepo,
             webhookRepository = webhookRepository,
         )
         val teamRoleCommandProcessor = TeamRoleCommandProcessor(
@@ -179,6 +186,8 @@ class MainVerticle : AbstractVerticle() {
             readiness = projectionReadiness,
             channelRolePolicyRepository = channelRolePolicyRepo,
             projectAccess = projectAccessRepo,
+            teamAccess = teamAccessRepo,
+            channelAccess = channelAccessRepo,
         )
         val githubRepoSettingCommandProcessor = GithubRepoSettingCommandProcessor(
             preferenceRepository = prefRepo,
@@ -195,6 +204,7 @@ class MainVerticle : AbstractVerticle() {
             outboxRepository = outboxRepository,
             readiness = channelRolePolicyReadiness,
             initialAccess = initialAccessRepo,
+            channelAccess = channelAccessRepo,
         )
 
         val teamMembershipGuard = TeamMembershipGuard(pool, teamMemberProjectionRepo, projectionReadiness, teamRoleRepo)
@@ -248,12 +258,25 @@ class MainVerticle : AbstractVerticle() {
         webhookHandler.routes(router)
         val accountRoles = AccountRoleRepository(outboxRepository)
         AccountRoleHandler(AccountRoleService(pool, accountRoles, outboxRepository), scope).routes(router)
+        val effectivePermissionService = EffectivePermissionService(
+            pool = pool,
+            teamMembershipGuard = teamMembershipGuard,
+            channelAccessGuard = channelAccessGuard,
+            projectAccessGuard = projectAccessGuard,
+            accountRoleRepository = accountRoles,
+            teamRoleRepository = teamRoleRepo,
+            channelRolePolicyRepository = channelRolePolicyRepo,
+            projectRoleRepository = roleRepo,
+        )
+        EffectivePermissionHandler(effectivePermissionService, scope).routes(router)
 
         scheduleExpiryChecks(prefService, preferenceCache, webhookService)
         scheduleCacheRepair(preferenceCache)
         val snapshotPublisher = PreferenceSnapshotPublisher(
             projectAccessRepository = projectAccessRepo,
             projectAccessReadiness = projectAccessReadiness,
+            teamAccessRepository = teamAccessRepo,
+            channelAccessRepository = channelAccessRepo,
             notificationRepository = notifRepo,
             preferenceRepository = prefRepo,
             teamRoleRepository = teamRoleRepo,
@@ -266,12 +289,18 @@ class MainVerticle : AbstractVerticle() {
             webhookReadiness = channelProjectionReadiness,
             accountRoles = accountRoles,
         )
-        scheduleProjectionSnapshots(snapshotPublisher::publishAccountRolesIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishTeamStateIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishChannelRolePoliciesIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishProjectAccessIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishSettingStatesIfLeader)
-        scheduleProjectionSnapshots(snapshotPublisher::publishWebhooksIfLeader)
+        scheduleProjectionSnapshots(
+            listOf(
+                snapshotPublisher::publishAccountRolesIfLeader,
+                snapshotPublisher::publishTeamStateIfLeader,
+                snapshotPublisher::publishChannelRolePoliciesIfLeader,
+                snapshotPublisher::publishProjectAccessIfLeader,
+                snapshotPublisher::publishTeamAccessIfLeader,
+                snapshotPublisher::publishChannelAccessIfLeader,
+                snapshotPublisher::publishSettingStatesIfLeader,
+                snapshotPublisher::publishWebhooksIfLeader,
+            ),
+        )
 
         preferenceOutboxDispatcher = PreferenceOutboxDispatcher(
             vertx = vertx,
@@ -292,6 +321,8 @@ class MainVerticle : AbstractVerticle() {
                 teamMemberProjectionRepo,
                 checkpointRepository,
                 projectAccessRepo,
+                teamAccessRepo,
+                channelAccessRepo,
             ),
             checkpointRepository = checkpointRepository,
             topicIdentity = projectionTopicIdentity,
@@ -419,7 +450,24 @@ class MainVerticle : AbstractVerticle() {
         }
     }
 
-    private fun scheduleProjectionSnapshots(publishIfLeader: suspend () -> Boolean) {
+    private fun scheduleProjectionSnapshots(publishers: List<suspend () -> Boolean>) {
+        publishers.forEach(::scheduleStartupProjectionSnapshot)
+        // 모든 aggregate가 같은 advisory lock을 쓰므로 주기 snapshot은 하나의 타이머에서 순서대로 실행한다.
+        val periodicRunInProgress = AtomicBoolean(false)
+        vertx.setPeriodic(PROJECTION_SNAPSHOT_INTERVAL_MS) {
+            if (!periodicRunInProgress.compareAndSet(false, true)) return@setPeriodic
+            scope.launch(vertx.dispatcher()) {
+                try {
+                    // publishIfLeader는 실패를 기록하고 false를 반환하므로 다음 aggregate도 실행된다.
+                    publishers.forEach { it() }
+                } finally {
+                    periodicRunInProgress.set(false)
+                }
+            }
+        }
+    }
+
+    private fun scheduleStartupProjectionSnapshot(publishIfLeader: suspend () -> Boolean) {
         val startupAttemptInProgress = AtomicBoolean(false)
         vertx.setPeriodic(INITIAL_PROJECTION_SNAPSHOT_RETRY_INTERVAL_MS) { timerId ->
             if (!startupAttemptInProgress.compareAndSet(false, true)) return@setPeriodic
@@ -429,11 +477,6 @@ class MainVerticle : AbstractVerticle() {
                 } finally {
                     startupAttemptInProgress.set(false)
                 }
-            }
-        }
-        vertx.setPeriodic(PROJECTION_SNAPSHOT_INTERVAL_MS) {
-            scope.launch(vertx.dispatcher()) {
-                publishIfLeader()
             }
         }
     }

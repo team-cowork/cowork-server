@@ -39,4 +39,45 @@ class RolePolicyTest :
                 RolePolicy.allows(emptyMap<String, Boolean>(), "delete_team") shouldBe false
             }
         }
+
+        describe("RolePolicy 클래스의 explain 메서드는") {
+            val member = PolicyRole(1L, "@everyone", mapOf("manage_team" to false), isDefault = true)
+            val admin = PolicyRole(2L, "Admin", RolePolicy.administrator())
+            it("직접 허용한 역할이 있으면 ROLE_GRANT로 판정한다") {
+                val decision = RolePolicy.explain(
+                    listOf(member, PolicyRole(3L, "Lead", mapOf("manage_team" to true))),
+                    "manage_team",
+                )
+                decision.allowed shouldBe true
+                decision.decidedBy shouldBe PermissionDecisionReason.ROLE_GRANT
+                decision.sources.map { it.roleId to it.value } shouldBe listOf(1L to false, 3L to true)
+            }
+            it("관리자 역할만 허용하면 ADMINISTRATOR로 판정하고 관리자 역할을 근거에 포함한다") {
+                val decision = RolePolicy.explain(listOf(member, admin), "manage_team")
+                decision.allowed shouldBe true
+                decision.decidedBy shouldBe PermissionDecisionReason.ADMINISTRATOR
+                decision.sources.last() shouldBe
+                    PermissionSource(PermissionSourceKind.TEAM_ROLE, "administrator", true, 2L, "Admin")
+            }
+            it("관리자 역할도 소유권 이양은 허용하지 않는다") {
+                val decision = RolePolicy.explain(listOf(admin), "transfer_team_ownership")
+                decision.allowed shouldBe false
+                decision.decidedBy shouldBe PermissionDecisionReason.NO_GRANT
+            }
+            it("모든 권한 조합에서 allows와 같은 결과를 낸다") {
+                val roleSets = listOf(
+                    emptyList(),
+                    listOf(member),
+                    listOf(admin),
+                    listOf(PolicyRole(4L, "Owner", RolePolicy.owner())),
+                    listOf(member, PolicyRole(5L, "Mixed", mapOf("delete_team" to true, "message_send" to true))),
+                )
+                roleSets.forEach { roles ->
+                    (PermissionKeys.ROLE_SCOPED + "unknown_action").forEach { action ->
+                        RolePolicy.explain(roles, action).allowed shouldBe
+                            RolePolicy.allows(roles.map { it.permissions }, action)
+                    }
+                }
+            }
+        }
     })

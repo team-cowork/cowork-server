@@ -1,5 +1,8 @@
 package com.cowork.team.global.policy
 
+import org.springframework.modulith.NamedInterface
+
+@NamedInterface("policy", propagate = false)
 object PermissionKeys {
 
     const val ADMINISTRATOR = "administrator"
@@ -14,12 +17,15 @@ object PermissionKeys {
     const val MANAGE_CHANNELS = "manage_channels"
     const val MANAGE_PROJECTS = "manage_projects"
     const val MANAGE_GITHUB = "manage_github"
+    const val MANAGE_APPLETS = "manage_applets"
+    const val USE_APPLETS = "use_applets"
     const val MANAGE_NICKNAMES = "manage_nicknames"
     const val MANAGE_NICKNAME_FORMAT = "manage_nickname_format"
     const val ARCHIVE_CHANNELS = "archive_channels"
     const val CALENDAR_EVENT_CREATE = "calendar_event_create"
     const val CALENDAR_EVENT_UPDATE = "calendar_event_update"
     const val CALENDAR_EVENT_DELETE = "calendar_event_delete"
+    const val MANAGE_ROADMAPS = "manage_roadmaps"
 
     const val MESSAGE_READ = "message_read"
     const val MESSAGE_SEND = "message_send"
@@ -52,12 +58,15 @@ object PermissionKeys {
         MANAGE_CHANNELS,
         MANAGE_PROJECTS,
         MANAGE_GITHUB,
+        MANAGE_APPLETS,
+        USE_APPLETS,
         MANAGE_NICKNAMES,
         MANAGE_NICKNAME_FORMAT,
         ARCHIVE_CHANNELS,
         CALENDAR_EVENT_CREATE,
         CALENDAR_EVENT_UPDATE,
         CALENDAR_EVENT_DELETE,
+        MANAGE_ROADMAPS,
     )
 
     val CHANNEL_SCOPED: Set<String> = linkedSetOf(
