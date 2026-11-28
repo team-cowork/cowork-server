@@ -330,9 +330,10 @@ export class GithubWebhookController {
 	}): Promise<PullRequestFileState[] | undefined> {
 		const {owner, repo, number, action, isBaseChanged} = parameters;
 		if (!isBaseChanged && !PR_FILE_REFRESH_ACTIONS.has(action)) {
+			let cached: string | undefined;
 			try {
-				const cached = await this.redis.get(githubCacheKeys.pullRequestFiles(owner, repo, number));
-				if (cached !== null) {
+				cached = await this.redis.get(githubCacheKeys.pullRequestFiles(owner, repo, number)) ?? undefined;
+				if (cached !== undefined) {
 					return JSON.parse(cached) as PullRequestFileState[];
 				}
 			} catch (error) {
@@ -340,6 +341,10 @@ export class GithubWebhookController {
 					`Failed to read cached pull request files, sending state without files [pr=${owner}/${repo}#${number}]`,
 					error instanceof Error ? error.stack : String(error),
 				);
+				if (cached !== undefined) {
+					await this.evictPullRequestFiles(owner, repo, number, cached);
+				}
+
 				return undefined;
 			}
 		}
@@ -361,9 +366,14 @@ export class GithubWebhookController {
      이벤트가 오래된 목록을 다시 싣는다. 지우면 다음 이벤트가 파일 목록을 다시 조회한다.
      캐시 삭제가 실패해도 PR 상태는 보내야 하므로 경고만 남긴다.
      */
-	private async evictPullRequestFiles(owner: string, repo: string, number: number): Promise<void> {
+	private async evictPullRequestFiles(owner: string, repo: string, number: number, expectedValue?: string): Promise<void> {
+		const key = githubCacheKeys.pullRequestFiles(owner, repo, number);
 		try {
-			await this.redis.del(githubCacheKeys.pullRequestFiles(owner, repo, number));
+			if (expectedValue === undefined) {
+				await this.redis.del(key);
+			} else {
+				await this.redis.call('DELEX', key, 'IFEQ', expectedValue);
+			}
 		} catch (error) {
 			this.logger.warn(
 				`Failed to evict pull request files cache [pr=${owner}/${repo}#${number}]`,
