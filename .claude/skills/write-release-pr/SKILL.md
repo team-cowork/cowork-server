@@ -11,6 +11,11 @@ Same flow as `write-pr` (gather → body file → preview → create → cleanup
 ```bash
 git fetch origin --tags --quiet
 git status --porcelain
+```
+
+If this output is not empty, stop and report: the working tree is not clean, and `git checkout` would move the local changes to `develop`. Run the next block only when the output is empty.
+
+```bash
 git checkout develop
 git pull --ff-only origin develop
 git status -sb
@@ -18,8 +23,7 @@ gh pr list --base main --head develop --state open --json number,url
 ```
 
 Switch to `develop` and fast-forward it without asking. Stop and report when any of these hold:
-- The working tree is not clean (check before `git checkout`, so no local change moves to `develop`).
-- `git pull --ff-only` fails, or `develop` is still ahead of `origin/develop` (local commits that are not pushed).
+- `git checkout` or `git pull --ff-only` fails, or `develop` is still ahead of `origin/develop` (local commits that are not pushed).
 - An open `develop` → `main` PR already exists (report its URL).
 
 ## Step 2 — Gather Context
